@@ -1,5 +1,6 @@
 import random
-from typing import List, Optional, Dict, Union
+from typing import List, Dict, Union
+from typing import Optional
 from p_models.ability_info import AbilityInfo
 
 # availableAbilities 리스트
