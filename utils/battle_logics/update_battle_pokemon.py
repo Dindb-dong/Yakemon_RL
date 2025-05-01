@@ -6,7 +6,7 @@ from p_models.ability_info import AbilityInfo
 from p_models.move_info import MoveInfo
 from p_models.rank_state import RankManager, RankState
 from p_models.status import StatusManager, StatusState
-from context.battle_store import BattleStore
+from context.battle_store import battle_store_instance as store
 from context.duration_store import duration_store
 unmain_status_with_duration: list[str] = [
     "도발", "트집", "사슬묶기", "회복봉인", "앵콜",
@@ -16,7 +16,7 @@ unmain_status_with_duration: list[str] = [
 
 # 체력 변화
 def change_hp(pokemon: BattlePokemon, amount: int) -> BattlePokemon:
-    add_log = BattleStore.add_log
+    add_log = store.add_log
     new_hp = max(0, round(pokemon.current_hp + amount))
     pokemon.current_hp = min(pokemon.base.hp, new_hp)
 
@@ -89,7 +89,6 @@ def is_duration_status(status: StatusState) -> bool:
 
 
 def add_status(pokemon: BattlePokemon, status: StatusState, side: str, nullification: bool = False) -> BattlePokemon:
-    store = BattleStore
     opponent_side = "enemy" if side == "my" else "my"
     active_index = store['active_my'] if side == "my" else store["active_enemy"]
     active_pokemon = store['my_team'][active_index] if side == "my" else store['enemy_team'][active_index]
