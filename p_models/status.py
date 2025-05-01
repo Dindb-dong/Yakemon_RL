@@ -24,7 +24,10 @@ class StatusManager:
         self.status.append(status)
 
     def remove_status(self, status: StatusState) -> None:
-        self.status = [s for s in self.status if s != status]
+        if status not in self.status:
+            return
+        new_status = [s for s in self.status if s != status]
+        self.status = new_status
 
     def clear_status(self) -> None:
         self.status = []

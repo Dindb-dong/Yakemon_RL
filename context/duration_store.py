@@ -1,6 +1,6 @@
 # context/duration_store.py
 from typing import List, Dict, Literal, Optional
-from context.battle_store import BattleStore
+from context.battle_store import battle_store_instance as store
 from utils.battle_logics.update_battle_pokemon import add_status, remove_status
 
 TimedEffect = Dict[str, any]
@@ -69,11 +69,11 @@ class DurationStore:
         # 날씨, 필드, 룸 리셋
         for effect in expired["public"]:
             if effect in ["쾌청", "비", "모래바람", "싸라기눈"]:
-                BattleStore.set_public_env({"weather": None})
+                store.set_public_env({"weather": None})
             elif effect in ["그래스필드", "미스트필드", "사이코필드", "일렉트릭필드"]:
-                BattleStore.set_public_env({"field": None})
+                store.set_public_env({"field": None})
             elif effect in ["트릭룸", "매직룸", "원더룸"]:
-                BattleStore.set_public_env({"room": None})
+                store.set_public_env({"room": None})
 
         return expired
 
@@ -84,28 +84,28 @@ class DurationStore:
         for eff in transfer_list:
             self.remove_effect(side, eff["name"])
             self.add_effect(side, {**eff, "ownerIndex": to_idx})
+
     def decrement_special_effect(self, side, index, status, on_expire=None):
-      from context.duration_store import duration_store
-      effects = duration_store.state["myEffects"] if side == "my" else duration_store.state["enemyEffects"]
+        effects = self.state["myEffects"] if side == "my" else self.state["enemyEffects"]
 
-      effect = next((e for e in effects if e["name"] == status), None)
-      if not effect:
-          return False
+        effect = next((e for e in effects if e["name"] == status), None)
+        if not effect:
+            return False
 
-      next_turn = effect["remainingTurn"] - 1
-      if next_turn <= 0:
-          duration_store.remove_effect(side, status)
-          BattleStore.update_pokemon(side, index, lambda p: remove_status(p, status))
-          if on_expire:
-              on_expire()
-          return True
-      else:
-          duration_store.add_effect(side, {"name": status, "remainingTurn": next_turn, "ownerIndex": index})
-          return False
-        
+        next_turn = effect["remainingTurn"] - 1
+        if next_turn <= 0:
+            self.remove_effect(side, status)
+            store.update_pokemon(side, index, lambda p: remove_status(p, status))
+            if on_expire:
+                on_expire()
+            return True
+        else:
+            self.add_effect(side, {"name": status, "remainingTurn": next_turn, "ownerIndex": index})
+            return False
+
     def decrement_yawn_turn(self, side, index):
         return self.decrement_special_effect(side, index, "하품", lambda: 
-            BattleStore.update_pokemon(side, index, lambda p: add_status(p, "잠듦", side))
+            store.update_pokemon(side, index, lambda p: add_status(p, "잠듦", side))
         )
 
     def decrement_confusion_turn(self, side, index):
@@ -116,8 +116,9 @@ class DurationStore:
 
     def decrement_disable_turn(self, side, index):
         return self.decrement_special_effect(side, index, "사슬묶기", lambda: (
-            BattleStore.update_pokemon(side, index, lambda p: {**p, "unUsableMove": None}),
-            BattleStore.add_log("사슬묶기 상태가 풀렸다!")
+            store.update_pokemon(side, index, lambda p: {**p, "unUsableMove": None}),
+            store.add_log("사슬묶기 상태가 풀렸다!")
         ))
+
 # 싱글톤으로 관리
 duration_store = DurationStore()

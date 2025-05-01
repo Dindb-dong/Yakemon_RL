@@ -1,6 +1,4 @@
-# context/battle_store.py
-
-from typing import List, Optional, Dict, Callable, Any, Literal
+from typing import List, Optional, Dict, Callable, Literal
 from copy import deepcopy
 
 from p_models.battle_pokemon import BattlePokemon
@@ -40,26 +38,28 @@ class BattleStore:
         self.state["active_enemy"] = index
 
     def set_public_env(self, env_update: Dict):
-      for key, value in env_update.items():
-          if hasattr(self.state["public_env"], key):
-              setattr(self.state["public_env"], key, value)
+        for key, value in env_update.items():
+            if hasattr(self.state["public_env"], key):
+                setattr(self.state["public_env"], key, value)
 
     def set_my_env(self, env_update: Dict):
-      for key, value in env_update.items():
-          if hasattr(self.state["my_env"], key):
-              setattr(self.state["my_env"], key, value)
+        for key, value in env_update.items():
+            if hasattr(self.state["my_env"], key):
+                setattr(self.state["my_env"], key, value)
 
     def set_enemy_env(self, env_update: Dict):
         for key, value in env_update.items():
-          if hasattr(self.state["enemy_env"], key):
-              setattr(self.state["enemy_env"], key, value)
+            if hasattr(self.state["enemy_env"], key):
+                setattr(self.state["enemy_env"], key, value)
 
     def update_pokemon(self, side: SideType, index: int, updater: Callable[[BattlePokemon], BattlePokemon]):
+        if side not in ["my", "enemy"]:
+            raise ValueError("Invalid side type")
         team_key = "my_team" if side == "my" else "enemy_team"
+        if not 0 <= index < len(self.state[team_key]):
+            raise IndexError("Invalid pokemon index")
         team = self.state[team_key]
-        prev_pokemon = team[index]
-        updated_pokemon = updater(prev_pokemon)
-        team[index] = updated_pokemon
+        team[index] = updater(team[index])
         self.state[team_key] = team
 
     def set_turn(self, turn: int):
@@ -83,21 +83,8 @@ class BattleStore:
         self.state["enemy_roster"] = roster
 
     def reset_all(self):
-        self.state = {
-            "my_team": [],
-            "enemy_team": [],
-            "active_my": 0,
-            "active_enemy": 0,
-            "public_env": PublicBattleEnvironment(),
-            "my_env": IndividualBattleEnvironment(),
-            "enemy_env": IndividualBattleEnvironment(),
-            "turn": 1,
-            "logs": [],
-            "is_switch_waiting": False,
-            "switch_request": None,
-            "win_count": 0,
-            "enemy_roster": [],
-        }
+        self.__init__()
 
-# ✅ form_check 미들웨어와 함께 감싸서 사용
+
 BattleStoreWithFormCheck = with_form_check(BattleStore)
+battle_store_instance = BattleStoreWithFormCheck()
