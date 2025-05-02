@@ -85,7 +85,7 @@ class DurationStore:
             self.remove_effect(side, eff["name"])
             self.add_effect(side, {**eff, "ownerIndex": to_idx})
 
-    def decrement_special_effect(self, side, index, status, on_expire=None):
+    def decrement_special_effect(self, side: SideType, index: int, status: str, on_expire=None):
         effects = self.state["myEffects"] if side == "my" else self.state["enemyEffects"]
 
         effect = next((e for e in effects if e["name"] == status), None)
@@ -116,7 +116,7 @@ class DurationStore:
 
     def decrement_disable_turn(self, side, index):
         return self.decrement_special_effect(side, index, "사슬묶기", lambda: (
-            store.update_pokemon(side, index, lambda p: {**p, "unUsableMove": None}),
+            store.update_pokemon(side, index, lambda p: p.deepcopy(un_usable_move=None)),
             store.add_log("사슬묶기 상태가 풀렸다!")
         ))
 
