@@ -4,7 +4,7 @@ from copy import deepcopy
 from p_models.battle_pokemon import BattlePokemon
 from p_models.ability_info import AbilityInfo
 from p_models.move_info import MoveInfo
-from p_models.rank_state import RankManager, RankState
+from p_models.rank_state import RankManager
 from p_models.status import StatusManager, StatusState
 from context.battle_store import battle_store_instance as store
 from context.duration_store import duration_store
@@ -90,9 +90,12 @@ def is_duration_status(status: StatusState) -> bool:
 
 def add_status(pokemon: BattlePokemon, status: StatusState, side: str, nullification: bool = False) -> BattlePokemon:
     opponent_side = "enemy" if side == "my" else "my"
-    active_index = store['active_my'] if side == "my" else store["active_enemy"]
-    active_pokemon = store['my_team'][active_index] if side == "my" else store['enemy_team'][active_index]
-    opponent_pokemon = store['enemy_team'][active_index] if side == "my" else store['my_team'][active_index]
+    team = store.get_team(side)
+    opponent_team = store.get_team(opponent_side)
+    active_index = store.get_active_index(side)
+    opponent_active_index = store.get_active_index(opponent_side)
+    active_pokemon = team[active_index]
+    opponent_pokemon = opponent_team[opponent_active_index]
     add_effect = duration_store.add_effect
     add_log = store.add_log
 

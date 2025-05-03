@@ -122,3 +122,39 @@ class MoveInfo:
         if base_accuracy is not None:
             return base_accuracy
         return self.accuracy
+    
+    def copy(self) -> 'MoveInfo':
+        return MoveInfo(
+            name=self.name,
+            type=self.type,
+            category=self.category,
+            power=self.power,
+            pp=self.pp,
+            is_touch=self.is_touch,
+            affiliation=self.affiliation,
+            accuracy=self.accuracy,
+            critical_rate=self.critical_rate,
+            demerit_effects=self.demerit_effects,
+            effects=self.effects,
+            priority=self.priority,
+            trap=self.trap,
+            field=self.field,
+            room=self.room,
+            weather=self.weather,
+            u_turn=self.u_turn,
+            exile=self.exile,
+            protect=self.protect,
+            counter=self.counter,
+            revenge=self.revenge,
+            boost_on_missed_prev=self.boost_on_missed_prev,
+            charge_turn=self.charge_turn,
+            position=self.position,
+            one_hit_ko=self.one_hit_ko,
+            first_turn_only=self.first_turn_only,
+            self_kill=self.self_kill,
+            screen=self.screen,
+            pass_substitute=self.pass_substitute,
+            cannot_move=self.cannot_move,
+            locked_move=self.locked_move,
+            target=self.target
+        )
