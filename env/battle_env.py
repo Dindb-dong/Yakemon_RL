@@ -1,4 +1,5 @@
 # env/battle_env.py
+# 이거 엉망 코드임! 완전히 새로 짜야함
 import random
 import numpy as np
 from p_data.mock_pokemon import create_mock_pokemon_list

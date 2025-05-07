@@ -11,11 +11,11 @@ special_status = ["하품", "멸망의노래", "사슬묶기"]
 class DurationStore:
     def __init__(self):
         self.state = {
-            "myEffects": [],
-            "enemyEffects": [],
-            "publicEffects": [],
-            "myEnvEffects": [],
-            "enemyEnvEffects": [],
+            "my_effects": [],
+            "enemy_effects": [],
+            "public_effects": [],
+            "my_env_effects": [],
+            "enemy_env_effects": [],
         }
 
     def add_effect(self, target: SideType, effect: TimedEffect):
@@ -41,30 +41,30 @@ class DurationStore:
         self.state[key] = [e for e in effects if e["name"] != effect_name]
 
     def decrement_turns(self):
-        expired = {"my": [], "enemy": [], "public": [], "myEnv": [], "enemyEnv": []}
+        expired = {"my": [], "enemy": [], "public": [], "my_env": [], "enemy_env": []}
 
         def dec(effects, side):
             new_list = []
             for e in effects:
                 if e["name"] in special_status:
-                    if self.decrement_special_effect(side, e["ownerIndex"], e["name"]):
+                    if self.decrement_special_effect(side, e["owner_index"], e["name"]):
                         expired[side].append(e["name"])
                     new_list.append(e)
                 elif e["name"] == "잠듦" or e["name"] == "혼란":
                     new_list.append(e)
                 else:
-                    e["remainingTurn"] -= 1
-                    if e["remainingTurn"] <= 0:
+                    e["remaining_turn"] -= 1
+                    if e["remaining_turn"] <= 0:
                         expired[side].append(e["name"])
                     else:
                         new_list.append(e)
             return new_list
 
-        self.state["myEffects"] = dec(self.state["myEffects"], "my")
-        self.state["enemyEffects"] = dec(self.state["enemyEffects"], "enemy")
-        self.state["publicEffects"] = dec(self.state["publicEffects"], "public")
-        self.state["myEnvEffects"] = dec(self.state["myEnvEffects"], "myEnv")
-        self.state["enemyEnvEffects"] = dec(self.state["enemyEnvEffects"], "enemyEnv")
+        self.state["my_effects"] = dec(self.state["my_effects"], "my")
+        self.state["enemy_effects"] = dec(self.state["enemy_effects"], "enemy")
+        self.state["public_effects"] = dec(self.state["public_effects"], "public")
+        self.state["my_env_effects"] = dec(self.state["my_env_effects"], "my_env")
+        self.state["enemy_env_effects"] = dec(self.state["enemy_env_effects"], "enemy_env")
 
         # 날씨, 필드, 룸 리셋
         for effect in expired["public"]:
@@ -78,21 +78,21 @@ class DurationStore:
         return expired
 
     def transfer_effects(self, side: Literal["my", "enemy"], from_idx: int, to_idx: int):
-        key = "myEffects" if side == "my" else "enemyEffects"
+        key = "my_effects" if side == "my" else "enemy_effects"
         effects = self.state.get(key, [])
-        transfer_list = [e for e in effects if e.get("ownerIndex") == from_idx]
+        transfer_list = [e for e in effects if e.get("owner_index") == from_idx]
         for eff in transfer_list:
             self.remove_effect(side, eff["name"])
-            self.add_effect(side, {**eff, "ownerIndex": to_idx})
+            self.add_effect(side, {**eff, "owner_index": to_idx})
 
     def decrement_special_effect(self, side: SideType, index: int, status: str, on_expire=None):
-        effects = self.state["myEffects"] if side == "my" else self.state["enemyEffects"]
+        effects = self.state["my_effects"] if side == "my" else self.state["enemy_effects"]
 
         effect = next((e for e in effects if e["name"] == status), None)
         if not effect:
             return False
 
-        next_turn = effect["remainingTurn"] - 1
+        next_turn = effect["remaining_turn"] - 1
         if next_turn <= 0:
             self.remove_effect(side, status)
             store.update_pokemon(side, index, lambda p: remove_status(p, status))
@@ -100,7 +100,7 @@ class DurationStore:
                 on_expire()
             return True
         else:
-            self.add_effect(side, {"name": status, "remainingTurn": next_turn, "ownerIndex": index})
+            self.add_effect(side, {"name": status, "remaining_turn": next_turn, "owner_index": index})
             return False
 
     def decrement_yawn_turn(self, side, index):

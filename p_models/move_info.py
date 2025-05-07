@@ -16,6 +16,7 @@ class StatChange:
 class MoveEffect:
     def __init__(
         self,
+        id: int,
         chance: float,
         status: Optional[StatusState] = None,
         recoil: Optional[float] = None,
@@ -30,6 +31,7 @@ class MoveEffect:
         rank_nullification: bool = False,
         type_change: Optional[str] = None
     ):
+        self.id = id
         self.chance = chance
         self.status = status
         self.recoil = recoil
@@ -47,6 +49,7 @@ class MoveEffect:
 class MoveInfo:
     def __init__(
         self,
+        id: int,
         name: str,
         type: str,
         category: Literal['물리', '특수', '변화'],
@@ -80,6 +83,7 @@ class MoveInfo:
         locked_move: bool = False,
         target: Literal['self', 'opponent', 'none'] = 'opponent',
     ):
+        self.id = id
         self.name = name
         self.type = type
         self.category = category
@@ -125,6 +129,7 @@ class MoveInfo:
     
     def copy(self) -> 'MoveInfo':
         return MoveInfo(
+            id=self.id,
             name=self.name,
             type=self.type,
             category=self.category,
