@@ -16,8 +16,6 @@ def get_position_index(position: str) -> int:
     }
     return position_to_index.get(position, 0)
 
-# 특수 상태이상 정의
-special_status = ["하품", "혼란", "잠듦"]
 
 def get_state(
     my_team: List[Dict],
@@ -28,17 +26,16 @@ def get_state(
     my_env: Dict,
     enemy_env: Dict,
     turn: int,
-    public_effects: List[Dict],
     my_effects: List[Dict],
     enemy_effects: List[Dict],
-    for_opponent: bool = False
+    for_opponent: bool = False # 왼쪽 플레이어가 쓸 때에는 False, 오른쪽 플레이어가 쓸 때에는 True
 ) -> List[float]:
     """상태 벡터를 생성하는 함수"""
     state: List[float] = []
-    player_team = my_team
-    opponent_team = enemy_team
-    player = player_team[active_my]
-    opponent = opponent_team[active_enemy]
+    player_team = my_team if not for_opponent else enemy_team
+    opponent_team = enemy_team if not for_opponent else my_team
+    player = my_team[active_my] if not for_opponent else enemy_team[active_enemy]
+    opponent = enemy_team[active_enemy] if not for_opponent else my_team[active_my]
 
     # 1. 내 포켓몬의 HP 비율 (1차원)
     state.append(player['currentHp'] / player['base']['hp'])
@@ -232,54 +229,33 @@ def get_state(
     # 누적 차원: 120
 
     # 13. 개인 환경 정보
-    # 13-1. 내 환경 (3차원)
-    # 함정 (2차원)
-    traps = ['스파이크', '맹독압정']
+    # 13-1. 내 환경 (7차원)
+    # 함정 (7차원)
+    traps = ['독압정', '맹독압정', '스텔스록', '압정뿌리기1', '압정뿌리기2', '압정뿌리기3']
     for trap in traps:
         state.append(1.0 if trap in my_env.get('trap', []) else 0.0)
-    # 스크린 (1차원)
-    state.append(1.0 if my_env.get('screen') is not None else 0.0)
-    # 누적 차원: 123
+    # 누적 차원: 127
 
-    # 13-2. 상대 환경 (3차원)
-    # 함정 (2차원)
+    # 13-2. 상대 환경 (7차원)
+    # 함정 (7차원)
     for trap in traps:
         state.append(1.0 if trap in enemy_env.get('trap', []) else 0.0)
-    # 스크린 (1차원)
-    state.append(1.0 if enemy_env.get('screen') is not None else 0.0)
-    # 누적 차원: 126
+    # 누적 차원: 134
 
     # 14. Duration Store 효과들
-    # 14-1. 공용 효과 (5차원)
-    active_effect = next((p for p in public_effects if p['name'] == public_env['field']), None)
-    state.append(active_effect['remainingTurn'] / 5 if active_effect else 0.0)
-    weather_effect = next((p for p in public_effects if p['name'] in weathers), None)
-    state.append(weather_effect['remainingTurn'] / 5 if weather_effect else 0.0)
-    room_effect = next((p for p in public_effects if p['name'] in rooms), None)
-    state.append(room_effect['remainingTurn'] / 5 if room_effect else 0.0)
-    # 누적 차원: 129
 
-    # 14-2. 내 효과 (3차원)
-    my_screen_effect = next((e for e in my_effects if e['name'] in ['빛의장막', '리플렉터', '오로라베일']), None)
-    state.append(my_screen_effect['remainingTurn'] / 5 if my_screen_effect else 0.0)
-    my_trap_effects = [e for e in my_effects if e['name'] in traps]
-    state.append(len(my_trap_effects) / len(traps))  # 함정 비율
-    
-    # 특수 상태이상의 남은 턴수 평균 (없으면 0)
-    my_status_effects = [e['remainingTurn'] / 4 for e in my_effects if e['name'] in special_status]
-    state.append(sum(my_status_effects) / len(special_status) if my_status_effects else 0.0)
-    # 누적 차원: 132
+    # 14-1. 내 효과 (3차원)
+    screens = ['빛의장막', '리플렉터', '오로라베일']
+    for screen in screens:
+        screen_effect = next((e for e in my_effects if e['name'] == screen), None)
+        state.append(screen_effect['remainingTurn'] / 5 if screen_effect else 0.0)
+    # 누적 차원: 137
 
-    # 14-3. 상대 효과 (3차원)
-    enemy_screen_effect = next((e for e in enemy_effects if e['name'] in ['빛의장막', '리플렉터', '오로라베일']), None)
-    state.append(enemy_screen_effect['remainingTurn'] / 5 if enemy_screen_effect else 0.0)
-    enemy_trap_effects = [e for e in enemy_effects if e['name'] in traps]
-    state.append(len(enemy_trap_effects) / len(traps))  # 함정 비율
-    
-    # 특수 상태이상의 남은 턴수 평균 (없으면 0)
-    enemy_status_effects = [e['remainingTurn'] / 4 for e in enemy_effects if e['name'] in special_status]
-    state.append(sum(enemy_status_effects) / len(special_status) if enemy_status_effects else 0.0)
-    # 누적 차원: 135
+    # 14-2. 상대 효과 (3차원)
+    for screen in screens:
+        screen_effect = next((e for e in enemy_effects if e['name'] == screen), None)
+        state.append(screen_effect['remainingTurn'] / 5 if screen_effect else 0.0)
+    # 누적 차원: 140
 
     print("✅ 상태 벡터 길이:", len(state))
     return state 
