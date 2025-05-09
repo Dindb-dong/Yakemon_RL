@@ -69,17 +69,17 @@ def base_ai_choose_action(
     # 사용 가능한 기술 필터링
     usable_moves = []
     for move in my_pokemon['base']['moves']:
-        if my_pokemon['pp'][move['name']] <= 0:
+        if my_pokemon['pp'].get(move.name, 0) <= 0:
             continue
-        if my_pokemon.get('unUsableMove') and my_pokemon['unUsableMove']['name'] == move['name']:
+        if my_pokemon.get('unUsableMove') and my_pokemon['unUsableMove']['name'] == move.name:
             continue
-        if (move['target'] == 'opponent' and 
-            move['power'] == 0 and 
+        if (move.target == 'opponent' and 
+            move.power == 0 and 
             any(e.get('status') and e['status'] in enemy_pokemon['status'] 
-                for e in move.get('effects', []))):
+                for e in move.effects or [])):
             continue
         active_env = my_env if side == 'my' else enemy_env
-        if move.get('screen') and move['screen'] == active_env.get('screen'):
+        if move.screen and move.screen == active_env.get('screen'):
             continue
         usable_moves.append(move)
 

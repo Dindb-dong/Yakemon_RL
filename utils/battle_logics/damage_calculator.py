@@ -3,6 +3,7 @@ from p_models.move_info import MoveInfo
 from p_models.pokemon_info import PokemonInfo
 from p_models.battle_pokemon import BattlePokemon
 from p_models.types import WeatherType
+from p_models.ability_info import AbilityInfo
 from context.battle_store import battle_store_instance as store
 from context.duration_store import duration_store
 from utils.battle_logics.rank_effect import calculate_accuracy, calculate_critical, calculate_rank_effect

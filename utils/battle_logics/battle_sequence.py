@@ -135,7 +135,7 @@ async def battle_sequence(
                 await handle_move("my", my_action, active_my, watch_mode)
                 # 상대가 쓰러졌는지 확인
                 updated_enemy = store.get_state()["enemy_team"][store.get_state()["active_enemy"]]
-                if updated_enemy.current_hp <= 0:
+                if updated_enemy['currentHp'] <= 0:
                     apply_end_turn_effects()
                     return
                 await delay(1500)
@@ -156,7 +156,7 @@ async def battle_sequence(
 
                 # 내가 쓰러졌는지 확인
                 updated_me = store.get_state()["my_team"][store.get_state()["active_my"]]
-                if updated_me.current_hp <= 0:
+                if updated_me['currentHp'] <= 0:
                     apply_end_turn_effects()
                     return
                 await delay(1500)
@@ -181,8 +181,8 @@ async def handle_move(
     is_double_hit = any(effect.get("double_hit") for effect in (move.effects or []))
     is_triple_hit = move.name in ["트리플킥", "트리플악셀"]
 
-    attacker: BattlePokemon = my_team[active_my] if side == "my" else enemy_team[active_enemy]
-    defender: BattlePokemon = enemy_team[active_enemy] if side == "my" else my_team[active_my]
+    attacker = my_team[active_my] if side == "my" else enemy_team[active_enemy]
+    defender = enemy_team[active_enemy] if side == "my" else my_team[active_my]
     active_index = active_my if side == "my" else active_enemy
 
     if current_index != active_index:
@@ -194,11 +194,11 @@ async def handle_move(
         hit_count = get_hit_count(move)
 
         # 리베로, 변환자재
-        if attacker.base.ability and has_ability(attacker.base.ability, ["리베로", "변환자재"]):
+        if attacker['base'].get('ability') and has_ability(attacker['base']['ability'], ["리베로", "변환자재"]):
             store.update_pokemon(side, active_index, lambda p: set_types(p, [move.type]))
             store.update_pokemon(side, active_index, lambda p: set_ability(p, None))
-            store.add_log(f"🔃 {attacker.base.name}의 타입은 {move.type}타입으로 변했다!")
-            print(f"{attacker.base.name}의 타입은 {move.type}타입으로 변했다!")
+            store.add_log(f"🔃 {attacker['base']['name']}의 타입은 {move.type}타입으로 변했다!")
+            print(f"{attacker['base']['name']}의 타입은 {move.type}타입으로 변했다!")
 
         for i in range(hit_count):
             # 매 턴마다 최신 defender 상태 확인
@@ -206,7 +206,7 @@ async def handle_move(
                 active_enemy if side == "my" else active_my
             ]
 
-            if current_defender.current_hp <= 0:
+            if current_defender['currentHp'] <= 0:
                 break
 
             current_power = move.power + (10 * i if move.name == "트리플킥" else 20 * i)
@@ -221,7 +221,7 @@ async def handle_move(
             store.update_pokemon(
                 side,
                 active_index,
-                lambda p: use_move_pp(p, move.name, defender.base.ability.name == "프레셔" if defender.base.ability else False)
+                lambda p: use_move_pp(p, move.name, defender['base'].get('ability', {}).get('name') == "프레셔" if defender['base'].get('ability') else False)
             )
 
             if result and result["success"]:
@@ -238,11 +238,11 @@ async def handle_move(
 
     elif is_double_hit or is_multi_hit:  # 첫타 맞으면 다 맞춤
         # 리베로, 변환자재
-        if attacker.base.ability and has_ability(attacker.base.ability, ["리베로", "변환자재"]):
+        if attacker['base'].get('ability') and has_ability(attacker['base']['ability'], ["리베로", "변환자재"]):
             store.update_pokemon(side, active_index, lambda p: set_types(p, [move.type]))
             store.update_pokemon(side, active_index, lambda p: set_ability(p, None))
-            store.add_log(f"{attacker.base.name}의 타입은 {move.type}타입으로 변했다!")
-            print(f"{attacker.base.name}의 타입은 {move.type}타입으로 변했다!")
+            store.add_log(f"{attacker['base']['name']}의 타입은 {move.type}타입으로 변했다!")
+            print(f"{attacker['base']['name']}의 타입은 {move.type}타입으로 변했다!")
 
         result = await calculate_move_damage(move_name=move.name, side=side, was_late=was_late)
         print("1번째 타격!")
@@ -259,7 +259,7 @@ async def handle_move(
                     active_enemy if side == "my" else active_my
                 ]
 
-                if current_defender.current_hp <= 0:
+                if current_defender['currentHp'] <= 0:
                     break
 
                 await delay(1000)
@@ -290,17 +290,17 @@ async def handle_move(
 
     else:  # 그냥 다른 기술들
         # 리베로, 변환자재
-        if attacker.base.ability and has_ability(attacker.base.ability, ["리베로", "변환자재"]):
+        if attacker['base'].get('ability') and has_ability(attacker['base']['ability'], ["리베로", "변환자재"]):
             store.update_pokemon(side, active_index, lambda p: set_types(p, [move.type]))
             store.update_pokemon(side, active_index, lambda p: set_ability(p, None))
-            store.add_log(f"🔃 {attacker.base.name}의 타입은 {move.type}타입으로 변했다!")
-            print(f"{attacker.base.name}의 타입은 {move.type}타입으로 변했다!")
+            store.add_log(f"🔃 {attacker['base']['name']}의 타입은 {move.type}타입으로 변했다!")
+            print(f"{attacker['base']['name']}의 타입은 {move.type}타입으로 변했다!")
 
         result = await calculate_move_damage(move_name=move.name, side=side, was_late=was_late)
         if result and result["success"]:
-            if defender.base.ability and defender.base.ability.name == "매직가드" and move.category == "변화":
-                store.add_log(f"{defender.base.name}은 매직가드로 피해를 입지 않았다!")
-                print(f"{defender.base.name}은 매직가드로 피해를 입지 않았다!")
+            if defender['base'].get('ability') and defender['base']['ability'].get('name') == "매직가드" and move.category == "변화":
+                store.add_log(f"{defender['base']['name']}은 매직가드로 피해를 입지 않았다!")
+                print(f"{defender['base']['name']}은 매직가드로 피해를 입지 않았다!")
                 await apply_after_damage(side, attacker, defender, move, result["damage"], watch_mode)
                 return
 

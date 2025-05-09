@@ -9,6 +9,7 @@ from utils.battle_logics.apply_none_move_damage import apply_recoil_damage
 from utils.delay import delay
 from typing import Optional, Literal
 import random
+from utils.battle_logics.apply_after_damage import apply_defensive_ability_effect_after_multi_damage
 
 async def apply_move_effect_after_multi_damage(
     side: SideType,
@@ -98,17 +99,3 @@ async def apply_move_effect_after_multi_damage(
             new_index = random.choice(alive_opponents)
             await switch_pokemon(opponent_side, new_index, baton_touch)
             add_log(f"💨 {defender.base.name}은(는) 강제 교체되었다!")
-            
-async def apply_defensive_ability_effect_after_multi_damage(side: Literal["my", "enemy"], attacker, defender, used_move, applied_damage: Optional[int] = None, watch_mode: Optional[bool] = False, multi_hit: Optional[bool] = False):
-    ability = defender.base.ability
-    opponent_side = "enemy" if side == "my" else "my"
-    active_opponent = store.state["active_enemy"] if side == "my" else store.state["active_my"]
-
-    if ability and ability.defensive:
-        for category in ability.defensive:
-            if category == "rank_change":
-                if ability.name == "지구력" and (applied_damage or 0) > 0:
-                    if defender.current_hp > 0:
-                        print(f"{defender.base.name}의 특성 {ability.name} 발동!")
-                        store.add_log(f"{defender.base.name}의 특성 {ability.name} 발동!")
-                        store.update_pokemon(opponent_side, active_opponent, lambda p: change_rank(p, "defense", 1))

@@ -1,5 +1,5 @@
 import numpy as np
-from typing import Optional, List, Dict, Union
+from typing import Optional, List, Dict, Union, Literal
 from copy import deepcopy
 from p_models.battle_pokemon import BattlePokemon
 from p_models.ability_info import AbilityInfo
@@ -7,7 +7,7 @@ from p_models.move_info import MoveInfo
 from p_models.rank_state import RankManager
 from p_models.status import StatusManager, StatusState
 from context.battle_store import battle_store_instance as store
-from context.duration_store import duration_store
+
 unmain_status_with_duration: list[str] = [
     "도발", "트집", "사슬묶기", "회복봉인", "앵콜",
     "소리기술사용불가", "하품", "혼란", "교체불가",
@@ -15,49 +15,29 @@ unmain_status_with_duration: list[str] = [
 ]
 
 # 체력 변화
-def change_hp(pokemon: BattlePokemon, amount: int) -> BattlePokemon:
-    add_log = store.add_log
-    new_hp = max(0, round(pokemon.current_hp + amount))
-    pokemon.current_hp = min(pokemon.base.hp, new_hp)
-
-    if pokemon.current_hp <= 0:
-        add_log(f"😭 {pokemon.base.name}은/는 쓰러졌다!")
-    return pokemon
-
-
-# 랭크 변경
-def change_rank(pokemon: BattlePokemon, stat: str, amount: int) -> BattlePokemon:
-    manager = RankManager(deepcopy(pokemon.rank))
-
-    if pokemon.base.ability and pokemon.base.ability.name in ['하얀연기', '클리어바디', '메탈프로텍트']:
-        return pokemon
-
-    if pokemon.base.ability and pokemon.base.ability.name == '심술꾸러기':
-        if amount > 0:
-            manager.decrease_state(stat, amount)
-        else:
-            manager.increase_state(stat, abs(amount))
-    elif pokemon.base.ability and pokemon.base.ability.name == '오기':
-        if amount > 0:
-            manager.increase_state(stat, amount)
-        else:
-            manager.increase_state('attack', 2)
-            manager.decrease_state(stat, abs(amount))
-    elif pokemon.base.ability and pokemon.base.ability.name == '승기':
-        if amount > 0:
-            manager.increase_state(stat, amount)
-        else:
-            manager.increase_state('spAttack', 2)
-            manager.decrease_state(stat, abs(amount))
+def change_hp(pokemon: BattlePokemon, amount: int):
+    """체력 변경"""
+    if amount > 0:
+        pokemon.heal(amount)
     else:
-        if amount > 0:
-            manager.increase_state(stat, amount)
-        else:
-            manager.decrease_state(stat, abs(amount))
+        pokemon.take_damage(-amount)
 
-    pokemon.rank = manager.get_state()
-    return pokemon
+# 랭크 변화
+def change_rank(pokemon: BattlePokemon, stat: str, amount: int):
+    """랭크 변경"""
+    pokemon.change_stat_stage(stat, amount)
 
+# 상태이상 관련
+def add_status(pokemon: BattlePokemon, status: str):
+    """상태이상 추가"""
+    if status in unmain_status_with_duration:
+        return
+    pokemon.apply_status(status)
+
+def remove_status(pokemon: BattlePokemon, status: str):
+    """상태이상 제거"""
+    if pokemon.status == status:
+        pokemon.remove_status()
 
 # 랭크 초기화
 def reset_rank(pokemon: BattlePokemon) -> BattlePokemon:
@@ -65,7 +45,6 @@ def reset_rank(pokemon: BattlePokemon) -> BattlePokemon:
     manager.reset_state()
     pokemon.rank = manager.get_state()
     return pokemon
-
 
 # 상태이상 추가
 DURATION_MAP = {
@@ -77,7 +56,7 @@ DURATION_MAP = {
     "앵콜": 3,
     "소리기술사용불가": 2,
     "하품": 2,
-    "혼란": np.floor(np.random() * 3) + 2 ,  # 랜덤 2~4은 일단 기본 3으로 단순화
+    "혼란": int(np.random.randint(2, 5)),  # 랜덤 2~4
     "교체불가": 4,
     "조이기": 4,
     "멸망의노래": 3,
@@ -86,7 +65,6 @@ DURATION_MAP = {
 
 def is_duration_status(status: StatusState) -> bool:
     return status in unmain_status_with_duration or status == "잠듦"
-
 
 def add_status(pokemon: BattlePokemon, status: StatusState, side: str, nullification: bool = False) -> BattlePokemon:
     opponent_side = "enemy" if side == "my" else "my"
@@ -152,15 +130,6 @@ def add_status(pokemon: BattlePokemon, status: StatusState, side: str, nullifica
 
     return pokemon
 
-
-# 상태이상 제거
-def remove_status(pokemon: BattlePokemon, status: StatusState) -> BattlePokemon:
-    manager = StatusManager(pokemon.status)
-    manager.remove_status(status)
-    pokemon.status = manager.get_status()
-    return pokemon
-
-
 # 전체 상태이상 제거
 def clear_all_status(pokemon: BattlePokemon) -> BattlePokemon:
     manager = StatusManager(pokemon.status)
@@ -168,12 +137,10 @@ def clear_all_status(pokemon: BattlePokemon) -> BattlePokemon:
     pokemon.status = manager.get_status()
     return pokemon
 
-
 # 상태이상 보유 여부
 def has_status(pokemon: BattlePokemon, status: StatusState) -> bool:
     manager = StatusManager(pokemon.status)
     return manager.has_status(status)
-
 
 # PP 차감
 def use_move_pp(pokemon: BattlePokemon, move_name: str, pressure: bool = False) -> BattlePokemon:
@@ -184,42 +151,35 @@ def use_move_pp(pokemon: BattlePokemon, move_name: str, pressure: bool = False) 
     pokemon.pp = pp
     return pokemon
 
-
 # 고정 기술 설정
 def set_locked_move(pokemon: BattlePokemon, move: Optional[MoveInfo]) -> BattlePokemon:
     pokemon.locked_move = move
     return pokemon
-
 
 # 위치 설정
 def change_position(pokemon: BattlePokemon, position: Optional[str]) -> BattlePokemon:
     pokemon.position = position
     return pokemon
 
-
 # 보호 상태 설정
 def set_protecting(pokemon: BattlePokemon, is_protecting: bool) -> BattlePokemon:
     pokemon.is_protecting = is_protecting
     return pokemon
-
 
 # 마지막 사용 기술
 def set_used_move(pokemon: BattlePokemon, move: Optional[MoveInfo]) -> BattlePokemon:
     pokemon.used_move = move
     return pokemon
 
-
 # 빗나감 여부
 def set_had_missed(pokemon: BattlePokemon, had_missed: bool) -> BattlePokemon:
     pokemon.had_missed = had_missed
     return pokemon
 
-
 # 랭크업 여부
 def set_had_rank_up(pokemon: BattlePokemon, had_rank_up: bool) -> BattlePokemon:
     pokemon.had_rank_up = had_rank_up
     return pokemon
-
 
 # 차징 상태
 def set_charging(pokemon: BattlePokemon, is_charging: bool, move: Optional[MoveInfo] = None) -> BattlePokemon:
@@ -227,31 +187,26 @@ def set_charging(pokemon: BattlePokemon, is_charging: bool, move: Optional[MoveI
     pokemon.charging_move = move if is_charging else None
     return pokemon
 
-
 # 받은 데미지 기록
 def set_received_damage(pokemon: BattlePokemon, damage: int) -> BattlePokemon:
     pokemon.received_damage = damage
     return pokemon
-
 
 # 전투 출전 여부
 def set_active(pokemon: BattlePokemon, is_active: bool) -> BattlePokemon:
     pokemon.is_active = is_active
     return pokemon
 
-
 # 특성 강제 설정
 def set_ability(pokemon: BattlePokemon, ability: Optional[AbilityInfo]) -> BattlePokemon:
     pokemon.base.ability = ability
     return pokemon
 
-
 # 타입 강제 변경
 def set_types(pokemon: BattlePokemon, types: List[str]) -> BattlePokemon:
-    pokemon.temp_type = pokemon.base.types
-    pokemon.base.types = types
+    """타입 설정"""
+    pokemon.pokemon_info.types = types
     return pokemon
-
 
 # 타입 제거
 def remove_types(pokemon: BattlePokemon, type_: str, is_normal: bool = False) -> BattlePokemon:
@@ -260,7 +215,6 @@ def remove_types(pokemon: BattlePokemon, type_: str, is_normal: bool = False) ->
     else:
         pokemon.base.types = [t for t in pokemon.base.types if t != type_]
     return pokemon
-
 
 # 상태 초기화 (교체 시)
 def reset_state(pokemon: BattlePokemon, is_switch: bool = False) -> BattlePokemon:
@@ -281,3 +235,12 @@ def reset_state(pokemon: BattlePokemon, is_switch: bool = False) -> BattlePokemo
         pokemon.temp_type = []
 
     return pokemon
+
+# 기술 관련
+def change_pp(move: MoveInfo, amount: int):
+    """PP 변경"""
+    move.pp = max(0, move.pp + amount)
+
+def set_pp(move: MoveInfo, amount: int):
+    """PP 설정"""
+    move.pp = amount

@@ -1,84 +1,114 @@
 from typing import Optional, List, Dict, Callable
-from move_info import MoveInfo
-from pokemon_info import PokemonInfo
+from p_models.pokemon_info import PokemonInfo
 
 class BattlePokemon:
     def __init__(
         self,
-        base: PokemonInfo,  # 기본 정보 (나중에 PokemonInfo 클래스 따로 정의해야 함)
-        current_hp: int,
-        pp: Dict[str, int],
-        rank: Dict[str, int],
-        status: List[str],
-        position: Optional[str] = None,  # '땅', '하늘', '바다', '공허' 중 하나
-        is_active: bool = False,
-        locked_move: Optional[MoveInfo] = None, # vector로 표현할 때에는, moves.id 로 표현
-        locked_move_turn: Optional[int] = None,
-        is_protecting: bool = False,
-        used_move: Optional[MoveInfo] = None, # vector로 표현할 때에는, moves.id 로 표현
-        had_missed: bool = False,
-        had_rank_up: bool = False,
-        is_charging: bool = False,
-        charging_move: Optional[MoveInfo] = None, # vector로 표현할 때에는, moves.id 로 표현
-        received_damage: Optional[int] = None,
-        is_first_turn: bool = False,
-        cannot_move: bool = False,
-        form_num: Optional[int] = None, # 이거는 생략
-        form_condition: Optional[Callable[['BattlePokemon'], bool]] = None, # 이거는 생략
-        un_usable_move: Optional[MoveInfo] = None, # vector로 표현할 때에는, moves.id 로 표현
-        lost_type: bool = False, # 이거는 생략
-        temp_type: Optional[List[str]] = None, # vector로 표현할 때에는, 타입 정규화한 방식처럼 표현.
-        substitute: Optional['BattlePokemon'] = None, # 이거는 vector로 표현할 때 생략.
+        pokemon_info: PokemonInfo,
+        level: int = 50,
+        moves: Optional[List['MoveInfo']] = None,
+        ability: Optional[str] = None,
+        item: Optional[str] = None,
+        nature: Optional[str] = None,
+        evs: Optional[Dict[str, int]] = None,
+        ivs: Optional[Dict[str, int]] = None
     ):
-        self.base = base
-        self.current_hp = current_hp
-        self.pp = pp
-        self.rank = rank
-        self.status = status
-        self.position = position
-        self.is_active = is_active
-        self.locked_move = locked_move
-        self.locked_move_turn = locked_move_turn
-        self.is_protecting = is_protecting
-        self.used_move = used_move
-        self.had_missed = had_missed
-        self.had_rank_up = had_rank_up
-        self.is_charging = is_charging
-        self.charging_move = charging_move
-        self.received_damage = received_damage
-        self.is_first_turn = is_first_turn
-        self.cannot_move = cannot_move
-        self.form_num = form_num
-        self.form_condition = form_condition
-        self.un_usable_move = un_usable_move
-        self.lost_type = lost_type
-        self.temp_type = temp_type
-        self.substitute = substitute
+        self.pokemon_info = pokemon_info
+        self.level = level
+        self.moves = moves or []
+        self.ability = ability
+        self.item = item
+        self.nature = nature
+        self.evs = evs or {}
+        self.ivs = ivs or {}
         
-    def copy_with(self, **overrides) -> 'BattlePokemon':
-        return BattlePokemon(
-            base=overrides.get("base", self.base),
-            current_hp=overrides.get("current_hp", self.current_hp),
-            pp=overrides.get("pp", self.pp.copy()),
-            rank=overrides.get("rank", self.rank.copy()),
-            status=overrides.get("status", self.status.copy()),
-            position=overrides.get("position", self.position),
-            is_active=overrides.get("is_active", self.is_active),
-            locked_move=overrides.get("locked_move", self.locked_move),
-            locked_move_turn=overrides.get("locked_move_turn", self.locked_move_turn),
-            is_protecting=overrides.get("is_protecting", self.is_protecting),
-            used_move=overrides.get("used_move", self.used_move),
-            had_missed=overrides.get("had_missed", self.had_missed),
-            had_rank_up=overrides.get("had_rank_up", self.had_rank_up),
-            is_charging=overrides.get("is_charging", self.is_charging),
-            charging_move=overrides.get("charging_move", self.charging_move),
-            received_damage=overrides.get("received_damage", self.received_damage),
-            is_first_turn=overrides.get("is_first_turn", self.is_first_turn),
-            cannot_move=overrides.get("cannot_move", self.cannot_move),
-            form_num=overrides.get("form_num", self.form_num),
-            form_condition=overrides.get("form_condition", self.form_condition),
-            un_usable_move=overrides.get("un_usable_move", self.un_usable_move),
-            lost_type=overrides.get("lost_type", self.lost_type),
-            temp_type=overrides.get("temp_type", self.temp_type.copy() if self.temp_type else None),
-            substitute=overrides.get("substitute", self.substitute),
-        )
+        # 현재 상태
+        self.hp = self.calculate_max_hp()
+        self.status = None
+        self.volatile_status = []
+        self.stat_stages = {
+            'atk': 0, 'def': 0, 'spa': 0, 'spd': 0, 'spe': 0
+        }
+        self.boosts = {
+            'atk': 0, 'def': 0, 'spa': 0, 'spd': 0, 'spe': 0,
+            'accuracy': 0, 'evasion': 0
+        }
+        
+    def calculate_max_hp(self) -> int:
+        """최대 HP 계산"""
+        base_hp = self.pokemon_info.base_stats['hp']
+        iv = self.ivs.get('hp', 31)
+        ev = self.evs.get('hp', 0)
+        
+        # HP = ((2 * Base + IV + EV/4) * Level/100) + Level + 10
+        hp = ((2 * base_hp + iv + ev/4) * self.level/100) + self.level + 10
+        return int(hp)
+    
+    def calculate_stat(self, stat: str) -> int:
+        """스탯 계산"""
+        base = self.pokemon_info.base_stats[stat]
+        iv = self.ivs.get(stat, 31)
+        ev = self.evs.get(stat, 0)
+        stage = self.stat_stages[stat]
+        
+        # Stat = ((2 * Base + IV + EV/4) * Level/100 + 5) * Nature
+        stat_value = ((2 * base + iv + ev/4) * self.level/100 + 5)
+        
+        # 스테이지 보정
+        if stage > 0:
+            stat_value *= (2 + stage) / 2
+        elif stage < 0:
+            stat_value *= 2 / (2 - stage)
+            
+        return int(stat_value)
+    
+    def apply_status(self, status: str):
+        """상태이상 적용"""
+        if self.status is None:
+            self.status = status
+    
+    def remove_status(self):
+        """상태이상 제거"""
+        self.status = None
+    
+    def apply_volatile_status(self, status: str):
+        """일시적 상태이상 적용"""
+        if status not in self.volatile_status:
+            self.volatile_status.append(status)
+    
+    def remove_volatile_status(self, status: str):
+        """일시적 상태이상 제거"""
+        if status in self.volatile_status:
+            self.volatile_status.remove(status)
+    
+    def change_stat_stage(self, stat: str, amount: int):
+        """스탯 스테이지 변경"""
+        self.stat_stages[stat] = max(-6, min(6, self.stat_stages[stat] + amount))
+    
+    def change_boost(self, stat: str, amount: int):
+        """부스트 변경"""
+        self.boosts[stat] = max(-6, min(6, self.boosts[stat] + amount))
+    
+    def take_damage(self, amount: int):
+        """데미지 적용"""
+        self.hp = max(0, self.hp - amount)
+    
+    def heal(self, amount: int):
+        """회복"""
+        max_hp = self.calculate_max_hp()
+        self.hp = min(max_hp, self.hp + amount)
+    
+    def is_fainted(self) -> bool:
+        """기절 여부 확인"""
+        return self.hp <= 0
+    
+    def get_state(self) -> Dict:
+        """현재 상태 반환"""
+        return {
+            'hp': self.hp,
+            'max_hp': self.calculate_max_hp(),
+            'status': self.status,
+            'volatile_status': self.volatile_status,
+            'stat_stages': self.stat_stages,
+            'boosts': self.boosts
+        }

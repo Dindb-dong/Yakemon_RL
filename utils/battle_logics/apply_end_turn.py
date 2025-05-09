@@ -4,7 +4,7 @@ from utils.battle_logics.update_battle_pokemon import (
     add_status, change_hp, change_rank, remove_status, reset_state, set_locked_move
 )
 from utils.battle_logics.apply_none_move_damage import apply_status_condition_damage
-from utils.battle_logics.switch_pokemon import main_status_condition
+from utils.battle_logics.switch_pokemon import MAIN_STATUS_CONDITION
 from utils.battle_logics.update_environment import set_weather, set_field, set_screen
 import random
 
@@ -122,9 +122,9 @@ def apply_end_turn_effects():
             store.update_pokemon(side, active_index, lambda p: change_hp(p, -p.base.hp // 16))
             store.add_log(f"🦅 {pokemon.base.name}의 선파워 특성 발동!")
 
-        if ability_name == "탈피" and any(s in main_status_condition for s in pokemon.status):
+        if ability_name == "탈피" and any(s in MAIN_STATUS_CONDITION for s in pokemon.status):
             for s in pokemon.status:
-                if s in main_status_condition:
+                if s in MAIN_STATUS_CONDITION:
                     store.update_pokemon(side, active_index, lambda p: remove_status(p, s))
             store.add_log(f"🦅 {pokemon.base.name}의 탈피 특성 발동!")
 

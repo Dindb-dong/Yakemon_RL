@@ -11,15 +11,63 @@ from utils.delay import delay
 from utils.battle_logics.update_environment import set_weather
 import asyncio
 from context.battle_store import SideType
-from typing import Literal, Optional
+from typing import Literal, Optional, List, Dict
 import random
+
+async def apply_defensive_ability_effect_after_multi_damage(
+    side: Literal["my", "enemy"],
+    attacker: BattlePokemon,
+    defender: BattlePokemon,
+    used_move: MoveInfo,
+    applied_damage: Optional[int] = None,
+    watch_mode: Optional[bool] = False,
+    multi_hit: Optional[bool] = False
+) -> None:
+    """다중 데미지 후 방어 특성 효과 적용"""
+    opponent_side = "enemy" if side == "my" else "my"
+    active_opponent = store.state["active_enemy"] if side == "my" else store.state["active_my"]
+    active_mine = store.state["active_my"] if side == "my" else store.state["active_enemy"]
+
+    ability = defender.base.ability
+    if not ability or not ability.defensive:
+        return
+
+    for category in ability.defensive:
+        if category == "weather_change":
+            if ability.name == "모래뿜기":
+                set_weather("모래바람")
+                store.add_log(f"🏜️ {defender.base.name}의 특성으로 날씨가 모래바람이 되었다!")
+        elif category == "rank_change":
+            if ability.name == "증기기관" and used_move.type in ["물", "불"]:
+                if defender.current_hp > 0:
+                    store.add_log(f"{defender.base.name}의 특성 {ability.name} 발동!")
+                    store.update_pokemon(opponent_side, active_opponent,
+                                          lambda p: change_rank(p, "speed", 6))
+            elif ability.name == "깨어진갑옷" and used_move.is_touch:
+                if defender.current_hp > 0:
+                    store.add_log(f"{defender.base.name}의 특성 {ability.name} 발동!")
+                    store.update_pokemon(opponent_side, active_opponent,
+                                          lambda p: change_rank(p, "speed", 2))
+                    store.update_pokemon(opponent_side, active_opponent,
+                                          lambda p: change_rank(p, "defense", -1))
+            elif ability.name == "정의의마음" and used_move.type == "악":
+                if defender.current_hp > 0:
+                    store.add_log(f"{defender.base.name}의 특성 {ability.name} 발동!")
+                    store.update_pokemon(opponent_side, active_opponent,
+                                          lambda p: change_rank(p, "attack", 1))
+            elif ability.name == "지구력" and (applied_damage or 0) > 0 and not multi_hit:
+                if defender.current_hp > 0:
+                    store.add_log(f"{defender.base.name}의 특성 {ability.name} 발동!")
+                    store.update_pokemon(opponent_side, active_opponent,
+                                          lambda p: change_rank(p, "defense", 1))
+
 async def apply_after_damage(side: str, attacker: BattlePokemon, defender: BattlePokemon,
                             used_move: MoveInfo, applied_damage: int = 0,
                             watch_mode: bool = False, multi_hit: bool = False):
 
     opponent_side = "enemy" if side == "my" else "my"
 
-    await apply_defensive_ability_effect_after_damage(
+    await apply_defensive_ability_effect_after_multi_damage(
         side, attacker, defender, used_move, applied_damage, watch_mode, multi_hit
     )
 
@@ -152,75 +200,6 @@ async def apply_move_effect_after_multi_damage(
             await switch_pokemon(opponent_side, new_index, baton_touch)
             add_log(f"💨 {defender.base.name}은(는) 강제 교체되었다!")
 
-async def apply_defensive_ability_effect_after_damage(
-    side: Literal["my", "enemy"],
-    attacker,
-    defender,
-    used_move,
-    applied_damage: Optional[int] = None,
-    watch_mode: Optional[bool] = False,
-    multi_hit: Optional[bool] = False
-):
-    opponent_side = "enemy" if side == "my" else "my"
-    active_opponent = store.state["active_enemy"] if side == "my" else store.state["active_my"]
-    active_mine = store.state["active_my"] if side == "my" else store.state["active_enemy"]
-
-    ability = defender.base.ability
-    if not ability or not ability.defensive:
-        return
-
-    for category in ability.defensive:
-        if category == "weather_change":
-            if ability.name == "모래뿜기":
-                set_weather("모래바람")
-                store.add_log(f"🏜️ {defender.base.name}의 특성으로 날씨가 모래바람이 되었다!")
-        elif category == "rank_change":
-            if ability.name == "증기기관" and used_move.type in ["물", "불"]:
-                if defender.current_hp > 0:
-                    print(f"{defender.base.name}의 특성 {ability.name} 발동!")
-                    store.add_log(f"{defender.base.name}의 특성 {ability.name} 발동!")
-                    store.update_pokemon(opponent_side, active_opponent,
-                                          lambda p: change_rank(p, "speed", 6))
-            elif ability.name == "깨어진갑옷" and used_move.is_touch:
-                if defender.current_hp > 0:
-                    print(f"{defender.base.name}의 특성 {ability.name} 발동!")
-                    store.add_log(f"{defender.base.name}의 특성 {ability.name} 발동!")
-                    store.update_pokemon(opponent_side, active_opponent,
-                                          lambda p: change_rank(p, "speed", 2))
-                    store.update_pokemon(opponent_side, active_opponent,
-                                          lambda p: change_rank(p, "defense", -1))
-            elif ability.name == "정의의마음" and used_move.type == "악":
-                if defender.current_hp > 0:
-                    print(f"{defender.base.name}의 특성 {ability.name} 발동!")
-                    store.add_log(f"{defender.base.name}의 특성 {ability.name} 발동!")
-                    store.update_pokemon(opponent_side, active_opponent,
-                                          lambda p: change_rank(p, "attack", 1))
-            elif ability.name == "지구력" and (applied_damage or 0) > 0 and not multi_hit:
-                if defender.current_hp > 0:
-                    print(f"{defender.base.name}의 특성 {ability.name} 발동!")
-                    store.add_log(f"{defender.base.name}의 특성 {ability.name} 발동!")
-                    store.update_pokemon(opponent_side, active_opponent,
-                                          lambda p: change_rank(p, "defense", 1))
-
-        elif category == "status_change":
-            rand = random.random()
-            if ability.name == "불꽃몸" and used_move.is_touch and rand < 0.3:
-                store.update_pokemon(side, active_mine, lambda p: add_status(p, "화상", side))
-            elif ability.name == "정전기" and used_move.is_touch and rand < 0.3:
-                store.update_pokemon(side, active_mine, lambda p: add_status(p, "마비", side))
-            elif ability.name == "독가시" and used_move.is_touch and rand < 0.3:
-                store.update_pokemon(side, active_mine, lambda p: add_status(p, "독", side))
-            elif ability.name == "포자" and used_move.is_touch:
-                r = random.random()
-                if r < 0.1:
-                    store.update_pokemon(side, active_mine, lambda p: add_status(p, "독", side))
-                elif r < 0.2:
-                    store.update_pokemon(side, active_mine, lambda p: add_status(p, "마비", side))
-                elif r < 0.3:
-                    store.update_pokemon(side, active_mine, lambda p: add_status(p, "잠듦", side))
-            elif ability.name == "저주받은바디" and rand < 0.3:
-                store.update_pokemon(side, active_mine, lambda p: add_status(p, "사슬묶기", side))
-                
 async def apply_offensive_ability_effect_after_damage(
     side: Literal["my", "enemy"],
     attacker,
@@ -365,3 +344,24 @@ async def apply_move_effect_after_damage(
             idx = random.choice(available)
             await switch_pokemon(opponent_side, idx, baton_touch)
             store.add_log(f"💨 {opp_team[active_opp].base.name}은/는 강제 교체되었다!")
+
+def apply_move_effect_after_multi_damage(pokemon: BattlePokemon, move: MoveInfo, side: str) -> BattlePokemon:
+    """다중 데미지 후 기술 효과 적용"""
+    if not move.effect:
+        return pokemon
+        
+    # 기술 효과 적용
+    if move.effect.stat_changes:
+        for stat_change in move.effect.stat_changes:
+            change_rank(pokemon, stat_change.stat, stat_change.stages)
+            
+    if move.effect.status_effect:
+        add_status(pokemon, move.effect.status_effect, side)
+        
+    if move.effect.weather:
+        store.set_public_env({"weather": move.effect.weather})
+        
+    if move.effect.field:
+        store.set_public_env({"field": move.effect.field})
+        
+    return pokemon
