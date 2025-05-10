@@ -1,12 +1,12 @@
-from typing import List, Literal
+from typing import List, Literal, Union
 
 # StatusState 타입 정의
-StatusState = Literal[
+StatusState = Union[Literal[
     '화상', '마비', '독', '맹독', '얼음', '잠듦',
     '혼란', '풀죽음', '앵콜', '트집', '도발', '헤롱헤롱',
     '사슬묶기', '회복봉인', '씨뿌리기', '길동무', '소리기술사용불가',
     '하품', '교체불가', '조이기', '멸망의노래'
-]
+], None]
 
 class StatusManager:
     def __init__(self, initial_status: List[StatusState] = []):
@@ -37,3 +37,5 @@ class StatusManager:
 
     def get_status(self) -> List[StatusState]:
         return self.status
+
+__all__ = ['StatusState', 'StatusManager']

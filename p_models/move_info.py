@@ -1,7 +1,6 @@
 from typing import List, Dict, Optional, Literal, Union, TYPE_CHECKING
-from p_models.types import FieldType, WeatherType
 from p_models.status import StatusState
-from p_models.rank_state import RankStat
+
 
 if TYPE_CHECKING:
     from p_models.battle_pokemon import BattlePokemon
@@ -24,11 +23,10 @@ class MoveEffect:
         id: Optional[int] = None,
         chance: Optional[float] = None,
         stat_change: Optional[List[StatChange]] = None,
-        status_effect: Optional[str] = None,
+        status: Optional[StatusState] = None,
         recoil: Optional[float] = None,
         multi_hit: Optional[tuple] = None,
         heal: Optional[float] = None,
-        status: Optional[str] = None,
         rank_nullification: Optional[bool] = None,
         triple_hit: Optional[bool] = None,
         double_hit: Optional[bool] = None,
@@ -40,11 +38,10 @@ class MoveEffect:
         self.id = id
         self.chance = chance
         self.stat_change = stat_change or []
-        self.status_effect = status_effect
+        self.status = status
         self.recoil = recoil
         self.multi_hit = multi_hit
         self.heal = heal
-        self.status = status
         self.rank_nullification = rank_nullification
         self.triple_hit = triple_hit
         self.double_hit = double_hit

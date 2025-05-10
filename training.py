@@ -21,7 +21,7 @@ from env.battle_env import YakemonEnv
 # 모델 관련 import
 from p_models.pokemon_info import PokemonInfo
 from p_models.rank_state import RankManager
-from p_models.status import StatusManager
+from p_models.status import StatusState, StatusManager
 from p_models.move_info import MoveInfo, MoveEffect, StatChange
 from p_models.battle_pokemon import BattlePokemon
 from p_models.ability_info import AbilityInfo
@@ -70,7 +70,7 @@ HYPERPARAMS = {
     "num_episodes": 1000,
     "save_interval": 100,
     "test_episodes": 100,
-    "state_dim": 144,  # get_state_vector의 출력 차원
+    "state_dim": 122,  # get_state_vector의 출력 차원
     "action_dim": 8,   # 4개의 기술 + 4개의 교체
 }
 
@@ -108,18 +108,58 @@ def train_agent(
             moves = []
             for i in range(4):
                 move = MoveInfo(
+                    id=i+1,
                     name=f'기술{i}',
                     power=random.randint(40, 120),
                     accuracy=random.randint(70, 100),
                     pp=random.randint(5, 20),
                     type=random.choice(pokemon['base']['types']),
-                    category=random.choice(['physical', 'special', 'status']),
-                    effect=MoveEffect(
-                        stat_changes=[StatChange('atk', 1)],
-                        status_effect=random.choice(['burn', 'paralyze', 'poison', None]),
-                        weather=random.choice(['sunny', 'rainy', 'sandstorm', 'hail', None]),
-                        field=random.choice(['electric', 'psychic', 'grassy', 'misty', None])
-                    )
+                    category=random.choice(['물리', '특수', '변화']),
+                    target=random.choice(['self', 'opponent', 'none']),
+                    effects=[MoveEffect(
+                        id=i+1,
+                        chance=random.uniform(0.1, 1.0),
+                        stat_change=[StatChange('self', 'atk', 1)],
+                        status=random.choice([
+                            '화상', '마비', '독', '맹독', '얼음', '잠듦',
+                            '혼란', '풀죽음', '앵콜', '트집', '도발', '헤롱헤롱',
+                            '사슬묶기', '회복봉인', '씨뿌리기', '길동무', '소리기술사용불가',
+                            '하품', '교체불가', '조이기', '멸망의노래', None
+                        ]),
+                        recoil=random.uniform(0.1, 0.3) if random.random() < 0.3 else None,
+                        multi_hit=(2, 5) if random.random() < 0.2 else None,
+                        heal=random.uniform(0.1, 0.5) if random.random() < 0.2 else None,
+                        rank_nullification=random.random() < 0.1,
+                        triple_hit=random.random() < 0.1,
+                        double_hit=random.random() < 0.1,
+                        break_screen=random.random() < 0.1,
+                        type_change=random.choice(pokemon['base']['types']) if random.random() < 0.1 else None,
+                        lost_type=random.choice(pokemon['base']['types']) if random.random() < 0.1 else None,
+                        fail=random.uniform(0.1, 1.0) if random.random() < 0.1 else None
+                    )],
+                    is_touch=random.random() < 0.3,
+                    affiliation=random.choice(['소리', '펀치', '물기', '폭탄', '가루', None]),
+                    priority=random.randint(-3, 3),
+                    critical_rate=random.randint(0, 3),
+                    trap=random.choice(['독압정', '스텔스록', '압정뿌리기', '압정뿌리기2', '압정뿌리기3', '끈적끈적네트', None]),
+                    field=random.choice(['electric', 'psychic', 'grassy', 'misty', None]),
+                    room=random.choice(['trick_room', 'magic_room', 'wonder_room', None]),
+                    weather=random.choice(['sunny', 'rainy', 'sandstorm', 'hail', None]),
+                    u_turn=random.random() < 0.1,
+                    exile=random.random() < 0.1,
+                    protect=random.random() < 0.1,
+                    counter=random.random() < 0.1,
+                    revenge=random.random() < 0.1,
+                    boost_on_missed_prev=random.random() < 0.1,
+                    charge_turn=random.random() < 0.1,
+                    position=random.choice(['땅', '하늘', '바다', '공허', None]),
+                    one_hit_ko=random.random() < 0.1,
+                    first_turn_only=random.random() < 0.1,
+                    self_kill=random.random() < 0.1,
+                    screen=random.choice(['빛의장막', '리플렉터', '오로라베일', None]),
+                    pass_substitute=random.random() < 0.1,
+                    cannot_move=random.random() < 0.1,
+                    locked_move=random.random() < 0.1
                 )
                 moves.append(move)
             pokemon['base']['moves'] = moves
@@ -297,18 +337,58 @@ def test_agent(
             moves = []
             for i in range(4):
                 move = MoveInfo(
+                    id=i+1,
                     name=f'기술{i}',
                     power=random.randint(40, 120),
                     accuracy=random.randint(70, 100),
                     pp=random.randint(5, 20),
                     type=random.choice(pokemon['types']),
-                    category=random.choice(['physical', 'special', 'status']),
-                    effect=MoveEffect(
-                        stat_changes=[StatChange('atk', 1)],
-                        status_effect=random.choice(['burn', 'paralyze', 'poison', None]),
-                        weather=random.choice(['sunny', 'rainy', 'sandstorm', 'hail', None]),
-                        field=random.choice(['electric', 'psychic', 'grassy', 'misty', None])
-                    )
+                    category=random.choice(['물리', '특수', '변화']),
+                    target=random.choice(['self', 'opponent', 'none']),
+                    effects=[MoveEffect(
+                        id=i+1,
+                        chance=random.uniform(0.1, 1.0),
+                        stat_change=[StatChange('self', 'atk', 1)],
+                        status=random.choice([
+                            '화상', '마비', '독', '맹독', '얼음', '잠듦',
+                            '혼란', '풀죽음', '앵콜', '트집', '도발', '헤롱헤롱',
+                            '사슬묶기', '회복봉인', '씨뿌리기', '길동무', '소리기술사용불가',
+                            '하품', '교체불가', '조이기', '멸망의노래', None
+                        ]),
+                        recoil=random.uniform(0.1, 0.3) if random.random() < 0.3 else None,
+                        multi_hit=(2, 5) if random.random() < 0.2 else None,
+                        heal=random.uniform(0.1, 0.5) if random.random() < 0.2 else None,
+                        rank_nullification=random.random() < 0.1,
+                        triple_hit=random.random() < 0.1,
+                        double_hit=random.random() < 0.1,
+                        break_screen=random.random() < 0.1,
+                        type_change=random.choice(pokemon['types']) if random.random() < 0.1 else None,
+                        lost_type=random.choice(pokemon['types']) if random.random() < 0.1 else None,
+                        fail=random.uniform(0.1, 1.0) if random.random() < 0.1 else None
+                    )],
+                    is_touch=random.random() < 0.3,
+                    affiliation=random.choice(['소리', '펀치', '물기', '폭탄', '가루', None]),
+                    priority=random.randint(-3, 3),
+                    critical_rate=random.randint(0, 3),
+                    trap=random.choice(['독압정', '스텔스록', '압정뿌리기', '압정뿌리기2', '압정뿌리기3', '끈적끈적네트', None]),
+                    field=random.choice(['electric', 'psychic', 'grassy', 'misty', None]),
+                    room=random.choice(['trick_room', 'magic_room', 'wonder_room', None]),
+                    weather=random.choice(['sunny', 'rainy', 'sandstorm', 'hail', None]),
+                    u_turn=random.random() < 0.1,
+                    exile=random.random() < 0.1,
+                    protect=random.random() < 0.1,
+                    counter=random.random() < 0.1,
+                    revenge=random.random() < 0.1,
+                    boost_on_missed_prev=random.random() < 0.1,
+                    charge_turn=random.random() < 0.1,
+                    position=random.choice(['땅', '하늘', '바다', '공허', None]),
+                    one_hit_ko=random.random() < 0.1,
+                    first_turn_only=random.random() < 0.1,
+                    self_kill=random.random() < 0.1,
+                    screen=random.choice(['빛의장막', '리플렉터', '오로라베일', None]),
+                    pass_substitute=random.random() < 0.1,
+                    cannot_move=random.random() < 0.1,
+                    locked_move=random.random() < 0.1
                 )
                 moves.append(move)
             pokemon['moves'] = moves
