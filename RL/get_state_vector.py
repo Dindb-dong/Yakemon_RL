@@ -92,7 +92,7 @@ def get_state(
     state['position'] = get_position_index(player.get('position', '없음')) / 5.0
     # 누적 차원: 34
 
-    # 7-2. 기타 상태 (12개의 이진값 + 4개의 연속값)
+    # 7-2. 기타 상태 (16개)
     state['is_active'] = 1.0 if player.get('is_active', False) else 0.0
     # locked_move 관련 정보
     state['locked_move_id'] = player.get('locked_move', {}).get('id', 0) / 1000.0
@@ -110,7 +110,7 @@ def get_state(
     state['cannot_move'] = 1.0 if player.get('cannot_move', False) else 0.0
     # unusable_move 정보
     state['unusable_move_id'] = player.get('un_usable_move', {}).get('id', 0) / 1000.0
-    # 누적 차원: 50 (이전: 34 + 16 = 50)
+    # 누적 차원: 50
 
     # 7-3. 임시 타입 (2차원)
     temp_type1 = 0
@@ -155,7 +155,7 @@ def get_state(
     state['enemy_position'] = get_position_index(opponent.get('position', '없음')) / 5.0
     # 누적 차원: 82
 
-    # 8-5-2. 기타 상태 (12개의 이진값 + 4개의 연속값)
+    # 8-5-2. 기타 상태 (16개)
     state['enemy_is_active'] = 1.0 if opponent.get('is_active', False) else 0.0
     # locked_move 관련 정보
     state['enemy_locked_move_id'] = opponent.get('locked_move', {}).get('id', 0) / 1000.0
@@ -173,7 +173,7 @@ def get_state(
     state['enemy_cannot_move'] = 1.0 if opponent.get('cannot_move', False) else 0.0
     # unusable_move 정보
     state['enemy_unusable_move_id'] = opponent.get('un_usable_move', {}).get('id', 0) / 1000.0
-    # 누적 차원: 98 (이전: 82 + 16 = 98)
+    # 누적 차원: 98
 
     # 8-5-3. 임시 타입 (2차원)
     temp_type1 = 0
@@ -185,9 +185,9 @@ def get_state(
     state['enemy_temp_type2'] = temp_type2 / 18.0  # 정규화
     # 누적 차원: 100
 
-    # 9. 팀 구성 정보 (HP 비율 + 상태이상 여부, 3마리 기준) (12차원)
+    # 9. 팀 구성 정보 (HP 비율 + 상태이상 여부, 3마리 기준)
     # 9-1. 내 팀 정보 (6차원)
-    for i in range(3):  # 6마리에서 3마리로 변경
+    for i in range(3):  # 3마리
         if i < len(player_team):
             poke = player_team[i]
             state[f'my_team_{i}_hp'] = poke['currentHp'] / poke['base']['hp']
@@ -195,10 +195,10 @@ def get_state(
         else:
             state[f'my_team_{i}_hp'] = 0.0
             state[f'my_team_{i}_has_status'] = 0.0
-    # 누적 차원: 130
+    # 누적 차원: 106
 
     # 9-2. 상대 팀 정보 (6차원)
-    for i in range(3):  # 6마리에서 3마리로 변경
+    for i in range(3):  # 3마리
         if i < len(opponent_team):
             poke = opponent_team[i]
             state[f'enemy_team_{i}_hp'] = poke['currentHp'] / poke['base']['hp']
@@ -206,11 +206,11 @@ def get_state(
         else:
             state[f'enemy_team_{i}_hp'] = 0.0
             state[f'enemy_team_{i}_has_status'] = 0.0
-    # 누적 차원: 136
+    # 누적 차원: 112
 
     # 10. 턴 수 (1차원)
     state['turn'] = min(1.0, turn / 30)
-    # 누적 차원: 137
+    # 누적 차원: 113
 
     # 11. 공용 환경 정보 (3차원)
     # 11-1. 날씨 (1차원)
@@ -221,7 +221,7 @@ def get_state(
             break
     else:
         state['weather'] = 0.0
-    # 누적 차원: 138
+    # 누적 차원: 114
 
     # 11-2. 필드 (1차원)
     fields = ['그래스필드', '사이코필드', '미스트필드', '일렉트릭필드']
@@ -231,7 +231,7 @@ def get_state(
             break
     else:
         state['field'] = 0.0
-    # 누적 차원: 139
+    # 누적 차원: 115
 
     # 11-3. 룸 (1차원)
     rooms = ['트릭룸', '매직룸', '원더룸']
@@ -241,26 +241,33 @@ def get_state(
             break
     else:
         state['room'] = 0.0
-    # 누적 차원: 140
+    # 누적 차원: 116
 
-    # 12. 개인 함정 정보 (4차원)
-    traps = ['압정뿌리기', '스텔스록', '독압정', '스파이크']
-    player_traps = my_env.get('traps', []) if not for_opponent else enemy_env.get('traps', [])
+    # 12. 함정 정보 (12차원)
+    # 12-1. 내 필드 함정 (6차원)
+    traps = ['독압정', '맹독압정', '스텔스록', '압정뿌리기1', '압정뿌리기2', '압정뿌리기3']
+    my_traps = my_env.get('traps', [])
     for trap in traps:
-        state[f'personal_trap_{trap}'] = 1.0 if any(trap in effect['name'] for effect in player_traps) else 0.0
-    # 누적 차원: 144
+        state[f'my_field_trap_{trap}'] = 1.0 if any(trap in effect['name'] for effect in my_traps) else 0.0
+    # 누적 차원: 122
 
-    # 13. 효과 정보 (12차원)
-    # 13-1. 내 효과 (6차원)
-    effect_types = ['공격력', '방어력', '특수공격력', '특수방어력', '속도', '명중률']
-    for effect in effect_types:
-        state[f'my_effect_{effect}'] = 1.0 if any(effect in e['name'] for e in my_effects) else 0.0
-    # 누적 차원: 150
+    # 12-2. 상대 필드 함정 (6차원)
+    enemy_traps = enemy_env.get('traps', [])
+    for trap in traps:
+        state[f'enemy_field_trap_{trap}'] = 1.0 if any(trap in effect['name'] for effect in enemy_traps) else 0.0
+    # 누적 차원: 128
 
-    # 13-2. 상대 효과 (6차원)
-    for effect in effect_types:
-        state[f'enemy_effect_{effect}'] = 1.0 if any(effect in e['name'] for e in enemy_effects) else 0.0
-    # 누적 차원: 156
+    # 13. 스크린 효과 정보 (2차원)
+    # 13-1. 내 스크린 효과 (1차원)
+    screens = ['빛의장막', '리플렉터', '오로라베일']
+    my_screen_effect = next((e for e in my_effects if e['name'] in screens), None)
+    state['my_screen_effect'] = my_screen_effect['remainingTurn'] / 5 if my_screen_effect else 0.0
+    # 누적 차원: 129
+
+    # 13-2. 상대 스크린 효과 (1차원)
+    enemy_screen_effect = next((e for e in enemy_effects if e['name'] in screens), None)
+    state['enemy_screen_effect'] = enemy_screen_effect['remainingTurn'] / 5 if enemy_screen_effect else 0.0
+    # 누적 차원: 130
 
     print("✅ 상태 벡터 길이:", len(state))
     return state 
