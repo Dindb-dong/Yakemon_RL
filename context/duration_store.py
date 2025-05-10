@@ -1,7 +1,9 @@
 # context/duration_store.py
-from typing import List, Dict, Literal, Optional
+from typing import List, Dict, Literal, Optional, TYPE_CHECKING
 from context.battle_store import battle_store_instance as store
-from utils.battle_logics.update_battle_pokemon import remove_status, add_status
+
+if TYPE_CHECKING:
+    from utils.battle_logics.update_battle_pokemon import remove_status, add_status
 
 TimedEffect = Dict[str, any]
 SideType = Literal["my", "enemy", "public", "my_env", "enemy_env"]

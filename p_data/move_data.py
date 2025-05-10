@@ -4,9 +4,6 @@ import random
 from typing import List, Dict
 from utils.shuffle_array import shuffle_array
 from p_models.move_info import MoveInfo, MoveEffect, StatChange
-from p_models.types import WeatherType
-from p_models.status import StatusState
-from p_models.rank_state import RankStat
 
 # 예시 MoveInfo 데이터
 move_datas = [
@@ -35,7 +32,7 @@ move_datas = [
         affiliation='폭탄',
         accuracy=100,
         critical_rate=0,
-        effects=[MoveEffect(id=2, chance=0.3, status=StatusState.POISON)],
+        effects=[MoveEffect(id=2, chance=0.3, status='독')],
         target='opponent'
     ),
     MoveInfo(
@@ -48,7 +45,7 @@ move_datas = [
         is_touch=False,
         accuracy=100,
         critical_rate=0,
-        effects=[MoveEffect(id=3, chance=0.1, status=StatusState.POISON)],
+        effects=[MoveEffect(id=3, chance=0.1, status='독')],
         target='opponent'
     ),
     MoveInfo(
@@ -65,7 +62,7 @@ move_datas = [
         effects=[MoveEffect(
             id=4,
             chance=0.1,
-            stat_change=[StatChange('opponent', RankStat.SPECIAL_DEFENSE, -1)]
+            stat_change=[StatChange('opponent', 'defense', -1)]
         )],
         target='opponent'
     ),
@@ -80,7 +77,7 @@ move_datas = [
         affiliation='가루',
         accuracy=75,
         critical_rate=0,
-        effects=[MoveEffect(id=5, chance=1.0, status=StatusState.SLEEP)],
+        effects=[MoveEffect(id=5, chance=1.0, status='잠듦')],
         target='opponent'
     ),
     MoveInfo(
@@ -94,7 +91,7 @@ move_datas = [
         affiliation=None,
         accuracy=90,
         critical_rate=0,
-        effects=[MoveEffect(id=6, chance=1.0, status=StatusState.BAD_POISON)],
+        effects=[MoveEffect(id=6, chance=1.0, status='맹독')],
         target='opponent'
     ),
     MoveInfo(
@@ -121,7 +118,7 @@ move_datas = [
         is_touch=False,
         accuracy=90,
         critical_rate=0,
-        effects=[MoveEffect(id=8, chance=1.0, status=StatusState.LEECH_SEED)],
+        effects=[MoveEffect(id=8, chance=1.0, status='씨뿌리기')],
         target='opponent'
     ),
     MoveInfo(
@@ -135,7 +132,7 @@ move_datas = [
         affiliation=None,
         accuracy=100,
         critical_rate=0,
-        weather=WeatherType.SUNNY,
+        weather='쾌청',
         target='none'
     ),
     MoveInfo(
@@ -149,7 +146,7 @@ move_datas = [
         affiliation=None,
         accuracy=100,
         critical_rate=0,
-        effects=[MoveEffect(id=10, chance=0.3, status=StatusState.FLINCH)],
+        effects=[MoveEffect(id=10, chance=0.3, status='마비')],
         target='opponent'
     ),
     MoveInfo(
@@ -163,7 +160,7 @@ move_datas = [
         affiliation=None,
         accuracy=85,
         critical_rate=0,
-        effects=[MoveEffect(id=11, chance=0.1, status=StatusState.BURN)],
+        effects=[MoveEffect(id=11, chance=0.1, status='화상')],
         target='opponent'
     ),
     MoveInfo(
@@ -193,7 +190,7 @@ move_datas = [
         demerit_effects=[MoveEffect(
             id=13,
             chance=1.0,
-            stat_change=[StatChange('self', RankStat.SPECIAL_ATTACK, -2)]
+            stat_change=[StatChange('self', 'spAttack', -2)]
         )],
         target='opponent'
     ),
@@ -221,7 +218,7 @@ move_datas = [
         affiliation=None,
         accuracy=100,
         critical_rate=0,
-        effects=[MoveEffect(id=15, chance=0.1, status=StatusState.BURN)],
+        effects=[MoveEffect(id=15, chance=0.1, status='화상')],
         target='opponent'
     ),
     MoveInfo(
@@ -238,7 +235,7 @@ move_datas = [
         effects=[MoveEffect(
             id=16,
             chance=1.0,
-            stat_change=[StatChange('opponent', RankStat.DEFENSE, -1)]
+            stat_change=[StatChange('opponent', 'defense', -1)]
         )],
         target='opponent'
     ),
@@ -254,7 +251,7 @@ move_datas = [
         position='하늘',
         accuracy=70,
         critical_rate=0,
-        effects=[MoveEffect(id=17, chance=0.3, status=StatusState.CONFUSION)],
+        effects=[MoveEffect(id=17, chance=0.3, status='혼란')],
         target='opponent'
     ),
     MoveInfo(
@@ -272,11 +269,11 @@ move_datas = [
             id=18,
             chance=0.1,
             stat_change=[
-                StatChange('self', RankStat.ATTACK, 1),
-                StatChange('self', RankStat.DEFENSE, 1),
-                StatChange('self', RankStat.SPECIAL_ATTACK, 1),
-                StatChange('self', RankStat.SPECIAL_DEFENSE, 1),
-                StatChange('self', RankStat.SPEED, 1)
+                StatChange('self', 'attack', 1),
+                StatChange('self', 'defense', 1),
+                StatChange('self', 'spAttack', 1),
+                StatChange('self', 'spDefense', 1),
+                StatChange('self', 'speed', 1)
             ]
         )],
         target='opponent'
@@ -305,7 +302,7 @@ move_datas = [
         affiliation=None,
         accuracy=100,
         critical_rate=0,
-        effects=[MoveEffect(id=20, chance=0.1, status=StatusState.FREEZE)],
+        effects=[MoveEffect(id=20, chance=0.1, status='얼음')],
         target='opponent'
     ),
     MoveInfo(
@@ -323,11 +320,11 @@ move_datas = [
             id=21,
             chance=1.0,
             stat_change=[
-                StatChange('self', RankStat.DEFENSE, -1),
-                StatChange('self', RankStat.SPECIAL_DEFENSE, -1),
-                StatChange('self', RankStat.ATTACK, 2),
-                StatChange('self', RankStat.SPECIAL_ATTACK, 2),
-                StatChange('self', RankStat.SPEED, 2)
+                StatChange('self', 'defense', -1),
+                StatChange('self', 'spDefense', -1),
+                StatChange('self', 'attack', 2),
+                StatChange('self', 'spAttack', 2),
+                StatChange('self', 'speed', 2)
             ]
         )],
         target='self'
@@ -343,7 +340,7 @@ move_datas = [
         affiliation='파동',
         accuracy=100,
         critical_rate=0,
-        effects=[MoveEffect(id=22, chance=0.3, status=StatusState.FLINCH)],
+        effects=[MoveEffect(id=22, chance=0.3, status='마비')],
         target='opponent'
     ),
     MoveInfo(
@@ -373,7 +370,7 @@ move_datas = [
         effects=[MoveEffect(
             id=24,
             chance=0.1,
-            stat_change=[StatChange('opponent', RankStat.SPECIAL_DEFENSE, -1)]
+            stat_change=[StatChange('opponent', 'spDefense', -1)]
         )],
         target='opponent'
     ),
@@ -405,7 +402,7 @@ move_datas = [
         effects=[MoveEffect(
             id=26,
             chance=1.0,
-            stat_change=[StatChange('self', RankStat.SPEED, 1)]
+            stat_change=[StatChange('self', 'speed', 1)]
         )],
         target='opponent'
     ),
@@ -423,7 +420,7 @@ move_datas = [
         effects=[MoveEffect(
             id=27,
             chance=1.0,
-            stat_change=[StatChange('opponent', RankStat.SPEED, -1)]
+            stat_change=[StatChange('opponent', 'speed', -1)]
         )],
         target='opponent'
     ),
@@ -457,8 +454,8 @@ move_datas = [
             id=29,
             chance=1.0,
             stat_change=[
-                StatChange('self', RankStat.ATTACK, 1),
-                StatChange('self', RankStat.SPEED, 1)
+                StatChange('self', 'attack', 1),
+                StatChange('self', 'speed', 1)
             ]
         )],
         target='self'
@@ -477,7 +474,7 @@ move_datas = [
         effects=[MoveEffect(
             id=30,
             chance=0.2,
-            stat_change=[StatChange('opponent', RankStat.DEFENSE, -1)]
+            stat_change=[StatChange('opponent', 'defense', -1)]
         )],
         target='opponent'
     ),
@@ -492,7 +489,7 @@ move_datas = [
         affiliation='펀치',
         accuracy=100,
         critical_rate=0,
-        effects=[MoveEffect(id=31, chance=0.1, status=StatusState.FREEZE)],
+        effects=[MoveEffect(id=31, chance=0.1, status='얼음')],
         target='opponent'
     ),
     MoveInfo(
@@ -506,7 +503,7 @@ move_datas = [
         affiliation='펀치',
         accuracy=100,
         critical_rate=0,
-        effects=[MoveEffect(id=32, chance=0.1, status=StatusState.BURN)],
+        effects=[MoveEffect(id=32, chance=0.1, status='화상')],
         target='opponent'
     ),
     MoveInfo(
@@ -524,8 +521,8 @@ move_datas = [
             id=33,
             chance=1.0,
             stat_change=[
-                StatChange('self', RankStat.ATTACK, -1),
-                StatChange('self', RankStat.DEFENSE, -1)
+                StatChange('self', 'attack', -1),
+                StatChange('self', 'defense', -1)
             ]
         )],
         target='opponent'
@@ -541,7 +538,7 @@ move_datas = [
         affiliation=None,
         accuracy=90,
         critical_rate=0,
-        effects=[MoveEffect(id=34, chance=0.3, status=StatusState.FLINCH)],
+        effects=[MoveEffect(id=34, chance=0.3, status='마비')],
         target='opponent'
     ),
     MoveInfo(
@@ -558,7 +555,7 @@ move_datas = [
         effects=[MoveEffect(
             id=35,
             chance=0.2,
-            stat_change=[StatChange('opponent', RankStat.DEFENSE, -1)]
+            stat_change=[StatChange('opponent', 'defense', -1)]
         )],
         target='opponent'
     ),
@@ -576,7 +573,7 @@ move_datas = [
         effects=[MoveEffect(
             id=36,
             chance=1.0,
-            stat_change=[StatChange('self', RankStat.SPEED, 1)]
+            stat_change=[StatChange('self', 'speed', 1)]
         )],
         target='opponent'
     ),
@@ -594,7 +591,7 @@ move_datas = [
         effects=[MoveEffect(
             id=37,
             chance=1.0,
-            stat_change=[StatChange('self', RankStat.ATTACK, 2)]
+            stat_change=[StatChange('self', 'attack', 2)]
         )],
         target='self'
     ),
@@ -610,7 +607,7 @@ move_datas = [
         accuracy=100,
         critical_rate=0,
         demerit_effects=[MoveEffect(id=38, chance=1.0, recoil=0.33)],
-        effects=[MoveEffect(id=38, chance=0.1, status=StatusState.BURN)],
+        effects=[MoveEffect(id=38, chance=0.1, status='화상')],
         target='opponent'
     ),
     MoveInfo(
@@ -628,8 +625,8 @@ move_datas = [
             id=39,
             chance=1.0,
             stat_change=[
-                StatChange('self', RankStat.DEFENSE, -1),
-                StatChange('self', RankStat.SPECIAL_DEFENSE, -1)
+                StatChange('self', 'defense', -1),
+                StatChange('self', 'spDefense', -1)
             ]
         )],
         target='opponent'
@@ -658,7 +655,7 @@ move_datas = [
         affiliation=None,
         accuracy=90,
         critical_rate=1,
-        effects=[MoveEffect(id=41, chance=0.1, status=StatusState.BURN)],
+        effects=[MoveEffect(id=41, chance=0.1, status='화상')],
         target='opponent'
     ),
     MoveInfo(
@@ -740,7 +737,7 @@ move_datas = [
         affiliation=None,
         accuracy=100,
         critical_rate=0,
-        effects=[MoveEffect(id=47, chance=0.3, status=StatusState.POISON)],
+        effects=[MoveEffect(id=47, chance=0.3, status='독')],
         target='opponent'
     ),
     MoveInfo(
@@ -758,8 +755,8 @@ move_datas = [
             id=48,
             chance=1.0,
             stat_change=[
-                StatChange('self', RankStat.ATTACK, 1),
-                StatChange('self', RankStat.DEFENSE, 1)
+                StatChange('self', 'attack', 1),
+                StatChange('self', 'defense', 1)
             ]
         )],
         target='self'
@@ -779,9 +776,9 @@ move_datas = [
             id=49,
             chance=1.0,
             stat_change=[
-                StatChange('self', RankStat.ATTACK, 1),
-                StatChange('self', RankStat.DEFENSE, 1),
-                StatChange('self', RankStat.ACCURACY, 1)
+                StatChange('self', 'attack', 1),
+                StatChange('self', 'defense', 1),
+                StatChange('self', 'accuracy', 1)
             ]
         )],
         target='self'
@@ -811,7 +808,7 @@ move_datas = [
         affiliation='펀치',
         accuracy=100,
         critical_rate=0,
-        effects=[MoveEffect(id=51, chance=0.1, status=StatusState.PARALYSIS)],
+        effects=[MoveEffect(id=51, chance=0.1, status='마비')],
         target='opponent'
     ),
     MoveInfo(
@@ -853,7 +850,7 @@ move_datas = [
         affiliation=None,
         accuracy=80,
         critical_rate=0,
-        effects=[MoveEffect(id=54, chance=0.3, status=StatusState.POISON)],
+        effects=[MoveEffect(id=54, chance=0.3, status='독')],
         target='opponent'
     ),
     MoveInfo(
@@ -867,7 +864,7 @@ move_datas = [
         affiliation=None,
         accuracy=100,
         critical_rate=0,
-        effects=[MoveEffect(id=55, chance=0.3, status=StatusState.FLINCH)],
+        effects=[MoveEffect(id=55, chance=0.3, status='마비')],
         target='opponent'
     ),
     MoveInfo(
@@ -899,8 +896,8 @@ move_datas = [
             id=57,
             chance=1.0,
             stat_change=[
-                StatChange('self', RankStat.DEFENSE, -1),
-                StatChange('self', RankStat.SPECIAL_DEFENSE, -1)
+                StatChange('self', 'defense', -1),
+                StatChange('self', 'spDefense', -1)
             ]
         )],
         target='opponent'
@@ -960,7 +957,7 @@ move_datas = [
         demerit_effects=[MoveEffect(
             id=61,
             chance=1.0,
-            stat_change=[StatChange('self', RankStat.SPECIAL_ATTACK, -2)]
+            stat_change=[StatChange('self', 'spAttack', -2)]
         )],
         target='opponent'
     ),
@@ -975,7 +972,7 @@ move_datas = [
         affiliation=None,
         accuracy=100,
         critical_rate=0,
-        effects=[MoveEffect(id=62, chance=1.0, status=StatusState.PARALYSIS)],
+        effects=[MoveEffect(id=62, chance=1.0, status='마비')],
         target='opponent'
     ),
     MoveInfo(
@@ -989,7 +986,7 @@ move_datas = [
         affiliation=None,
         accuracy=100,
         critical_rate=0,
-        effects=[MoveEffect(id=63, chance=1.0, status=StatusState.BIND)],
+        effects=[MoveEffect(id=63, chance=1.0, status='사슬묶기')],
         target='opponent'
     ),
     MoveInfo(
@@ -1033,7 +1030,7 @@ move_datas = [
         effects=[MoveEffect(
             id=66,
             chance=1.0,
-            stat_change=[StatChange('opponent', RankStat.SPEED, -1)]
+            stat_change=[StatChange('opponent', 'speed', -1)]
         )],
         target='opponent'
     ),
@@ -1065,7 +1062,7 @@ move_datas = [
         effects=[MoveEffect(
             id=68,
             chance=1.0,
-            stat_change=[StatChange('opponent', RankStat.SPECIAL_ATTACK, -1)]
+            stat_change=[StatChange('opponent', 'spAttack', -1)]
         )],
         target='opponent'
     ),
@@ -1083,7 +1080,7 @@ move_datas = [
         effects=[MoveEffect(
             id=69,
             chance=0.1,
-            stat_change=[StatChange('opponent', RankStat.SPECIAL_DEFENSE, -1)]
+            stat_change=[StatChange('opponent', 'spDefense', -1)]
         )],
         target='opponent'
     ),
@@ -1101,7 +1098,7 @@ move_datas = [
         effects=[MoveEffect(
             id=70,
             chance=0.1,
-            stat_change=[StatChange('opponent', RankStat.SPECIAL_DEFENSE, -1)]
+            stat_change=[StatChange('opponent', 'spDefense', -1)]
         )],
         target='opponent'
     ),
@@ -1119,7 +1116,7 @@ move_datas = [
         effects=[MoveEffect(
             id=71,
             chance=0.1,
-            stat_change=[StatChange('opponent', RankStat.SPECIAL_DEFENSE, -1)]
+            stat_change=[StatChange('opponent', 'spDefense', -1)]
         )],
         target='opponent'
     ),
@@ -1138,8 +1135,8 @@ move_datas = [
             id=72,
             chance=1.0,
             stat_change=[
-                StatChange('self', RankStat.SPECIAL_ATTACK, 1),
-                StatChange('self', RankStat.SPECIAL_DEFENSE, 1)
+                StatChange('self', 'spAttack', 1),
+                StatChange('self', 'spDefense', 1)
             ]
         )],
         target='self'
@@ -1155,7 +1152,7 @@ move_datas = [
         affiliation=None,
         accuracy=100,
         critical_rate=0,
-        effects=[MoveEffect(id=73, chance=1.0, status=StatusState.CONFUSION)],
+        effects=[MoveEffect(id=73, chance=1.0, status='혼란')],
         target='opponent'
     ),
     MoveInfo(
@@ -1198,7 +1195,7 @@ move_datas = [
         effects=[MoveEffect(
             id=76,
             chance=1.0,
-            stat_change=[StatChange('self', RankStat.DEFENSE, 2)]
+            stat_change=[StatChange('self', 'defense', 2)]
         )],
         target='self'
     ),
@@ -1300,7 +1297,7 @@ move_datas = [
         affiliation=None,
         accuracy=85,
         critical_rate=0,
-        effects=[MoveEffect(id=83, chance=1.0, status=StatusState.BURN)],
+        effects=[MoveEffect(id=83, chance=1.0, status='화상')],
         target='opponent'
     ),
     MoveInfo(
@@ -1314,7 +1311,7 @@ move_datas = [
         affiliation=None,
         accuracy=100,
         critical_rate=0,
-        effects=[MoveEffect(id=84, chance=1.0, status=StatusState.DESTINY_BOND)],
+        effects=[MoveEffect(id=84, chance=1.0, status='길동무')],
         target='self'
     ),
     MoveInfo(
@@ -1347,8 +1344,8 @@ move_datas = [
             id=86,
             chance=1.0,
             stat_change=[
-                StatChange('opponent', RankStat.SPECIAL_ATTACK, -1),
-                StatChange('opponent', RankStat.ATTACK, -1)
+                StatChange('opponent', 'spAttack', -1),
+                StatChange('opponent', 'attack', -1)
             ]
         )],
         target='opponent'
@@ -1460,7 +1457,7 @@ move_datas = [
         effects=[MoveEffect(
             id=94,
             chance=0.3,
-            stat_change=[StatChange('opponent', RankStat.SPECIAL_ATTACK, -1)]
+            stat_change=[StatChange('opponent', 'spAttack', -1)]
         )],
         target='opponent'
     ),
@@ -1489,7 +1486,7 @@ move_datas = [
         affiliation=None,
         accuracy=90,
         critical_rate=0,
-        effects=[MoveEffect(id=96, chance=0.1, status=StatusState.BURN)],
+        effects=[MoveEffect(id=96, chance=0.1, status='화상')],
         target='opponent'
     ),
     MoveInfo(
@@ -1575,7 +1572,7 @@ move_datas = [
         effects=[MoveEffect(
             id=102,
             chance=1.0,
-            stat_change=[StatChange('opponent', RankStat.SPEED, -1)]
+            stat_change=[StatChange('opponent', 'speed', -1)]
         )],
         target='opponent'
     ),
@@ -1593,7 +1590,7 @@ move_datas = [
         effects=[MoveEffect(
             id=103,
             chance=1.0,
-            stat_change=[StatChange('opponent', RankStat.SPEED, -1)]
+            stat_change=[StatChange('opponent', 'speed', -1)]
         )],
         target='opponent'
     ),
@@ -1611,7 +1608,7 @@ move_datas = [
         effects=[MoveEffect(
             id=104,
             chance=1.0,
-            stat_change=[StatChange('self', RankStat.CRITICAL, 2)]
+            stat_change=[StatChange('self', 'critical', 2)]
         )],
         target='self'
     ),
@@ -1666,7 +1663,7 @@ move_datas = [
         affiliation=None,
         accuracy=100,
         critical_rate=0,
-        effects=[MoveEffect(id=108, chance=1.0, heal=1.0, status=StatusState.SLEEP)],
+        effects=[MoveEffect(id=108, chance=1.0, heal=1.0, status='잠듦')],
         target='self'
     ),
     MoveInfo(
@@ -1683,7 +1680,7 @@ move_datas = [
         effects=[MoveEffect(
             id=109,
             chance=1.0,
-            stat_change=[StatChange('self', RankStat.SPECIAL_ATTACK, 1)]
+            stat_change=[StatChange('self', 'spAttack', 1)]
         )],
         target='opponent'
     ),
@@ -1714,7 +1711,7 @@ move_datas = [
         effects=[MoveEffect(
             id=111,
             chance=0.1,
-            stat_change=[StatChange('opponent', RankStat.SPECIAL_ATTACK, -1)]
+            stat_change=[StatChange('opponent', 'spAttack', -1)]
         )],
         target='opponent'
     ),
@@ -1785,7 +1782,7 @@ move_datas = [
         effects=[MoveEffect(
             id=116,
             chance=1.0,
-            stat_change=[StatChange('opponent', RankStat.ATTACK, -1)]
+            stat_change=[StatChange('opponent', 'attack', -1)]
         )],
         target='opponent'
     ),
@@ -1803,7 +1800,7 @@ move_datas = [
         effects=[MoveEffect(
             id=117,
             chance=1.0,
-            stat_change=[StatChange('self', RankStat.SPEED, 1)]
+            stat_change=[StatChange('self', 'speed', 1)]
         )],
         target='opponent'
     ),
@@ -1846,7 +1843,7 @@ move_datas = [
         affiliation=None,
         accuracy=100,
         critical_rate=0,
-        effects=[MoveEffect(id=120, chance=0.2, status=StatusState.FLINCH)],
+        effects=[MoveEffect(id=120, chance=0.2, status='마비')],
         target='opponent'
     ),
     MoveInfo(

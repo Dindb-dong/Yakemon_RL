@@ -60,7 +60,7 @@ def get_state(
     status_list = [
         '독', '맹독', '마비', '화상', '잠듦', '얼음', '혼란', 
         '풀죽음', '사슬묶기', '소리기술사용불가', '하품', 
-        '교체불가', '조이기', '없음'
+        '교체불가', '조이기'
     ]
     for status in status_list:
         state[f'status_{status}'] = 1.0 if status in player['status'] else 0.0
