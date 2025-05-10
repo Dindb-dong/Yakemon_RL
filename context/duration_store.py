@@ -1,6 +1,7 @@
 # context/duration_store.py
 from typing import List, Dict, Literal, Optional
 from context.battle_store import battle_store_instance as store
+from utils.battle_logics.update_battle_pokemon import remove_status, add_status
 
 TimedEffect = Dict[str, any]
 SideType = Literal["my", "enemy", "public", "my_env", "enemy_env"]
@@ -113,7 +114,7 @@ class DurationStore:
 
         return expired
 
-    def transfer_effects(self, side: Literal["my", "enemy"], from_idx: int, to_idx: int):
+    def transfer_effects(self, side: Literal["my", "enemy"], from_idx: int, to_idx: int): # 바톤터치
         key = "my_effects" if side == "my" else "enemy_effects"
         effects = self.state.get(key, [])
         transfer_list = [e for e in effects if e.get("owner_index") == from_idx]
