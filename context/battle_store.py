@@ -3,6 +3,7 @@ from copy import deepcopy
 
 from p_models.battle_pokemon import BattlePokemon
 from context.battle_environment import PublicBattleEnvironment, IndividualBattleEnvironment
+from context.form_check_wrapper import with_form_check
 
 SideType = Literal["my", "enemy"]
 
@@ -95,4 +96,8 @@ class BattleStore:
 
 # 전역 인스턴스 생성
 battle_store_instance = BattleStore()
-store = battle_store_instance  # store를 battle_store_instance의 별칭으로 추가
+store: BattleStore = with_form_check(lambda set_state, get_state, api: api)(
+    lambda s: setattr(battle_store_instance, "state", s),
+    lambda: battle_store_instance.get_state(),
+    battle_store_instance
+)
