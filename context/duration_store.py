@@ -3,7 +3,7 @@ from typing import List, Dict, Literal, Optional
 from context.battle_store import battle_store_instance as store
 
 TimedEffect = Dict[str, any]
-SideType = Literal["my", "enemy", "public"]
+SideType = Literal["my", "enemy", "public", "my_env", "enemy_env"]
 
 special_status = ["하품", "멸망의노래", "사슬묶기"]
 
@@ -12,6 +12,8 @@ class DurationStore:
         self.my_effects: List[TimedEffect] = []
         self.enemy_effects: List[TimedEffect] = []
         self.public_effects: List[TimedEffect] = []
+        self.my_env_effects: List[TimedEffect] = []
+        self.enemy_env_effects: List[TimedEffect] = []
         
     def add_effect(self, effect: TimedEffect, side: SideType):
         """효과 추가"""
@@ -19,6 +21,10 @@ class DurationStore:
             self.my_effects.append(effect)
         elif side == "enemy":
             self.enemy_effects.append(effect)
+        elif side == "my_env":
+            self.my_env_effects.append(effect)
+        elif side == "enemy_env":
+            self.enemy_env_effects.append(effect)
         else:
             self.public_effects.append(effect)
             
@@ -30,6 +36,12 @@ class DurationStore:
         elif side == "enemy":
             if effect in self.enemy_effects:
                 self.enemy_effects.remove(effect)
+        elif side == "my_env":
+            if effect in self.my_env_effects:
+                self.my_env_effects.remove(effect)
+        elif side == "enemy_env":
+            if effect in self.enemy_env_effects:
+                self.enemy_env_effects.remove(effect)
         else:
             if effect in self.public_effects:
                 self.public_effects.remove(effect)
@@ -40,12 +52,16 @@ class DurationStore:
             return self.my_effects
         elif side == "enemy":
             return self.enemy_effects
+        elif side == "my_env":
+            return self.my_env_effects
+        elif side == "enemy_env":
+            return self.enemy_env_effects
         else:
             return self.public_effects
             
     def update_durations(self):
         """지속 시간 업데이트"""
-        for effects in [self.my_effects, self.enemy_effects, self.public_effects]:
+        for effects in [self.my_effects, self.enemy_effects, self.public_effects, self.my_env_effects, self.enemy_env_effects]:
             for effect in effects[:]:
                 if 'duration' in effect:
                     effect['duration'] -= 1
@@ -57,16 +73,8 @@ class DurationStore:
         self.my_effects.clear()
         self.enemy_effects.clear()
         self.public_effects.clear()
-
-    def add_env_effect(self, target: Literal["my", "enemy"], effect: TimedEffect):
-        # This method is not provided in the original file or the new implementation
-        # It's assumed to exist as it's called in the original file
-        pass
-
-    def remove_env_effect(self, target: Literal["my", "enemy"], effect_name: str):
-        # This method is not provided in the original file or the new implementation
-        # It's assumed to exist as it's called in the original file
-        pass
+        self.my_env_effects.clear()
+        self.enemy_env_effects.clear()
 
     def decrement_turns(self):
         expired = {"my": [], "enemy": [], "public": [], "my_env": [], "enemy_env": []}
@@ -91,6 +99,8 @@ class DurationStore:
         self.my_effects = dec(self.my_effects, "my")
         self.enemy_effects = dec(self.enemy_effects, "enemy")
         self.public_effects = dec(self.public_effects, "public")
+        self.my_env_effects = dec(self.my_env_effects, "my_env")
+        self.enemy_env_effects = dec(self.enemy_env_effects, "enemy_env")
 
         # 날씨, 필드, 룸 리셋
         for effect in expired["public"]:
