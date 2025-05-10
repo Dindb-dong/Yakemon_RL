@@ -1876,7 +1876,7 @@ move_datas = [
     )
 ]
 
-def move_data(move_names: List[str], types: List[str]) -> List[Dict]:
+def move_data(move_names: List[str], types: List[str]) -> List[MoveInfo]:
     # 1. moveDatas에서 name 일치하는 MoveInfo 찾기
     selected = [m for name in move_names for m in move_datas if m['name'] == name]
 
