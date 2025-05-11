@@ -12,10 +12,10 @@ TrapType = Optional[Literal['독압정', '스텔스록', '압정뿌리기', '압
 PositionType = Optional[Literal['땅', '하늘', '바다', '공허']]
 
 class StatChange:
-    def __init__(self, target: str, stat: str, stages: int):
+    def __init__(self, target: str, stat: str, change: int):
         self.target = target
         self.stat = stat
-        self.stages = stages
+        self.change = change
 
 class MoveEffect:
     def __init__(
