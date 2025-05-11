@@ -1,9 +1,9 @@
 from p_models.move_info import MoveInfo
-from context.battle_store import battle_store_instance, SideType
+from context.battle_store import BattleStoreState, SideType, store
 from utils.battle_logics.update_battle_pokemon import change_hp, change_rank
 
 def apply_defensive_ability_effect_before_damage(used_move: MoveInfo, side: SideType, was_effective=None):
-    state = battle_store_instance.get_state()
+    state: BattleStoreState = store.get_state()
     enemy_team = state["enemy_team"]
     active_enemy = state["active_enemy"]
     my_team = state["my_team"]
@@ -11,38 +11,38 @@ def apply_defensive_ability_effect_before_damage(used_move: MoveInfo, side: Side
 
     defender = enemy_team[active_enemy] if side == "my" else my_team[active_my]
 
-    ability = defender['base'].get('ability', {})
+    ability = defender.base.ability
     opponent_side = "enemy" if side == "my" else "my"
     active_opponent = active_enemy if side == "my" else active_my
 
     rate = 1.0
-    if ability and ability.get('defensive'):
-        for category in ability['defensive']:
-            name = ability['name']
+    if ability and ability.defensive:
+        for category in ability.defensive:
+            name = ability.name
             if category == "type_nullification":
                 if name in ["저수", "축전", "마중물", "건조피부"] and used_move.type == "물":
                     rate = 0
                     if name in ["저수", "축전", "건조피부"]:
-                        battle_store_instance.update_pokemon(opponent_side, active_opponent, lambda p: change_hp(p, round(p['base']['hp'] / 4)))
+                        store.update_pokemon(opponent_side, active_opponent, lambda p: change_hp(p, round(p['base']['hp'] / 4)))
                     elif name == "마중물":
-                        battle_store_instance.update_pokemon(opponent_side, active_opponent, lambda p: change_rank(p, "spAttack", 1))
+                        store.update_pokemon(opponent_side, active_opponent, lambda p: change_rank(p, "spAttack", 1))
                 elif name == "흙먹기" and used_move.type == "땅":
                     rate = 0
-                    battle_store_instance.update_pokemon(opponent_side, active_opponent, lambda p: change_hp(p, round(p['base']['hp'] / 4)))
+                    store.update_pokemon(opponent_side, active_opponent, lambda p: change_hp(p, round(p['base']['hp'] / 4)))
                 elif name == "건조피부" and used_move.type == "불":
                     rate *= 1.25
                 elif name == "타오르는불꽃" and used_move.type == "불":
                     rate = 0
                     stat = "attack" if defender['base']['attack'] > defender['base']['spAttack'] else "spAttack"
-                    battle_store_instance.update_pokemon(opponent_side, active_opponent, lambda p: change_rank(p, stat, 1))
+                    store.update_pokemon(opponent_side, active_opponent, lambda p: change_rank(p, stat, 1))
                 elif name == "피뢰침" and used_move.type == "전기":
                     rate = 0
-                    battle_store_instance.update_pokemon(opponent_side, active_opponent, lambda p: change_rank(p, "spAttack", 1))
+                    store.update_pokemon(opponent_side, active_opponent, lambda p: change_rank(p, "spAttack", 1))
                 elif name == "부유" and used_move.type == "땅":
                     rate = 0
                 elif name == "초식" and used_move.type == "풀":
                     rate = 0
-                    battle_store_instance.update_pokemon(opponent_side, active_opponent, lambda p: change_rank(p, "attack", 1))
+                    store.update_pokemon(opponent_side, active_opponent, lambda p: change_rank(p, "attack", 1))
             elif category == "damage_nullification":
                 if name == "방진" and getattr(used_move, 'affiliation', None) == "가루":
                     rate = 0
@@ -69,8 +69,8 @@ def apply_defensive_ability_effect_before_damage(used_move: MoveInfo, side: Side
     return rate
 
 
-def apply_offensive_ability_effect_before_damage(used_move: MoveInfo, side: SideType, was_effective=None):
-    state = battle_store_instance.get_state()
+def apply_offensive_ability_effect_before_damage(used_move: MoveInfo, side: SideType, was_effective=None) -> float:
+    state: BattleStoreState = store.get_state()
     my_team = state["my_team"]
     enemy_team = state["enemy_team"]
     active_my = state["active_my"]
@@ -78,49 +78,49 @@ def apply_offensive_ability_effect_before_damage(used_move: MoveInfo, side: Side
     public_env = state["public_env"]
 
     attacker = my_team[active_my] if side == "my" else enemy_team[active_enemy]
-    ability = attacker['base'].get('ability', {})
+    ability = attacker.base.ability
 
     rate = 1.0
-    if ability and ability.get('offensive'):
-        for category in ability['offensive']:
-            name = ability['name']
+    if ability and ability.offensive:
+        for category in ability.offensive:
+            name = ability.name
             if category == "damage_buff":
-                if name == "우격다짐" and getattr(used_move, 'effects', None):
+                if name == "우격다짐" and used_move.effects:
                     rate *= 1.3
-                if name == "이판사판" and any(d.get("recoil") or d.get("fail") for d in getattr(used_move, 'demerit_effects', []) or []):
+                if name == "이판사판" and any(d.get("recoil") or d.get("fail") for d in used_move.demerit_effects or []):
                     rate *= 1.2
-                if name == "철주먹" and getattr(used_move, 'affiliation', None) == "펀치":
+                if name == "철주먹" and used_move.affiliation == "펀치":
                     rate *= 1.2
-                if name == "단단한발톱" and getattr(used_move, 'is_touch', False):
+                if name == "단단한발톱" and used_move.is_touch:
                     rate *= 1.3
-                if name == "맹화" and used_move.type == "불" and attacker['currentHp'] <= attacker['base']['hp'] / 3:
+                if name == "맹화" and used_move.type == "불" and attacker.current_hp <= attacker.base.hp / 3:
                     rate *= 1.5
-                if name == "급류" and used_move.type == "물" and attacker['currentHp'] <= attacker['base']['hp'] / 3:
+                if name == "급류" and used_move.type == "물" and attacker.current_hp <= attacker.base.hp / 3:
                     rate *= 1.5
-                if name == "심록" and used_move.type == "풀" and attacker['currentHp'] <= attacker['base']['hp'] / 3:
+                if name == "심록" and used_move.type == "풀" and attacker.current_hp <= attacker.base.hp / 3:
                     rate *= 1.5
-                if name == "벌레의알림" and used_move.type == "벌레" and attacker['currentHp'] <= attacker['base']['hp'] / 3:
+                if name == "벌레의알림" and used_move.type == "벌레" and attacker.current_hp <= attacker.base.hp / 3:
                     rate *= 1.5
                 if name == "의욕" and getattr(used_move, 'category', None) == "물리":
                     rate *= 1.5
-                if name == "적응력" and used_move.type in attacker['base']['types']:
+                if name == "적응력" and used_move.type in attacker.base.types:
                     rate *= 4 / 3
-                if name == "메가런처" and getattr(used_move, 'affiliation', None) == "파동":
+                if name == "메가런처" and used_move.affiliation == "파동":
                     rate *= 1.5
                 if name == "수포" and used_move.type == "물":
                     rate *= 2
                 if name == "색안경" and (was_effective or 0) < 0:
                     rate *= 2
-                if name == "예리함" and getattr(used_move, 'affiliation', None) == "베기":
+                if name == "예리함" and used_move.affiliation == "베기":
                     rate *= 1.5
-                if name == "옹골찬턱" and getattr(used_move, 'affiliation', None) == "물기":
+                if name == "옹골찬턱" and used_move.affiliation == "물기":
                     rate *= 1.5
                 if name == "강철술사" and used_move.type == "강철":
                     rate *= 1.5
-                if name == "펑크록" and getattr(used_move, 'affiliation', None) == "소리":
+                if name == "펑크록" and used_move.affiliation == "소리":
                     rate *= 1.3
             elif category == "rank_buff":
-                if name == "선파워" and public_env.get('weather') == "쾌청" and getattr(used_move, 'category', None) == "특수":
+                if name == "선파워" and public_env.weather == "쾌청" and used_move.category == "특수":
                     rate *= 1.5
 
     if rate > 1:

@@ -1,6 +1,6 @@
 from typing import Optional, List, Dict, Callable, TYPE_CHECKING
 from p_models.pokemon_info import PokemonInfo
-
+from p_models.rank_state import RankState
 if TYPE_CHECKING:
     from p_models.move_info import MoveInfo
 
@@ -10,7 +10,7 @@ class BattlePokemon:
         base: PokemonInfo,  
         current_hp: int,
         pp: Dict[str, int],
-        rank: Dict[str, int],
+        rank: RankState,
         status: List[str],
         position: Optional[str] = None,  # '땅', '하늘', '바다', '공허' 중 하나
         is_active: bool = False,

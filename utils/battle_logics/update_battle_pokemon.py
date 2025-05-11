@@ -6,7 +6,7 @@ from p_models.ability_info import AbilityInfo
 from p_models.move_info import MoveInfo
 from p_models.rank_state import RankManager
 from p_models.status import StatusManager, StatusState
-from context.battle_store import battle_store_instance as store
+from context.battle_store import store
 from context.duration_store import duration_store
 unmain_status_with_duration: list[str] = [
     "도발", "트집", "사슬묶기", "회복봉인", "앵콜",
@@ -176,8 +176,9 @@ def has_status(pokemon: BattlePokemon, status: StatusState) -> bool:
 
 
 # PP 차감
-def use_move_pp(pokemon: BattlePokemon, move_name: str, pressure: bool = False) -> BattlePokemon:
+def use_move_pp(pokemon: BattlePokemon, move_name: str, pressure: bool = False, is_multi_hit: bool = False) -> BattlePokemon:
     pp = deepcopy(pokemon.pp)
+    if is_multi_hit: return pokemon
     if move_name in pp:
         pp[move_name] -= 2 if pressure else 1
         pp[move_name] = max(pp[move_name], 0)

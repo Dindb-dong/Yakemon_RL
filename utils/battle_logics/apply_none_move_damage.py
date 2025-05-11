@@ -1,10 +1,10 @@
 from typing import Tuple, Optional, List
 from p_models.battle_pokemon import BattlePokemon
-from context.battle_store import battle_store_instance as store
+from context.battle_store import store
 from utils.type_relation import calculate_type_effectiveness
 from p_models.types import WeatherType
 
-def apply_trap_damage(pokemon: BattlePokemon, trap: List[str]) -> Tuple[BattlePokemon, Optional[str], Optional[str]]:
+async def apply_trap_damage(pokemon: BattlePokemon, trap: List[str]) -> Tuple[BattlePokemon, Optional[str], Optional[str]]:
     damage = 0
     log = None
     status_condition = ""
@@ -61,7 +61,7 @@ def apply_trap_damage(pokemon: BattlePokemon, trap: List[str]) -> Tuple[BattlePo
     return updated, log, status_condition
 
 
-def apply_weather_damage(pokemon: BattlePokemon, weather: WeatherType) -> BattlePokemon:
+async def apply_weather_damage(pokemon: BattlePokemon, weather: WeatherType) -> BattlePokemon:
     add_log = store.add_log
     damage = 0
     types = pokemon.base.types
@@ -76,7 +76,7 @@ def apply_weather_damage(pokemon: BattlePokemon, weather: WeatherType) -> Battle
     return pokemon.copy_with(current_hp=max(0, pokemon.current_hp - damage))
 
 
-def apply_recoil_damage(pokemon: BattlePokemon, recoil: float, applied_damage: int) -> BattlePokemon:
+async def apply_recoil_damage(pokemon: BattlePokemon, recoil: float, applied_damage: int) -> BattlePokemon:
     add_log = store.add_log
     ability_name = pokemon.base.ability.name if pokemon.base.ability else None
     damage = 0
@@ -88,7 +88,7 @@ def apply_recoil_damage(pokemon: BattlePokemon, recoil: float, applied_damage: i
     return pokemon.copy_with(current_hp=max(0, pokemon.current_hp - damage))
 
 
-def apply_thorn_damage(pokemon: BattlePokemon) -> BattlePokemon:
+async def apply_thorn_damage(pokemon: BattlePokemon) -> BattlePokemon:
     add_log = store.add_log
     ability_name = pokemon.base.ability.name if pokemon.base.ability else None
     damage = 0
@@ -100,7 +100,7 @@ def apply_thorn_damage(pokemon: BattlePokemon) -> BattlePokemon:
     return pokemon.copy_with(current_hp=max(0, pokemon.current_hp - damage))
 
 
-def apply_status_condition_damage(pokemon: BattlePokemon, status: str) -> BattlePokemon:
+async def apply_status_condition_damage(pokemon: BattlePokemon, status: str) -> BattlePokemon:
     add_log = store.add_log
     ability_name = pokemon.base.ability.name if pokemon.base.ability else None
     damage = 0

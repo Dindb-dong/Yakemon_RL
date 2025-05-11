@@ -1,4 +1,4 @@
-from context.battle_store import battle_store_instance as store
+from context.battle_store import store
 from context.duration_store import duration_store
 from typing import Literal
 

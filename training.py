@@ -4,6 +4,7 @@
 
 #%% [markdown]
 # 필요한 라이브러리 임포트
+import asyncio
 import os
 import numpy as np
 import torch
@@ -19,19 +20,9 @@ from collections import deque
 from env.battle_env import YakemonEnv
 
 # 모델 관련 import
-from p_models.pokemon_info import PokemonInfo
-from p_models.rank_state import RankManager
-from p_models.status import StatusState, StatusManager
-from p_models.move_info import MoveInfo, MoveEffect, StatChange
-from p_models.battle_pokemon import BattlePokemon
-from p_models.ability_info import AbilityInfo
 
 # 유틸리티 관련 import
-from utils.type_relation import calculate_type_effectiveness
-from utils.battle_logics.battle_sequence import battle_sequence, BattleAction
-from utils.battle_logics.damage_calculator import calculate_move_damage
-from utils.battle_logics.rank_effect import calculate_rank_effect
-from utils.replay_buffer import ReplayBuffer
+from utils.battle_logics.create_battle_pokemon import create_battle_pokemon
 
 # 에이전트 관련 import
 from agent.dddqn_agent import DDDQNAgent
@@ -46,14 +37,12 @@ from p_data.ability_data import ability_data
 from p_data.mock_pokemon import create_mock_pokemon_list
 
 # 컨텍스트 관련 import
-from context.battle_store import battle_store_instance
-from context.battle_environment import PublicBattleEnvironment, IndividualBattleEnvironment
+from context.battle_store import store
 from context.duration_store import duration_store
-from context.form_check_wrapper import with_form_check
 
 
 # 전역 변수 초기화
-battle_store = battle_store_instance
+battle_store = store
 duration_store = duration_store
 
 
@@ -70,14 +59,14 @@ HYPERPARAMS = {
     "num_episodes": 1000,
     "save_interval": 100,
     "test_episodes": 100,
-    "state_dim": 122,  # get_state_vector의 출력 차원
+    "state_dim": 126,  # get_state_vector의 출력 차원
     "action_dim": 8,   # 4개의 기술 + 4개의 교체
 }
 
 #%% [markdown]
 # 학습 함수 정의
-def train_agent(
-    env,
+async def train_agent(
+    env: YakemonEnv,
     agent: DDDQNAgent,
     num_episodes: int,
     save_path: str = 'models',
@@ -98,95 +87,62 @@ def train_agent(
         json.dump(HYPERPARAMS, f, indent=4)
     
     for episode in range(num_episodes):
-        # 매 에피소드마다 새로운 포켓몬 팀 생성
-        my_team = create_mock_pokemon_list()[:6]  # 6마리 선택
-        enemy_team = create_mock_pokemon_list()[6:12]  # 다른 6마리 선택
+        # 1. 팀 생성 단계
+        all_pokemon = create_mock_pokemon_list()
         
-        # 각 포켓몬의 기술과 특성 설정
-        for pokemon in my_team + enemy_team:
-            # 기술 설정
-            moves = []
-            for i in range(4):
-                move = MoveInfo(
-                    id=i+1,
-                    name=f'기술{i}',
-                    power=random.randint(40, 120),
-                    accuracy=random.randint(70, 100),
-                    pp=random.randint(5, 20),
-                    type=random.choice(pokemon['base']['types']),
-                    category=random.choice(['물리', '특수', '변화']),
-                    target=random.choice(['self', 'opponent', 'none']),
-                    effects=[MoveEffect(
-                        id=i+1,
-                        chance=random.uniform(0.1, 1.0),
-                        stat_change=[StatChange('self', 'atk', 1)],
-                        status=random.choice([
-                            '화상', '마비', '독', '맹독', '얼음', '잠듦',
-                            '혼란', '풀죽음', '앵콜', '트집', '도발', '헤롱헤롱',
-                            '사슬묶기', '회복봉인', '씨뿌리기', '길동무', '소리기술사용불가',
-                            '하품', '교체불가', '조이기', '멸망의노래', None
-                        ]),
-                        recoil=random.uniform(0.1, 0.3) if random.random() < 0.3 else None,
-                        multi_hit=(2, 5) if random.random() < 0.2 else None,
-                        heal=random.uniform(0.1, 0.5) if random.random() < 0.2 else None,
-                        rank_nullification=random.random() < 0.1,
-                        triple_hit=random.random() < 0.1,
-                        double_hit=random.random() < 0.1,
-                        break_screen=random.random() < 0.1,
-                        type_change=random.choice(pokemon['base']['types']) if random.random() < 0.1 else None,
-                        lost_type=random.choice(pokemon['base']['types']) if random.random() < 0.1 else None,
-                        fail=random.uniform(0.1, 1.0) if random.random() < 0.1 else None
-                    )],
-                    is_touch=random.random() < 0.3,
-                    affiliation=random.choice(['소리', '펀치', '물기', '폭탄', '가루', None]),
-                    priority=random.randint(-3, 3),
-                    critical_rate=random.randint(0, 3),
-                    trap=random.choice(['독압정', '스텔스록', '압정뿌리기', '압정뿌리기2', '압정뿌리기3', '끈적끈적네트', None]),
-                    field=random.choice(['electric', 'psychic', 'grassy', 'misty', None]),
-                    room=random.choice(['trick_room', 'magic_room', 'wonder_room', None]),
-                    weather=random.choice(['sunny', 'rainy', 'sandstorm', 'hail', None]),
-                    u_turn=random.random() < 0.1,
-                    exile=random.random() < 0.1,
-                    protect=random.random() < 0.1,
-                    counter=random.random() < 0.1,
-                    revenge=random.random() < 0.1,
-                    boost_on_missed_prev=random.random() < 0.1,
-                    charge_turn=random.random() < 0.1,
-                    position=random.choice(['땅', '하늘', '바다', '공허', None]),
-                    one_hit_ko=random.random() < 0.1,
-                    first_turn_only=random.random() < 0.1,
-                    self_kill=random.random() < 0.1,
-                    screen=random.choice(['빛의장막', '리플렉터', '오로라베일', None]),
-                    pass_substitute=random.random() < 0.1,
-                    cannot_move=random.random() < 0.1,
-                    locked_move=random.random() < 0.1
-                )
-                moves.append(move)
-            pokemon['base']['moves'] = moves
-            
-            # 특성 설정
-            ability = AbilityInfo(
-                id=random.randint(1, 100),
-                name=random.choice(['엽록소', '맹화', '급류', '심록']),
-                description='강력한 특성',
-                appear=['rank_change'],
-                offensive=['damage_buff'],
-                defensive=['damage_reduction'],
-                util=['hp_low_trigger'],
-                un_touchable=False
-            )
-            pokemon['ability'] = ability
+        # 불, 물, 풀 타입의 포켓몬들을 각각 분류
+        fire_pokemon = [p for p in all_pokemon if '불' in p.types]
+        water_pokemon = [p for p in all_pokemon if '물' in p.types]
+        grass_pokemon = [p for p in all_pokemon if '풀' in p.types]
         
-        # 배틀 환경 초기화
+        # 각 타입에서 랜덤하게 3마리씩 선택
+        my_team = (
+            random.sample(fire_pokemon, 1) +
+            random.sample(water_pokemon, 1) +
+            random.sample(grass_pokemon, 1)
+        )
+        
+        # 상대 팀도 동일하게 구성
+        enemy_team = (
+            random.sample(fire_pokemon, 1) +
+            random.sample(water_pokemon, 1) +
+            random.sample(grass_pokemon, 1)
+        )
+        
+        # PokemonInfo를 BattlePokemon으로 변환
+        my_team = [create_battle_pokemon(poke) for poke in my_team]
+        enemy_team = [create_battle_pokemon(poke) for poke in enemy_team]
+        
+        # 팀 정보 출력 (딕셔너리 형식)
+        print(f"[Episode {episode+1}] My Team (BattlePokemon):")
+        for p in my_team:
+            print(vars(p))
+        print(f"[Episode {episode+1}] My Team (PokemonInfo):")
+        for p in my_team:
+            print(vars(p.base))
+        print(f"[Episode {episode+1}] Enemy Team (BattlePokemon):")
+        for p in enemy_team:
+            print(vars(p))
+        print(f"[Episode {episode+1}] Enemy Team (PokemonInfo):")
+        for p in enemy_team:
+            print(vars(p.base))
+        
+        # 2. 배틀 환경 초기화
         state = env.reset(my_team=my_team, enemy_team=enemy_team)
-        
+        my_team = env.my_team  # BattlePokemon 객체 리스트로 업데이트
+        enemy_team = env.enemy_team  # BattlePokemon 객체 리스트로 업데이트
+        store = env.battle_store
+        store.set_active_my(0)
+        store.set_active_enemy(0)
         total_reward = 0
         total_loss = 0
         steps = 0
         
+        # 3. 배틀 루프
         while True:
             # 현재 상태 벡터 생성
             state_dict = get_state(
+                store=env.battle_store,
                 my_team=my_team,
                 enemy_team=enemy_team,
                 active_my=env.battle_store.get_active_index("my"),
@@ -198,18 +154,20 @@ def train_agent(
                 my_effects=env.duration_store.my_effects,
                 enemy_effects=env.duration_store.enemy_effects
             )
+            
             # 정해진 순서로 상태 벡터 생성
-            state_keys = sorted(state_dict.keys())  # 키를 정렬하여 고정된 순서 사용
+            state_keys = sorted(state_dict.keys())
             state_vector = [state_dict[key] for key in state_keys]
             
-            # 행동 선택
+            # 행동 선택 (기술 4개 + 교체 가능한 포켓몬 수)
             action = agent.select_action(state_vector, env.battle_store, env.duration_store)
             
             # 행동 실행
-            next_state, reward, done, _ = env.step(action)
+            next_state, reward, done, _ = await env.step(action)
             
             # 다음 상태 벡터 생성
             next_state_dict = get_state(
+                store=env.battle_store,
                 my_team=my_team,
                 enemy_team=enemy_team,
                 active_my=env.battle_store.get_active_index("my"),
@@ -221,7 +179,6 @@ def train_agent(
                 my_effects=env.duration_store.my_effects,
                 enemy_effects=env.duration_store.enemy_effects
             )
-            # 정해진 순서로 다음 상태 벡터 생성
             next_state_vector = [next_state_dict[key] for key in state_keys]
             
             # 보상 계산
@@ -253,7 +210,9 @@ def train_agent(
             state_vector = next_state_vector
             total_reward += reward
             steps += 1
+        
             
+            # 배틀이 끝났는지 확인
             if done:
                 break
         
@@ -315,7 +274,7 @@ def plot_training_results(
 
 #%% [markdown]
 # 테스트 함수 정의
-def test_agent(
+async def test_agent(
     env,
     agent: DDDQNAgent,
     num_episodes: int = 10
@@ -327,114 +286,106 @@ def test_agent(
     steps_list = []
     
     for episode in range(num_episodes):
-        # 테스트용 포켓몬 팀 생성
-        my_team = create_mock_pokemon_list()[:6]
-        enemy_team = create_mock_pokemon_list()[6:12]
+        # 1. 팀 생성 단계
+        all_pokemon = create_mock_pokemon_list()
         
-        # 각 포켓몬의 기술과 특성 설정
-        for pokemon in my_team + enemy_team:
-            # 기술 설정
-            moves = []
-            for i in range(4):
-                move = MoveInfo(
-                    id=i+1,
-                    name=f'기술{i}',
-                    power=random.randint(40, 120),
-                    accuracy=random.randint(70, 100),
-                    pp=random.randint(5, 20),
-                    type=random.choice(pokemon['types']),
-                    category=random.choice(['물리', '특수', '변화']),
-                    target=random.choice(['self', 'opponent', 'none']),
-                    effects=[MoveEffect(
-                        id=i+1,
-                        chance=random.uniform(0.1, 1.0),
-                        stat_change=[StatChange('self', 'atk', 1)],
-                        status=random.choice([
-                            '화상', '마비', '독', '맹독', '얼음', '잠듦',
-                            '혼란', '풀죽음', '앵콜', '트집', '도발', '헤롱헤롱',
-                            '사슬묶기', '회복봉인', '씨뿌리기', '길동무', '소리기술사용불가',
-                            '하품', '교체불가', '조이기', '멸망의노래', None
-                        ]),
-                        recoil=random.uniform(0.1, 0.3) if random.random() < 0.3 else None,
-                        multi_hit=(2, 5) if random.random() < 0.2 else None,
-                        heal=random.uniform(0.1, 0.5) if random.random() < 0.2 else None,
-                        rank_nullification=random.random() < 0.1,
-                        triple_hit=random.random() < 0.1,
-                        double_hit=random.random() < 0.1,
-                        break_screen=random.random() < 0.1,
-                        type_change=random.choice(pokemon['types']) if random.random() < 0.1 else None,
-                        lost_type=random.choice(pokemon['types']) if random.random() < 0.1 else None,
-                        fail=random.uniform(0.1, 1.0) if random.random() < 0.1 else None
-                    )],
-                    is_touch=random.random() < 0.3,
-                    affiliation=random.choice(['소리', '펀치', '물기', '폭탄', '가루', None]),
-                    priority=random.randint(-3, 3),
-                    critical_rate=random.randint(0, 3),
-                    trap=random.choice(['독압정', '스텔스록', '압정뿌리기', '압정뿌리기2', '압정뿌리기3', '끈적끈적네트', None]),
-                    field=random.choice(['electric', 'psychic', 'grassy', 'misty', None]),
-                    room=random.choice(['trick_room', 'magic_room', 'wonder_room', None]),
-                    weather=random.choice(['sunny', 'rainy', 'sandstorm', 'hail', None]),
-                    u_turn=random.random() < 0.1,
-                    exile=random.random() < 0.1,
-                    protect=random.random() < 0.1,
-                    counter=random.random() < 0.1,
-                    revenge=random.random() < 0.1,
-                    boost_on_missed_prev=random.random() < 0.1,
-                    charge_turn=random.random() < 0.1,
-                    position=random.choice(['땅', '하늘', '바다', '공허', None]),
-                    one_hit_ko=random.random() < 0.1,
-                    first_turn_only=random.random() < 0.1,
-                    self_kill=random.random() < 0.1,
-                    screen=random.choice(['빛의장막', '리플렉터', '오로라베일', None]),
-                    pass_substitute=random.random() < 0.1,
-                    cannot_move=random.random() < 0.1,
-                    locked_move=random.random() < 0.1
-                )
-                moves.append(move)
-            pokemon['moves'] = moves
-            
-            # 특성 설정
-            ability = AbilityInfo(
-                id=random.randint(1, 100),
-                name=random.choice(['엽록소', '맹화', '급류', '심록']),
-                description='강력한 특성',
-                appear=['rank_change'],
-                offensive=['damage_buff'],
-                defensive=['damage_reduction'],
-                util=['hp_low_trigger'],
-                un_touchable=False
-            )
-            pokemon['ability'] = ability
+        # 불, 물, 풀 타입의 포켓몬들을 각각 분류
+        fire_pokemon = [p for p in all_pokemon if '불' in p.types]
+        water_pokemon = [p for p in all_pokemon if '물' in p.types]
+        grass_pokemon = [p for p in all_pokemon if '풀' in p.types]
         
-        # 배틀 환경 초기화
+        # 각 타입에서 랜덤하게 3마리씩 선택
+        my_team = (
+            random.sample(fire_pokemon, 1) +
+            random.sample(water_pokemon, 1) +
+            random.sample(grass_pokemon, 1)
+        )
+        
+        # 상대 팀도 동일하게 구성
+        enemy_team = (
+            random.sample(fire_pokemon, 1) +
+            random.sample(water_pokemon, 1) +
+            random.sample(grass_pokemon, 1)
+        )
+        
+        # PokemonInfo를 BattlePokemon으로 변환
+        my_team = [create_battle_pokemon(poke) for poke in my_team]
+        enemy_team = [create_battle_pokemon(poke) for poke in enemy_team]
+        
+        # 2. 배틀 환경 초기화
         state = env.reset(my_team=my_team, enemy_team=enemy_team)
+        my_team = env.my_team  # BattlePokemon 객체 리스트로 업데이트
+        enemy_team = env.enemy_team  # BattlePokemon 객체 리스트로 업데이트
         
         total_reward = 0
         steps = 0
         
+        # 3. 배틀 루프
         while True:
             # 현재 상태 벡터 생성
-            state_vector = get_state(
+            state_dict = get_state(
+                store=env.battle_store,
                 my_team=my_team,
                 enemy_team=enemy_team,
-                active_my=env.battle_store.active_my,
-                active_enemy=env.battle_store.active_enemy,
-                public_env=env.battle_store.public_env,
-                my_env=env.battle_store.my_env,
-                enemy_env=env.battle_store.enemy_env,
-                turn=env.battle_store.turn,
+                active_my=env.battle_store.get_active_index("my"),
+                active_enemy=env.battle_store.get_active_index("enemy"),
+                public_env=env.public_env.__dict__,
+                my_env=env.my_env.__dict__,
+                enemy_env=env.enemy_env.__dict__,
+                turn=env.turn,
                 my_effects=env.duration_store.my_effects,
                 enemy_effects=env.duration_store.enemy_effects
             )
             
-            action = agent.select_action(state_vector, env.battle_store, env.duration_store)
-            next_state, reward, done, _ = env.step(action)
-            reward = calculate_reward(state, next_state, action, done, env.battle_store, env.duration_store)
+            # 정해진 순서로 상태 벡터 생성
+            state_keys = sorted(state_dict.keys())
+            state_vector = [state_dict[key] for key in state_keys]
             
-            state = next_state
+            # 행동 선택 (기술 4개 + 교체 가능한 포켓몬 수)
+            action = agent.select_action(state_vector, env.battle_store, env.duration_store)
+            
+            # 행동 실행
+            next_state, reward, done, _ = await env.step(action)
+            
+            # 다음 상태 벡터 생성
+            next_state_dict = get_state(
+                store=env.battle_store,
+                my_team=my_team,
+                enemy_team=enemy_team,
+                active_my=env.battle_store.get_active_index("my"),
+                active_enemy=env.battle_store.get_active_index("enemy"),
+                public_env=env.public_env.__dict__,
+                my_env=env.my_env.__dict__,
+                enemy_env=env.enemy_env.__dict__,
+                turn=env.turn,
+                my_effects=env.duration_store.my_effects,
+                enemy_effects=env.duration_store.enemy_effects
+            )
+            next_state_vector = [next_state_dict[key] for key in state_keys]
+            
+            # 보상 계산
+            reward = calculate_reward(
+                my_team=my_team,
+                enemy_team=enemy_team,
+                active_my=env.battle_store.get_active_index("my"),
+                active_enemy=env.battle_store.get_active_index("enemy"),
+                public_env=env.public_env.__dict__,
+                my_env=env.my_env.__dict__,
+                enemy_env=env.enemy_env.__dict__,
+                turn=env.turn,
+                my_effects=env.duration_store.my_effects,
+                enemy_effects=env.duration_store.enemy_effects,
+                action=action,
+                done=done,
+                battle_store=env.battle_store,
+                duration_store=env.duration_store
+            )
+            
+            state_vector = next_state_vector
             total_reward += reward
             steps += 1
             
+            # 배틀이 끝났는지 확인
             if done:
                 break
         

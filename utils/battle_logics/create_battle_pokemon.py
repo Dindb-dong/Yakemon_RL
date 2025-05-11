@@ -7,9 +7,9 @@ from p_models.rank_state import RankState
 # 기본 랭크 상태
 default_rank: RankState = {
     "attack": 0,
-    "spAttack": 0,
+    "sp_attack": 0,
     "defense": 0,
-    "spDefense": 0,
+    "sp_defense": 0,
     "speed": 0,
     "accuracy": 0,
     "dodge": 0,

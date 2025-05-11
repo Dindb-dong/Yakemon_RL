@@ -1,5 +1,5 @@
 from p_models.battle_pokemon import BattlePokemon
-from context.battle_store import battle_store_instance as store
+from context.battle_store import store
 from p_models.move_info import MoveInfo
 from utils.battle_logics.update_battle_pokemon import add_status, change_hp, change_rank, set_types
 from p_models.rank_state import RankState
@@ -7,7 +7,6 @@ from utils.battle_logics.switch_pokemon import switch_pokemon
 from utils.battle_logics.get_best_switch_index import get_best_switch_index
 from utils.battle_logics.rank_effect import calculate_rank_effect
 from utils.battle_logics.apply_none_move_damage import apply_recoil_damage
-from utils.delay import delay
 from utils.battle_logics.update_environment import set_weather
 import asyncio
 from context.battle_store import SideType
@@ -90,8 +89,8 @@ async def apply_panic_uturn(side: str, attacker: BattlePokemon, defender: Battle
     기술 사용 후 방어측 포켓몬이 '위기회피' 특성을 가질 경우 자동/수동 교체를 수행함.
     - side는 공격자 기준 상대방 진영.
     """
-    team = store.enemy_team if side == "enemy" else store.my_team
-    active_index = store.active_enemy if side == "enemy" else store.active_my
+    team = store.get_team(side)
+    active_index = store.get_active_index(side)
     defender = team[active_index]
 
     if (defender.base.ability and defender.base.ability.name == "위기회피"
@@ -146,7 +145,6 @@ async def apply_move_effect_after_multi_damage(
             i for i, p in enumerate(mine_team) if i != active_mine and p.current_hp > 0
         ]
         if available_indexes:
-            await delay(1.5)
             best_index = get_best_switch_index(side)
             await switch_pokemon(side, best_index, baton_touch)
 
@@ -159,9 +157,9 @@ async def apply_move_effect_after_multi_damage(
     if demerit_effects:
         for demerit in demerit_effects:
             if demerit and random.random() < demerit.get("chance", 0):
-                if "recoil" in demerit and applied_damage:
-                    updated = await apply_recoil_damage(attacker, demerit["recoil"], applied_damage)
-                    store.update_pokemon(side, active_mine, lambda _: updated["updated"])
+                if demerit.recoil and applied_damage:
+                    result = await apply_recoil_damage(attacker, demerit.recoil, applied_damage)
+                    store.update_pokemon(side, active_mine, lambda _: result)
                 for sc in demerit.get("statChange", []):
                     store.update_pokemon(
                         side, active_mine,
@@ -175,7 +173,7 @@ async def apply_move_effect_after_multi_damage(
         for eff in effect or []:
             if roll < eff.get("chance", 0):
                 if eff.get("heal") and not applied_damage:
-                    heal = attacker.base.hp * eff["heal"] if eff["heal"] < 1 else calculate_rank_effect(defender.rank.attack) * defender.base.attack
+                    heal = attacker.base.hp * eff["heal"] if eff["heal"] < 1 else calculate_rank_effect(defender.rank['attack']) * defender.base.attack
                     store.update_pokemon(side, active_mine, lambda p: change_hp(p, heal))
                     add_log(f"➕ {attacker.base.name}은 체력을 회복했다!")
                 for sc in eff.get("statChange", []):
@@ -271,7 +269,7 @@ async def apply_move_effect_after_damage(
             if demerit and random.random() < demerit.chance:
                 if demerit.recoil and applied_damage:
                     result = await apply_recoil_damage(attacker, demerit.recoil, applied_damage)
-                    store.update_pokemon(side, active_mine, lambda _: result["updated"])
+                    store.update_pokemon(side, active_mine, lambda _: result)
                 if demerit.stat_change:
                     for sc in demerit.stat_change:
                         store.update_pokemon(side, active_mine, lambda p: change_rank(p, sc.stat, sc.change))
@@ -290,12 +288,12 @@ async def apply_move_effect_after_damage(
                         store.update_pokemon(side, active_mine, lambda p: change_rank(p, sc.stat, sc.change))
                         store.add_log(f"🪞 {attacker.base.name}의 {sc.stat}이/가 {sc.change}랭크 변했다!")
                 continue
-
-            if roll < effect.chance:
+            
+            if roll < (effect.chance if effect.chance else 0):
                 if effect.type_change:
                     store.update_pokemon(opponent_side, active_opp, lambda p: set_types(p, [effect.type_change]))
                 if effect.heal and applied_damage is None:
-                    heal_amt = attacker.base.hp * effect.heal if effect.heal < 1 else calculate_rank_effect(defender.rank.attack) * defender.base.attack
+                    heal_amt = attacker.base.hp * effect.heal if effect.heal < 1 else calculate_rank_effect(defender.rank['attack']) * defender.base.attack
                     store.update_pokemon(side, active_mine, lambda p: change_hp(p, heal_amt))
                     store.add_log(f"➕ {attacker.base.name}은/는 체력을 회복했다!")
                 if effect.stat_change:
@@ -345,8 +343,9 @@ async def apply_move_effect_after_damage(
             await switch_pokemon(opponent_side, idx, baton_touch)
             store.add_log(f"💨 {opp_team[active_opp].base.name}은/는 강제 교체되었다!")
 
-def apply_move_effect_after_multi_damage(pokemon: BattlePokemon, move: MoveInfo, side: str) -> BattlePokemon:
+async def apply_move_effect_after_multi_damage(pokemon: BattlePokemon, move: MoveInfo, side: str) -> BattlePokemon:
     """다중 데미지 후 기술 효과 적용"""
+    # TODO: 이거 재후형이 맘대로 바꾼건데, 원래대로 되돌려야함..
     if not move.effect:
         return pokemon
         

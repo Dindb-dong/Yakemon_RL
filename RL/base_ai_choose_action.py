@@ -1,28 +1,16 @@
 from typing import Dict, List, Union, Optional, TypedDict
+from p_models.battle_pokemon import BattlePokemon
+from p_models.move_info import MoveInfo
 from utils.type_relation import calculate_type_effectiveness
 from utils.battle_logics.apply_before_damage import apply_offensive_ability_effect_before_damage
 from utils.battle_logics.get_best_switch_index import get_best_switch_index
 from utils.battle_logics.rank_effect import calculate_rank_effect
 import random
 
-class MoveInfo(TypedDict):
-    name: str
-    type: str
-    category: str
-    power: int
-    accuracy: float
-    pp: int
-    effects: Optional[List[Dict]]
-    screen: Optional[str]
-    priority: Optional[bool]
-    uTurn: Optional[bool]
-    target: Optional[str]
-    getPower: Optional[callable]
-
 def base_ai_choose_action(
     side: str,
-    my_team: List[Dict],
-    enemy_team: List[Dict],
+    my_team: List[BattlePokemon],
+    enemy_team: List[BattlePokemon],
     active_my: int,
     active_enemy: int,
     public_env: Dict,
@@ -53,29 +41,29 @@ def base_ai_choose_action(
     enemy_pokemon = opponent_team[active_enemy if side == 'my' else active_my]
 
     # 속도 계산
-    user_speed = (enemy_pokemon['base']['speed'] * 
-                 calculate_rank_effect(enemy_pokemon['rank']['speed']) * 
-                 (0.5 if '마비' in enemy_pokemon['status'] else 1))
+    user_speed = (enemy_pokemon.base.speed * 
+                 calculate_rank_effect(enemy_pokemon.rank['speed']) * 
+                (0.5 if '마비' in enemy_pokemon.status else 1))
     
-    ai_speed = (my_pokemon['base']['speed'] * 
-                calculate_rank_effect(my_pokemon['rank']['speed']) * 
-                (0.5 if '마비' in my_pokemon['status'] else 1))
+    ai_speed = (my_pokemon.base.speed * 
+                calculate_rank_effect(my_pokemon.rank['speed']) * 
+                (0.5 if '마비' in my_pokemon.status else 1))
     
     is_ai_faster = ai_speed < user_speed if public_env['room'] == '트릭룸' else ai_speed > user_speed
     roll = random.random()
-    ai_hp_ratio = my_pokemon['currentHp'] / my_pokemon['base']['hp']
-    user_hp_ratio = enemy_pokemon['currentHp'] / enemy_pokemon['base']['hp']
+    ai_hp_ratio = my_pokemon.current_hp / my_pokemon.base.hp
+    user_hp_ratio = enemy_pokemon.current_hp / enemy_pokemon.base.hp
 
     # 사용 가능한 기술 필터링
-    usable_moves = []
-    for move in my_pokemon['base']['moves']:
-        if my_pokemon['pp'].get(move.name, 0) <= 0:
+    usable_moves: List[MoveInfo] = []
+    for move in my_pokemon.base.moves:
+        if my_pokemon.pp.get(move.name, 0) <= 0:
             continue
-        if my_pokemon.get('unUsableMove') and my_pokemon['unUsableMove']['name'] == move.name:
+        if my_pokemon.un_usable_move and my_pokemon.un_usable_move.name == move.name:
             continue
         if (move.target == 'opponent' and 
             move.power == 0 and 
-            any(e.get('status') and e['status'] in enemy_pokemon['status'] 
+            any(e.status and e.status in enemy_pokemon.status 
                 for e in move.effects or [])):
             continue
         active_env = my_env if side == 'my' else enemy_env
@@ -92,19 +80,19 @@ def base_ai_choose_action(
         rate = 1
 
         for move in usable_moves:
-            stab = 1.5 if move['type'] in my_pokemon['base']['types'] else 1
+            stab = 1.5 if move.type in my_pokemon.base.types else 1.0
             rate = apply_offensive_ability_effect_before_damage(move, side)
-            effectiveness = calculate_type_effectiveness(move['type'], enemy_pokemon['base']['types'])
+            effectiveness = calculate_type_effectiveness(move.type, enemy_pokemon.base.types)
             
-            base_power = move['power'] or 0
-            for effect in move.get('effects', []):
-                if effect.get('doubleHit'):
-                    base_power = 2 * move['power']
-                elif effect.get('multiHit'):
-                    base_power = 3 * move['power']
+            base_power = move.power or 0
+            for effect in move.effects or []:
+                if effect.double_hit:
+                    base_power = 2 * move.power
+                elif effect.multi_hit:
+                    base_power = 3 * move.power
             
-            if move.get('getPower'):
-                base_power = move['getPower'](enemy_team, 'enemy')
+            if move.get_power:
+                base_power = move.get_power(enemy_team, 'enemy')
             
             score = base_power * stab * rate * effectiveness
             if score > best_score:
@@ -114,96 +102,96 @@ def base_ai_choose_action(
         return best
 
     def get_speed_up_move() -> Optional[MoveInfo]:
-        prankster = my_pokemon['base'].get('ability', {}).get('name') == "심술꾸러기"
-        enemy_types = enemy_pokemon['base']['types']
+        prankster = my_pokemon.base.ability.name == "심술꾸러기"
+        enemy_types = enemy_pokemon.base.types
 
         for move in usable_moves:
-            effectiveness = calculate_type_effectiveness(move['type'], enemy_types)
+            effectiveness = calculate_type_effectiveness(move.type, enemy_types)
             if effectiveness == 0:
                 continue
 
-            for effect in move.get('effects', []):
-                for stat_change in effect.get('statChange', []):
-                    if ((stat_change['target'] == 'self' and 
-                         stat_change['stat'] == 'speed' and 
-                         stat_change['change'] > 0) or
-                        (stat_change['target'] == 'opponent' and 
-                         stat_change['stat'] == 'speed' and 
-                         stat_change['change'] < 0) or
+            for effect in move.effects or []:
+                for stat_change in effect.stat_change or []:
+                    if ((stat_change.target == 'self' and 
+                        stat_change.stat == 'speed' and 
+                        stat_change.change > 0) or
+                        (stat_change.target == 'opponent' and 
+                        stat_change.stat == 'speed' and 
+                        stat_change.change < 0) or
                         (prankster and 
-                         stat_change['target'] == 'self' and 
-                         stat_change['stat'] == 'speed' and 
-                         stat_change['change'] < 0)):
+                        stat_change.target == 'self' and 
+                        stat_change.stat == 'speed' and 
+                        stat_change.change < 0)):
                         return move
         return None
 
     def get_attack_up_move() -> Optional[MoveInfo]:
-        prankster = my_pokemon['base'].get('ability', {}).get('name') == "심술꾸러기"
+        prankster = my_pokemon.base.ability.name == "심술꾸러기"
         
         for move in usable_moves:
-            for effect in move.get('effects', []):
-                if effect.get('chance', 0) <= 0.5:
+            for effect in move.effects or []:
+                if (effect.chance is not None and effect.chance <= 0.5):
                     continue
                     
-                for stat_change in effect.get('statChange', []):
-                    if ((stat_change['target'] == 'self' and 
-                         stat_change['stat'] in ['attack', 'spAttack', 'critical'] and 
-                         stat_change['change'] > 0) or
+                for stat_change in effect.stat_change or []:
+                    if ((stat_change.target == 'self' and 
+                        stat_change.stat in ['attack', 'sp_attack', 'critical'] and 
+                        stat_change.change > 0) or
                         (prankster and 
-                         stat_change['target'] == 'self' and 
-                         stat_change['stat'] in ['attack', 'spAttack'] and 
-                         stat_change['change'] < 0)):
+                        stat_change.target == 'self' and 
+                        stat_change.stat in ['attack', 'sp_attack'] and 
+                        stat_change.change < 0)):
                         return move
         return None
 
     def get_uturn_move() -> Optional[MoveInfo]:
-        return next((m for m in usable_moves if m.get('uTurn') and m['pp'] > 0), None)
+        return next((m for m in usable_moves if m.u_turn and m.pp > 0), None)
 
     def get_priority_move() -> Optional[MoveInfo]:
-        return next((m for m in usable_moves if m.get('priority') and m['pp'] > 0), None)
+        return next((m for m in usable_moves if m.priority and m.pp > 0), None)
 
     def get_heal_move() -> Optional[MoveInfo]:
         return next((m for m in usable_moves 
-                    if any(e.get('heal') for e in m.get('effects', []))), None)
+                    if any(e.heal for e in m.effects or [])), None)
 
     def get_rank_up_move() -> Optional[MoveInfo]:
         rank_up_moves = [m for m in usable_moves 
-                        if any(e.get('chance', 0) > 0.5 and 
-                              any(s['target'] == 'self' and s['change'] > 0 
-                                  for s in e.get('statChange', []))
-                              for e in m.get('effects', []))]
+                        if any((e.chance if e.chance is not None else 0) > 0.5 and 
+                                any(s.target == 'self' and s.change > 0 
+                                for s in e.stat_change or [])
+                                for e in m.effects or [])]
         return rank_up_moves[0] if rank_up_moves else None
 
     # 모든 교체 가능한 포켓몬이 더 느린지 확인
     is_all_slower = all(
-        (p['base']['speed'] * calculate_rank_effect(p['rank']['speed']) * 
-         (0.5 if '마비' in p['status'] else 1)) <= 
-        (enemy_pokemon['base']['speed'] * calculate_rank_effect(enemy_pokemon['rank']['speed']))
+        (p.base.speed * calculate_rank_effect(p.rank['speed']) * 
+            (0.5 if '마비' in p.status else 1)) <= 
+        (enemy_pokemon.base.speed * calculate_rank_effect(enemy_pokemon.rank['speed']))
         if public_env['room'] == '트릭룸' else
-        (p['base']['speed'] * calculate_rank_effect(p['rank']['speed']) * 
-         (0.5 if '마비' in p['status'] else 1)) <= 
-        (enemy_pokemon['base']['speed'] * calculate_rank_effect(enemy_pokemon['rank']['speed']))
+        (p.base.speed * calculate_rank_effect(p.rank['speed']) * 
+            (0.5 if '마비' in p.status else 1)) <= 
+        (enemy_pokemon.base.speed * calculate_rank_effect(enemy_pokemon.rank['speed']))
         for i, p in enumerate(mine_team)
-        if i != active_index and p['currentHp'] > 0
+        if i != active_index and p.current_hp > 0
     )
 
     has_good_matchup = any(
-        calculate_type_effectiveness(p['base']['types'][0], enemy_pokemon['base']['types']) > 1.5
+        calculate_type_effectiveness(p.base.types[0], enemy_pokemon.base.types) > 1.5
         for i, p in enumerate(mine_team)
-        if i != active_index and p['currentHp'] / p['base']['hp'] > 0.3
+        if i != active_index and p.current_hp / p.base.hp > 0.3
     )
 
     def get_speed_down_move() -> Optional[MoveInfo]:
         return next((m for m in usable_moves 
-                    if any(any(s['target'] == 'opponent' and 
-                              s['stat'] == 'speed' and 
-                              s['change'] < 0 
-                              for s in e.get('statChange', []))
-                        for e in m.get('effects', []))), None)
+                    if any(any(s.target == 'opponent' and 
+                            s.stat == 'speed' and 
+                            s.change < 0 
+                            for s in e.stat_change or [])
+                        for e in m.effects or [])), None)
 
     speed_down_move = get_speed_down_move()
-    ai_to_user = type_effectiveness(my_pokemon['base']['types'], enemy_pokemon['base']['types'])
-    user_to_ai = type_effectiveness(enemy_pokemon['base']['types'], my_pokemon['base']['types'])
+    ai_to_user = type_effectiveness(my_pokemon.base.types, enemy_pokemon.base.types)
+    user_to_ai = type_effectiveness(enemy_pokemon.base.types, my_pokemon.base.types)
     best_move = get_best_move()
     rank_up_move = get_rank_up_move()
     uturn_move = get_uturn_move()
@@ -211,50 +199,50 @@ def base_ai_choose_action(
     attack_up_move = get_attack_up_move()
     priority_move = get_priority_move()
     heal_move = get_heal_move()
-    screen_moves = next((m for m in usable_moves if m.get('screen')), None)
+    screen_moves = next((m for m in usable_moves if m.screen), None)
     support_move = next((m for m in usable_moves 
-                        if m['category'] == '변화' and m != rank_up_move), None)
+                        if m.category == '변화' and m != rank_up_move), None)
     counter_move = next((m for m in usable_moves 
-                        if m['name'] in ['카운터', '미러코트', '메탈버스트']), None)
+                        if m.name in ['카운터', '미러코트', '메탈버스트']), None)
     
-    has_switch_option = (any(i != active_enemy and p['currentHp'] > 0 
-                           for i, p in enumerate(mine_team)) and 
-                        '교체불가' not in my_pokemon['status'])
+    has_switch_option = (any(i != active_enemy and p.current_hp > 0 
+                        for i, p in enumerate(mine_team)) and 
+                        '교체불가' not in my_pokemon.status)
     
     is_ai_low_hp = ai_hp_ratio < 0.35
     is_ai_high_hp = ai_hp_ratio > 0.8
     is_user_low_hp = user_hp_ratio < 0.35
     is_user_very_low_hp = user_hp_ratio < 0.2
-    is_user_high_hp = ai_hp_ratio > 0.8
-    is_attack_reinforced = (mine_team[active_index]['rank']['attack'] > 1 or 
-                          mine_team[active_index]['rank']['spAttack'] > 1)
+    is_user_high_hp = user_hp_ratio > 0.8
+    is_attack_reinforced = (mine_team[active_index].rank['attack'] > 1 or 
+                        mine_team[active_index].rank['sp_attack'] > 1)
     switch_index = get_best_switch_index(side)
 
-    # 0. isCharging일 경우
-    if my_pokemon.get('isCharging') and my_pokemon.get('chargingMove'):
-        return my_pokemon['chargingMove']
+    # 0. is_charging일 경우
+    if my_pokemon.is_charging and my_pokemon.charging_move:
+        return my_pokemon.charging_move
 
     # 0-1. 행동불능 상태일 경우
-    if my_pokemon.get('cannotMove'):
-        add_log(f"😵 {my_pokemon['base']['name']}은 아직 회복되지 않아 움직이지 못한다!")
+    if my_pokemon.cannot_move:
+        add_log(f"😵 {my_pokemon.base.name}은 아직 회복되지 않아 움직이지 못한다!")
         return None
 
     # === 1. 내 포켓몬이 쓰러졌으면 무조건 교체 ===
-    if my_pokemon['currentHp'] <= 0:
+    if my_pokemon.current_hp <= 0:
         switch_options = [
             {'pokemon': p, 'index': i}
             for i, p in enumerate(mine_team)
-            if p['currentHp'] > 0 and i != active_index
+            if p.current_hp > 0 and i != active_index
         ]
 
         # 우선순위 기준: (1) 상대보다 빠르고 (2) 상대 체력 적음
         prioritized = next(
             (opt for opt in switch_options
-             if ((opt['pokemon']['base']['speed'] * 
-                  calculate_rank_effect(opt['pokemon']['rank']['speed'])) <
+             if ((opt['pokemon'].base.speed * 
+                  calculate_rank_effect(opt['pokemon'].rank['speed'])) <
                  user_speed if public_env['room'] == '트릭룸'
-                 else (opt['pokemon']['base']['speed'] * 
-                       calculate_rank_effect(opt['pokemon']['rank']['speed'])) >
+                 else (opt['pokemon'].base.speed * 
+                       calculate_rank_effect(opt['pokemon'].rank['speed'])) >
                  user_speed) and user_hp_ratio < 0.35),
             None
         )
@@ -274,15 +262,15 @@ def base_ai_choose_action(
                 return best_move
                 
             if roll < 0.3 and counter_move and is_ai_high_hp:
-                enemy_atk = (enemy_pokemon['base']['attack'] * 
-                           calculate_rank_effect(enemy_pokemon['rank']['attack']))
-                enemy_sp_atk = (enemy_pokemon['base']['spAttack'] * 
-                              calculate_rank_effect(enemy_pokemon['rank']['spAttack']))
+                enemy_atk = (enemy_pokemon.base.attack * 
+                            calculate_rank_effect(enemy_pokemon.rank['attack']))
+                enemy_sp_atk = (enemy_pokemon.base.sp_attack * 
+                            calculate_rank_effect(enemy_pokemon.rank['sp_attack']))
 
-                if ((counter_move['name'] == '카운터' and enemy_atk >= enemy_sp_atk) or
-                    (counter_move['name'] == '미러코트' and enemy_sp_atk > enemy_atk) or
-                    (counter_move['name'] == '메탈버스트')):
-                    add_log(f"🛡️ {side}는 반사 기술 {counter_move['name']} 사용 시도!")
+                if ((counter_move.name == '카운터' and enemy_atk >= enemy_sp_atk) or
+                    (counter_move.name == '미러코트' and enemy_sp_atk > enemy_atk) or
+                    (counter_move.name == '메탈버스트')):
+                    add_log(f"🛡️ {side}는 반사 기술 {counter_move.name} 사용 시도!")
                     return counter_move
 
             if roll < 0.4 and speed_up_move and ai_hp_ratio > 0.5:
@@ -352,15 +340,15 @@ def base_ai_choose_action(
                 return best_move
 
             if roll < 0.2 and counter_move and is_ai_high_hp:
-                enemy_atk = (enemy_pokemon['base']['attack'] * 
-                           calculate_rank_effect(enemy_pokemon['rank']['attack']))
-                enemy_sp_atk = (enemy_pokemon['base']['spAttack'] * 
-                              calculate_rank_effect(enemy_pokemon['rank']['spAttack']))
+                enemy_atk = (enemy_pokemon.base.attack * 
+                            calculate_rank_effect(enemy_pokemon.rank['attack']))
+                enemy_sp_atk = (enemy_pokemon.base.sp_attack * 
+                            calculate_rank_effect(enemy_pokemon.rank['sp_attack']))
 
-                if ((counter_move['name'] == '카운터' and enemy_atk >= enemy_sp_atk) or
-                    (counter_move['name'] == '미러코트' and enemy_sp_atk > enemy_atk) or
-                    (counter_move['name'] == '메탈버스트')):
-                    add_log(f"🛡️ {side}는 반사 기술 {counter_move['name']} 사용 시도!")
+                if ((counter_move.name == '카운터' and enemy_atk >= enemy_sp_atk) or
+                    (counter_move.name == '미러코트' and enemy_sp_atk > enemy_atk) or
+                    (counter_move.name == '메탈버스트')):
+                    add_log(f"🛡️ {side}는 반사 기술 {counter_move.name} 사용 시도!")
                     return counter_move
 
             if roll < 0.2 and has_switch_option:
@@ -415,15 +403,15 @@ def base_ai_choose_action(
             return best_move
 
         if roll < 0.2 and counter_move and is_ai_high_hp:
-            enemy_atk = (enemy_pokemon['base']['attack'] * 
-                       calculate_rank_effect(enemy_pokemon['rank']['attack']))
-            enemy_sp_atk = (enemy_pokemon['base']['spAttack'] * 
-                          calculate_rank_effect(enemy_pokemon['rank']['spAttack']))
+            enemy_atk = (enemy_pokemon.base.attack * 
+                        calculate_rank_effect(enemy_pokemon.rank['attack']))
+            enemy_sp_atk = (enemy_pokemon.base.sp_attack * 
+                        calculate_rank_effect(enemy_pokemon.rank['sp_attack']))
 
-            if ((counter_move['name'] == '카운터' and enemy_atk >= enemy_sp_atk) or
-                (counter_move['name'] == '미러코트' and enemy_sp_atk > enemy_atk) or
-                (counter_move['name'] == '메탈버스트')):
-                add_log(f"🛡️ {side}는 반사 기술 {counter_move['name']} 사용 시도!")
+            if ((counter_move.name == '카운터' and enemy_atk >= enemy_sp_atk) or
+                (counter_move.name == '미러코트' and enemy_sp_atk > enemy_atk) or
+                (counter_move.name == '메탈버스트')):
+                add_log(f"🛡️ {side}는 반사 기술 {counter_move.name} 사용 시도!")
                 return counter_move
 
         if uturn_move and has_switch_option:

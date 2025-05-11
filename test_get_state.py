@@ -3,9 +3,10 @@ from RL.get_state_vector import get_state
 from p_models.battle_pokemon import BattlePokemon
 from p_models.pokemon_info import PokemonInfo
 from p_models.move_info import MoveInfo
-
+from context.battle_store import BattleStore
 class TestGetState(unittest.TestCase):
     def setUp(self):
+        self.battle_store = BattleStore()
         # Create mock PokemonInfo
         self.pokemon_info = PokemonInfo(
             id=1,
@@ -64,6 +65,7 @@ class TestGetState(unittest.TestCase):
     def test_get_state(self):
         # Test the function
         state = get_state(
+            store=self.battle_store,
             my_team=self.my_team,
             enemy_team=self.enemy_team,
             active_my=0,
@@ -98,3 +100,5 @@ class TestGetState(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main() 
+    
+# python -m unittest test_get_state.py -v

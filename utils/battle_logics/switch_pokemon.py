@@ -1,5 +1,5 @@
 from typing import Literal
-from context.battle_store import store
+from context.battle_store import BattleStoreState, store
 from context.duration_store import duration_store
 from utils.battle_logics.apply_appearance import apply_appearance
 from utils.battle_logics.apply_none_move_damage import apply_trap_damage
@@ -21,9 +21,10 @@ MAIN_STATUS_CONDITION = ['화상', '마비', '잠듦', '얼음', '독', '맹독'
 
 
 async def switch_pokemon(side: SideType, new_index: int, baton_touch: bool = False):
-    team = store.state["my_team"] if side == "my" else store.state["enemy_team"]
-    current_index = store.state["active_my"] if side == "my" else store.state["active_enemy"]
-    env = store.state["my_env"] if side == "my" else store.state["enemy_env"]
+    state: BattleStoreState = store.get_state()
+    team = state["my_team"] if side == "my" else state["enemy_team"]
+    current_index = state["active_my"] if side == "my" else state["active_enemy"]
+    env = state["my_env"] if side == "my" else state["enemy_env"]
     switching_pokemon = team[current_index]
     next_pokemon = team[new_index]
 
@@ -36,7 +37,7 @@ async def switch_pokemon(side: SideType, new_index: int, baton_touch: bool = Fal
                              lambda p: change_hp(p, switching_pokemon.base.hp // 3))
 
     if baton_touch:
-        store.update_pokemon(side, new_index, lambda p: p.deepcopy(
+        store.update_pokemon(side, new_index, lambda p: p.copy_with(
             rank=team[current_index].rank,
             substitute=team[current_index].substitute,
             status=[
@@ -47,14 +48,14 @@ async def switch_pokemon(side: SideType, new_index: int, baton_touch: bool = Fal
 
     store.update_pokemon(side, current_index, lambda p: reset_state(p, is_switch=True))
     store.update_pokemon(side, current_index, lambda p: reset_rank(p))
-    store.update_pokemon(side, current_index, lambda p: p.deepcopy(is_first_turn=False))
+    store.update_pokemon(side, current_index, lambda p: p.copy_with(is_first_turn=False))
 
     for status in UNMAIN_STATUS_CONDITION + UNMAIN_STATUS_CONDITION_WITH_DURATION:
         if status in switching_pokemon.status:
             if status in UNMAIN_STATUS_CONDITION_WITH_DURATION:
                 duration_store.remove_effect(side, status)
             store.update_pokemon(side, current_index,
-                                  lambda p: remove_status(p, status))
+                                lambda p: remove_status(p, status))
 
     if switching_pokemon.base.ability and switching_pokemon.base.ability.name == "자연회복":
         for status in UNMAIN_STATUS_CONDITION + UNMAIN_STATUS_CONDITION_WITH_DURATION + MAIN_STATUS_CONDITION:
@@ -62,7 +63,7 @@ async def switch_pokemon(side: SideType, new_index: int, baton_touch: bool = Fal
                 if status in UNMAIN_STATUS_CONDITION_WITH_DURATION:
                     duration_store.remove_effect(side, status)
                 store.update_pokemon(side, current_index,
-                                      lambda p: remove_status(p, status))
+                                    lambda p: remove_status(p, status))
 
     store.update_pokemon(side, current_index, lambda p: set_active(p, False))
 
@@ -74,12 +75,12 @@ async def switch_pokemon(side: SideType, new_index: int, baton_touch: bool = Fal
             remove_aura(ability_name)
 
     store.update_pokemon(side, new_index, lambda p: set_active(p, True))
-    store.update_pokemon(side, new_index, lambda p: p.deepcopy(is_first_turn=True))
+    store.update_pokemon(side, new_index, lambda p: p.copy_with(is_first_turn=True))
     if side == "my":
         store.set_active_my(new_index)
     else:
         store.set_active_enemy(new_index)
-
+    print(f"교체 후 포켓몬: {next_pokemon.base.name}")
     if env.trap:
         result = await apply_trap_damage(next_pokemon, env.trap)
         trapped = result["updated"]
@@ -96,7 +97,7 @@ async def switch_pokemon(side: SideType, new_index: int, baton_touch: bool = Fal
                 store.update_pokemon(side, new_index, lambda p: change_rank(p, "speed", -1))
             else:
                 store.update_pokemon(side, new_index,
-                                      lambda p: add_status(p, trap_condition, side))
+                                    lambda p: add_status(p, trap_condition, side))
 
         if trap_log:
             store.add_log(trap_log)

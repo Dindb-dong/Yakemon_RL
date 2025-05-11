@@ -41,6 +41,12 @@ class BattleStore:
 
     def set_enemy_team(self, team: List[BattlePokemon]) -> None:
         self.state["enemy_team"] = team
+        
+    def set_active_index(self, side: SideType, index: int) -> None:
+        if side == "my":
+            self.state["active_my"] = index
+        else:
+            self.state["active_enemy"] = index
 
     def set_active_my(self, index: int) -> None:
         self.state["active_my"] = index

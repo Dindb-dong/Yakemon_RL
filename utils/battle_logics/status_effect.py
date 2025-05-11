@@ -1,7 +1,7 @@
 from typing import List, Dict, Optional, Literal, Tuple, Union
 from p_models.move_info import MoveInfo
 from p_models.status import StatusState
-from context.battle_store import battle_store_instance as store
+from context.battle_store import store
 from context.duration_store import duration_store
 from utils.battle_logics.update_battle_pokemon import change_hp, remove_status
 import random

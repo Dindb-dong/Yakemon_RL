@@ -112,10 +112,10 @@ def apply_appearance(pokemon: BattlePokemon, side: SideType) -> List[str]:
 
         elif effect == "ability_change":
             new_ability = opp_pokemon.base.ability
-            update(side, my_index, lambda p: p.deepcopy(ability=new_ability))
+            update(side, my_index, lambda p: p.copy_with(ability=new_ability))
             add_log(f"➕ {pokemon.base.name}의 특성이 {new_ability.name if new_ability else '???'}으로 변화했다!")
             if new_ability and new_ability.appear:
                 apply_appearance(my_pokemon, side)
 
-    update(side, my_index, lambda p: p.deepcopy(is_first_turn=True))
+    update(side, my_index, lambda p: p.copy_with(is_first_turn=True))
     return logs

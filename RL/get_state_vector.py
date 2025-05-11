@@ -1,5 +1,6 @@
 from typing import List, Dict
 
+from context.battle_store import BattleStore
 from p_models.battle_pokemon import BattlePokemon
 
 def get_type_index(type_name: str) -> int:
@@ -20,6 +21,7 @@ def get_position_index(position: str) -> int:
 
 
 def get_state(
+    store: BattleStore,
     my_team: List[BattlePokemon],
     enemy_team: List[BattlePokemon],
     active_my: int,
@@ -263,5 +265,5 @@ def get_state(
     state['enemy_screen_effect'] = enemy_screen_effect['remainingTurn'] / 5 if enemy_screen_effect else 0.0
     # 누적 차원: 126
 
-    print("✅ 상태 벡터 길이:", len(state))
+    # print("✅ 상태 벡터 길이:", len(state))
     return state 

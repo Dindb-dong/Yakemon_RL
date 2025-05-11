@@ -1,3 +1,4 @@
+# 엉터리임 고쳐야함 
 import tensorflow as tf
 import numpy as np
 from typing import Union, Dict, List, Optional

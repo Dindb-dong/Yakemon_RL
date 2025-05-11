@@ -77,10 +77,28 @@ class DDDQNAgent:
         if random.random() < self.epsilon:
             return random.randrange(self.action_dim)
         
+        # 활성화된 포켓몬의 인덱스 확인
+        active_index = store.get_active_index("my") if store else 0
+        
         with torch.no_grad():
             state = torch.FloatTensor(state).unsqueeze(0).to(self.device)
             q_values = self.policy_net(state)
-            return q_values.argmax().item()
+            
+            # 활성화된 포켓몬의 기술만 선택 가능하도록 마스킹
+            if active_index is not None:
+                # 기술 선택 (0-3)과 교체 선택 (4-5)을 구분
+                move_mask = torch.ones(self.action_dim, device=self.device)
+                if active_index >= 0 and active_index < len(store.get_state()["my_team"]):
+                    # 활성화된 포켓몬의 기술만 선택 가능
+                    q_values[0, :4] = float('-inf')  # 모든 기술을 마스킹
+                    active_pokemon = store.get_state()["my_team"][active_index]
+                    for i, move in enumerate(active_pokemon.base.moves):
+                        if i < 4:  # 기술은 4개까지만
+                            q_values[0, i] = q_values[0, i]  # 해당 기술의 Q값 유지
+                
+                return q_values.argmax().item()
+            else:
+                return q_values.argmax().item()
     
     def store_transition(self, state, action, reward, next_state, done):
         """경험을 리플레이 버퍼에 저장합니다."""

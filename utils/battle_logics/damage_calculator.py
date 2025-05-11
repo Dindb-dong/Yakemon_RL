@@ -4,7 +4,7 @@ from p_models.pokemon_info import PokemonInfo
 from p_models.battle_pokemon import BattlePokemon
 from p_models.types import WeatherType
 from p_models.ability_info import AbilityInfo
-from context.battle_store import battle_store_instance as store
+from context.battle_store import store
 from context.duration_store import duration_store
 from utils.battle_logics.rank_effect import calculate_accuracy, calculate_critical, calculate_rank_effect
 from utils.battle_logics.status_effect import apply_status_effect_before
@@ -24,7 +24,7 @@ import random
 
 SideType = Literal["my", "enemy"]
 
-def calculate_move_damage(
+async def calculate_move_damage(
     move_name: str,
     side: SideType,
     is_always_hit: bool = False,
@@ -40,13 +40,12 @@ def calculate_move_damage(
     active_my: int = state["active_my"]
     active_enemy: int = state["active_enemy"]
     public_env: PublicBattleEnvironment = state["public_env"]
-    enemy_env: IndividualBattleEnvironment = state["enemy_env"]
     
     # Set attacker and defender based on side
     attacker = my_team[active_my] if side == "my" else enemy_team[active_enemy]
     defender = enemy_team[active_enemy] if side == "my" else my_team[active_my]
-    my_pokemon = attacker.base if side == "my" else defender.base
-    opponent_pokemon = defender.base if side == "my" else attacker.base
+    my_pokemon = attacker.base 
+    opponent_pokemon = defender.base
     opponent_side = "enemy" if side == "my" else "my"
     active_mine = active_my if side == "my" else active_enemy
     active_opponent = active_enemy if side == "my" else active_my
@@ -124,26 +123,26 @@ def calculate_move_damage(
     
     # 0-0. Check if defender is protecting
     if defender.is_protecting:
-        store.add_log(f"{opponent_side}는 방어중이여서 {side}의 공격은 실패했다!")
-        print(f"{opponent_side}는 방어중이여서 {side}의 공격은 실패했다!")
+        store.add_log(f"{defender.base.name}는 방어중이여서 {attacker.base.name}의 공격은 실패했다!")
+        print(f"{defender.base.name}는 방어중이여서 {attacker.base.name}의 공격은 실패했다!")
         
         if defender.used_move and defender.used_move.name == "니들가드" and move_info.is_touch:
             updated_pokemon = apply_thorn_damage(attacker)
             store.update_pokemon(side, active_my if side == "my" else active_enemy, lambda p: updated_pokemon)
             print(f"공격 포켓몬의 남은 체력: {defender.current_hp}")
-            store.add_log(f"{side}는 가시에 상처를 입었다!")
+            store.add_log(f"{attacker.base.name}는 가시에 상처를 입었다!")
             
         elif defender.used_move and defender.used_move.name == "토치카" and move_info.is_touch:
             store.update_pokemon(side, active_my if side == "my" else active_enemy, lambda p: add_status(p, "독", opponent_side))
             if not (attacker.base.ability and attacker.base.ability.name == "면역" or 
                     "독" in attacker.base.types or "강철" in attacker.base.types):
-                print(f"{side}는 가시에 찔려 독 상태가 되었다!")
-                store.add_log(f"{side}는 가시에 찔려 독 상태가 되었다!")
+                print(f"{attacker.base.name}는 가시에 찔려 독 상태가 되었다!")
+                store.add_log(f"{attacker.base.name}는 가시에 찔려 독 상태가 되었다!")
                 
         elif defender.used_move and defender.used_move.name == "블로킹" and move_info.is_touch:
             store.update_pokemon(side, active_my if side == "my" else active_enemy, lambda p: change_rank(p, "defense", -2))
-            print(f"{side}는 방어가 크게 떨어졌다!!")
-            store.add_log(f"{side}는 방어가 크게 떨어졌다!")
+            print(f"{attacker.base.name}는 방어가 크게 떨어졌다!!")
+            store.add_log(f"{attacker.base.name}는 방어가 크게 떨어졌다!")
             
         return {"success": False}
     
@@ -204,7 +203,7 @@ def calculate_move_damage(
             accuracy *= 0.8
             
         hit_success = (not move_info.one_hit_ko and 
-                    calculate_accuracy(acc_rate, accuracy, attacker.rank.accuracy or 0, defender.rank.dodge or 0)) or \
+                    calculate_accuracy(acc_rate, accuracy, my_poke_rank['accuracy'] or 0, op_poke_rank['dodge'] or 0)) or \
                     (move_info.one_hit_ko and random.random() < 0.3) # 일격필살기일 경우 30% 확률로 적중
                 
         if not hit_success:
@@ -215,15 +214,15 @@ def calculate_move_damage(
             # Handle move demerit effects
             if move_info.demerit_effects:
                 for effect in move_info.demerit_effects:
-                    if effect.get("fail"):
-                        dmg = effect["fail"]
+                    if effect.fail:
+                        dmg = effect.fail
                         store.update_pokemon(side, active_my if side == "my" else active_enemy,
                                           lambda p: change_hp(p, -(p.base.hp * dmg)))
                         store.add_log(f"🤕 {attacker.base.name}은 반동으로 데미지를 입었다...")
             
             store.update_pokemon(side, active_my if side == "my" else active_enemy, lambda p: set_used_move(p, move_info))
             store.update_pokemon(side, active_my if side == "my" else active_enemy,
-                            lambda p: use_move_pp(p, move_name, defender.base.ability and defender.base.ability.name == "프레셔", is_multi_hit))
+                            lambda p: use_move_pp(p, move_name, defender.base.ability.name == "프레셔" if defender.base.ability else False, is_multi_hit))
             store.update_pokemon(side, active_my if side == "my" else active_enemy,
                             lambda p: set_charging(p, False, None))
             store.update_pokemon(side, active_my if side == "my" else active_enemy,
@@ -238,8 +237,8 @@ def calculate_move_damage(
                 types *= 0
             if defender.base.ability and defender.base.ability.name == "미라클스킨":
                 was_null = True
-                store.add_log(f"🥊 {side}는 {move_info.name}을/를 사용했다!")
-                print(f"{side}는 {move_info.name}을/를 사용했다!")
+                store.add_log(f"🥊 {attacker.base.name}은/는 {move_info.name}을/를 사용했다!")
+                print(f"{attacker.base.name}은/는 {move_info.name}을/를 사용했다!")
                 store.add_log(f"🚫 {attacker.base.name}의 공격은 효과가 없었다...")
                 print(f"{attacker.base.name}의 공격은 효과가 없었다...")
                 store.update_pokemon(side, active_my if side == "my" else active_enemy, lambda p: set_used_move(p, move_info))
@@ -290,8 +289,8 @@ def calculate_move_damage(
                 types = 0
             if types == 0:
                 was_null = True
-                store.add_log(f"🥊 {side}는 {move_info.name}을/를 사용했다!")
-                print(f"{side}는 {move_info.name}을/를 사용했다!")
+                store.add_log(f"🥊 {attacker.base.name}은/는 {move_info.name}을/를 사용했다!")
+                print(f"{attacker.base.name}은/는 {move_info.name}을/를 사용했다!")
                 store.add_log(f"🚫 {attacker.base.name}의 공격은 효과가 없었다...")
                 print(f"{attacker.base.name}의 공격은 효과가 없었다...")
                 store.update_pokemon(side, active_my if side == "my" else active_enemy, lambda p: set_used_move(p, move_info))
@@ -307,8 +306,8 @@ def calculate_move_damage(
                 store.update_pokemon(side, active_my if side == "my" else active_enemy, lambda p: change_hp(p, new_hp - my_hp))
                 store.update_pokemon(opponent_side, active_enemy if side == "my" else active_my, lambda p: change_hp(p, new_hp - enemy_hp))
             
-            store.add_log(f"🥊 {side}는 {move_info.name}을/를 사용했다!")
-            print(f"{side}는 {move_info.name}을/를 사용했다!")
+            store.add_log(f"🥊 {attacker.base.name}은/는 {move_info.name}을/를 사용했다!")
+            print(f"{attacker.base.name}은/는 {move_info.name}을/를 사용했다!")
             store.update_pokemon(side, active_my if side == "my" else active_enemy, lambda p: set_used_move(p, move_info))
             store.update_pokemon(side, active_my if side == "my" else active_enemy, 
                                 lambda p: use_move_pp(p, move_name, defender.base.ability.name == "프레셔" if defender.base.ability else False, is_multi_hit))
@@ -316,8 +315,8 @@ def calculate_move_damage(
             store.update_pokemon(side, active_my if side == "my" else active_enemy, lambda p: change_position(p, None))
             return {"success": True}  # 변화기술은 성공으로 처리
         
-        store.add_log(f"🥊 {side}는 {move_name}을/를 사용했다!")
-        print(f"{side}는 {move_name}을/를 사용했다!")
+        store.add_log(f"🥊 {attacker.base.name}은/는 {move_name}을/를 사용했다!")
+        print(f"{attacker.base.name}은/는 {move_name}을/를 사용했다!")
     
         if types >= 2:
             was_effective = 1
@@ -340,8 +339,8 @@ def calculate_move_damage(
         # 무릎차기, 점프킥 등 빗나가면 반동
             if move_info.demerit_effects:
                 for d_effect in move_info.demerit_effects:
-                    if d_effect.get("fail"):
-                        dmg = d_effect["fail"]
+                    if d_effect.fail:
+                        dmg = d_effect.fail
                         store.update_pokemon(side, active_my if side == "my" else active_enemy, 
                                         lambda p: change_hp(p, -(p.base.hp * dmg)))
                         store.add_log(f"🤕 {attacker.base.name}은 반동으로 데미지를 입었다...")
@@ -423,15 +422,15 @@ def calculate_move_damage(
             attack_stat *= 0.75
 
     # 6-4. 빛의장막, 리플렉터, 오로라베일 적용
-    enemy_env_effects = duration_store.get_state()["enemy_env_effects"]
-    my_env_effects = duration_store.get_state()["my_env_effects"]
+    enemy_env_effects = duration_store.get_effects("enemy_env")
+    my_env_effects = duration_store.get_effects("my_env")
     env_effects = enemy_env_effects if side == "my" else my_env_effects
 
     def has_active_screen(name: str) -> bool:
         return any(effect["name"] == name for effect in env_effects)
 
     # 깨트리기, 사이코팽 등 스크린 파괴 기술
-    if move_info.effects and any(effect.get("break_screen") for effect in move_info.effects):
+    if move_info.effects and any(effect.break_screen for effect in move_info.effects):
         screen_list = ["리플렉터", "빛의장막", "오로라베일"]
         for screen_name in screen_list:
             if screen_name and has_active_screen(screen_name):
@@ -471,20 +470,20 @@ def calculate_move_damage(
         
     is_critical = calculate_critical(move_info.critical_rate + cri_rate, 
                                     my_pokemon.ability, 
-                                    my_poke_rank.critical if my_poke_rank else 0)
+                                    my_poke_rank['critical'] if my_poke_rank else 0)
 
     if is_critical:
         if my_pokemon.ability and my_pokemon.ability.name == "스나이퍼":
             rate *= 2.25  # 스나이퍼는 급소 데미지 2배
-            my_poke_rank.attack = max(0, my_poke_rank.attack)
-            my_poke_rank.sp_attack = max(0, my_poke_rank.sp_attack)
+            my_poke_rank['attack'] = max(0, my_poke_rank['attack'])
+            my_poke_rank['sp_attack'] = max(0, my_poke_rank['sp_attack'])
             # 급소 맞출 시에는 내 공격 랭크 다운 무효
             store.add_log(f"👍 {move_name}은/는 급소에 맞았다!")
             print(f"{move_name}은/는 급소에 맞았다!")
         else:
             rate *= 1.5  # 그 외에는 1.5배
-            my_poke_rank.attack = max(0, my_poke_rank.attack)
-            my_poke_rank.sp_attack = max(0, my_poke_rank.sp_attack)
+            my_poke_rank['attack'] = max(0, my_poke_rank['attack'])
+            my_poke_rank['sp_attack'] = max(0, my_poke_rank['sp_attack'])
             store.add_log(f"👍 {move_name}은/는 급소에 맞았다!")
             print(f"{move_name}은/는 급소에 맞았다!")
 
@@ -492,35 +491,35 @@ def calculate_move_damage(
     # 공격자가 천진일 때: 상대 방어 랭크 무시
     # 피격자가 천진일 때: 공격자 공격 랭크 무시
     # 랭크 적용
-    if my_poke_rank.attack and move_info.category == "물리":
+    if my_poke_rank['attack'] and move_info.category == "물리":
         if not (defender.base.ability and defender.base.ability.name == "천진"):
             if move_name == "바디프레스":
-                attack_stat *= calculate_rank_effect(my_poke_rank.defense)
+                attack_stat *= calculate_rank_effect(my_poke_rank['defense'])
                 store.add_log(f"{attacker.base.name}의 방어 랭크 변화가 적용되었다!")
                 print(f"{attacker.base.name}의 방어 랭크 변화가 적용되었다!")
             else:
-                attack_stat *= calculate_rank_effect(my_poke_rank.attack)
+                attack_stat *= calculate_rank_effect(my_poke_rank['attack'])
                 store.add_log(f"{attacker.base.name}의 공격 랭크 변화가 적용되었다!")
                 print(f"{attacker.base.name}의 공격 랭크 변화가 적용되었다!")
 
-    if my_poke_rank.sp_attack and move_info.category == "특수":
+    if my_poke_rank['sp_attack'] and move_info.category == "특수":
         if not (defender.base.ability and defender.base.ability.name == "천진"):
-            attack_stat *= calculate_rank_effect(my_poke_rank.sp_attack)
+            attack_stat *= calculate_rank_effect(my_poke_rank['sp_attack'])
             store.add_log(f"{attacker.base.name}의 특수공격 랭크 변화가 적용되었다!")
             print(f"{attacker.base.name}의 특수공격 랭크 변화가 적용되었다!")
 
-    if op_poke_rank.defense and move_info.category == "물리":
+    if op_poke_rank['defense'] and move_info.category == "물리":
         if not (attacker.base.ability and attacker.base.ability.name == "천진") and \
-            not (move_info.effects and any(effect.get("rank_nullification") for effect in move_info.effects)):
+            not (move_info.effects and any(effect.rank_nullification for effect in move_info.effects)):
             # 공격자가 천진도 아니고, 기술이 랭크업 무시하는 기술도 아닐 경우에만 업데이트
-            defense_stat *= calculate_rank_effect(op_poke_rank.defense)
+            defense_stat *= calculate_rank_effect(op_poke_rank['defense'])
             store.add_log(f"{defender.base.name}의 방어 랭크 변화가 적용되었다!")
             print(f"{defender.base.name}의 방어 랭크 변화가 적용되었다!")
 
-    if op_poke_rank.sp_defense and move_info.category == "특수":
+    if op_poke_rank['sp_defense'] and move_info.category == "특수":
         if not (attacker.base.ability and attacker.base.ability.name == "천진") and \
-            not (move_info.effects and any(effect.get("rank_nullification") for effect in move_info.effects)):
-            defense_stat *= calculate_rank_effect(op_poke_rank.sp_defense)
+            not (move_info.effects and any(effect.rank_nullification for effect in move_info.effects)):
+            defense_stat *= calculate_rank_effect(op_poke_rank['sp_defense'])
             store.add_log(f"{defender.base.name}의 특수방어 랭크 변화가 적용되었다!")
             print(f"{defender.base.name}의 특수방어 랭크 변화가 적용되었다!")
 
@@ -669,25 +668,25 @@ def apply_change_effect(
             
             if move_info.effects:
                 for effect in move_info.effects:
-                    if effect.get("stat_change"):  # 랭크업 기술일 경우
-                        for stat_change in effect["stat_change"]:
+                    if effect.stat_change:  # 랭크업 기술일 경우
+                        for stat_change in effect.stat_change:
                             store.update_pokemon(side, active_mine, 
                                             lambda p: change_rank(p, stat_change["stat"], stat_change["change"]))
                             print(f"{active_team[active_mine].base.name}의 {stat_change['stat']}이/가 {stat_change['change']}랭크 변했다!")
                             store.add_log(f"🔃 {active_team[active_mine].base.name}의 {stat_change['stat']}이/가 {stat_change['change']}랭크 변했다!")
                     
-                    if effect.get("heal") and effect["heal"] > 0:
-                        heal = effect["heal"]
+                    if effect.heal and effect.heal > 0:
+                        heal = effect.heal
                         store.update_pokemon(side, active_mine, 
                                           lambda p: change_hp(p, p.base.hp * heal))
                     
-                    if effect.get("status"):
-                        if effect["status"] == "잠듦" and not (
+                    if effect.status:
+                        if effect.status == "잠듦" and not (
                             active_team[active_mine].base.ability and 
                             active_team[active_mine].base.ability.name in ["불면", "의기양양"]
                         ):
                             store.update_pokemon(side, active_mine, 
-                                            lambda p: add_status(p, effect["status"], side))
+                                            lambda p: add_status(p, effect.status, side))
         
         elif move_info.target == "none":  # 필드에 거는 기술일 경우
             if move_info.trap:  # 독압정, 스텔스록 등
@@ -717,7 +716,9 @@ def apply_change_effect(
                     lambda p: use_move_pp(p, move_info.name, defender.ability.name == "프레셔" if defender and defender.ability else False, is_multi_hit))
 
 def get_move_info(my_pokemon: PokemonInfo, move_name: str) -> MoveInfo:
+    print(f"my_pokemon: {my_pokemon.name}")
     for move in my_pokemon.moves:
+        print(f"move: {move.name}")
         if move.name == move_name:
             return move
-    raise ValueError(f"Move with name: {move_name} not found.") 
+    raise ValueError(f"{my_pokemon.name}의 {move_name} 기술을 찾을 수 없습니다.") 

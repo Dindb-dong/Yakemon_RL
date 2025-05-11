@@ -1,12 +1,11 @@
 from p_models.battle_pokemon import BattlePokemon
-from context.battle_store import battle_store_instance as store
+from context.battle_store import store
 from context.battle_store import SideType
 from utils.battle_logics.rank_effect import calculate_rank_effect
 from utils.battle_logics.update_battle_pokemon import change_hp, change_rank, add_status
 from utils.battle_logics.switch_pokemon import switch_pokemon
 from utils.battle_logics.get_best_switch_index import get_best_switch_index
 from utils.battle_logics.apply_none_move_damage import apply_recoil_damage
-from utils.delay import delay
 from typing import Optional, Literal
 import random
 from utils.battle_logics.apply_after_damage import apply_defensive_ability_effect_after_multi_damage
@@ -46,7 +45,6 @@ async def apply_move_effect_after_multi_damage(
             i for i, p in enumerate(mine_team) if i != active_mine and p.current_hp > 0
         ]
         if available_indexes:
-            await delay(1.5)
             best_index = get_best_switch_index(side)
             await switch_pokemon(side, best_index, baton_touch)
 
@@ -75,7 +73,7 @@ async def apply_move_effect_after_multi_damage(
         for eff in effect or []:
             if roll < eff.get("chance", 0):
                 if eff.get("heal") and not applied_damage:
-                    heal = attacker.base.hp * eff["heal"] if eff["heal"] < 1 else calculate_rank_effect(defender.rank.attack) * defender.base.attack
+                    heal = attacker.base.hp * eff["heal"] if eff["heal"] < 1 else calculate_rank_effect(defender.rank['attack']) * defender.base.attack
                     store.update_pokemon(side, active_mine, lambda p: change_hp(p, heal))
                     add_log(f"➕ {attacker.base.name}은 체력을 회복했다!")
                 for sc in eff.get("statChange", []):

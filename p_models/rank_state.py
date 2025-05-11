@@ -3,7 +3,7 @@
 from typing import Dict, Literal
 
 # 타입 정의
-RankStat = Literal['attack', 'spAttack', 'defense', 'spDefense', 'speed', 'accuracy', 'dodge', 'critical']
+RankStat = Literal['attack', 'sp_attack', 'defense', 'sp_defense', 'speed', 'accuracy', 'dodge', 'critical']
 
 # RankState = 공격/방어/스피드/명중률/회피율/급소율 등을 관리하는 dict
 RankState = Dict[RankStat, int]
@@ -18,9 +18,9 @@ class RankManager:
     def reset_state(self) -> RankState:
         reset = {
             'attack': 0,
-            'spAttack': 0,
+            'sp_attack': 0,
             'defense': 0,
-            'spDefense': 0,
+            'sp_defense': 0,
             'speed': 0,
             'accuracy': 0,
             'dodge': 0,
@@ -52,9 +52,9 @@ class RankManager:
 
         return {
             'attack': clamp(state.get('attack', 0)),
-            'spAttack': clamp(state.get('spAttack', 0)),
+            'sp_attack': clamp(state.get('sp_attack', 0)),
             'defense': clamp(state.get('defense', 0)),
-            'spDefense': clamp(state.get('spDefense', 0)),
+            'sp_defense': clamp(state.get('sp_defense', 0)),
             'speed': clamp(state.get('speed', 0)),
             'accuracy': clamp(state.get('accuracy', 0)),
             'dodge': clamp(state.get('dodge', 0)),
