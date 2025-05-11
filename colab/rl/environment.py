@@ -4,13 +4,13 @@ import random
 import numpy as np
 from tqdm import tqdm
 from copy import deepcopy
-import keras
-from keras import backend as K
+import gymnasium as gym
 
-from ..p_models.team import PokemonTeam
-from ..p_models.templates import POKEMON_TEMPLATES, create_pokemon_from_template, FIRE_POKEMON, WATER_POKEMON, GRASS_POKEMON
-from ..battle.battle import PokemonBattle
-from ..p_models.types import Terrain, get_type_name
+from colab.p_models.team import PokemonTeam
+from colab.p_models.templates import POKEMON_TEMPLATES, create_pokemon_from_template, FIRE_POKEMON, WATER_POKEMON, GRASS_POKEMON
+from colab.battle.battle import PokemonBattle
+from colab.p_models.types import Terrain, get_type_name
+from colab.rl.state import BattleState
 
 def create_fixed_team():
     """리자몽, 이상해꽃, 거북왕으로 구성된 고정 팀 생성"""
@@ -51,7 +51,7 @@ def create_pokemon_teams():
 
     return player_team, opponent_team
 
-class PokemonEnv:
+class PokemonEnv(gym.Env):
     """강화학습을 위한 환경 클래스 (턴 순서와 기절 처리 수정)"""
     def __init__(self, create_pokemon_teams_fn, opponent_agent=None):
         """
@@ -64,11 +64,24 @@ class PokemonEnv:
         self.opponent_agent = opponent_agent
         self.battle = None
 
+        # 액션 공간 정의 (4개 기술 + 2개 교체)
+        self.action_space = gym.spaces.Discrete(6)
+
+        # 관찰 공간 정의 (상태 벡터 크기에 맞춰 조정)
+        self.observation_space = gym.spaces.Box(
+            low=0.0,
+            high=1.0,
+            shape=(BattleState.get_state_size(),),  # 상태 벡터 크기
+            dtype=np.float32
+        )
+
         # 초기화
         self.reset()
 
-    def reset(self):
+    def reset(self, seed=None, options=None):
         """환경 초기화"""
+        super().reset(seed=seed)
+
         # 팀 생성
         player_team, opponent_team = self.create_pokemon_teams_fn()
 
@@ -87,12 +100,16 @@ class PokemonEnv:
         self.prev_player_hp_sum = sum(p.current_hp for p in self.battle.player_team.pokemons)
         self.prev_opponent_hp_sum = sum(p.current_hp for p in self.battle.opponent_team.pokemons)
 
-        return self.get_state()
+        observation = self.get_state()
+        info = {}
+
+        return observation, info
 
     def step(self, action):
         """행동 수행 및 환경 진행"""
+        truncated = False
         if self.done:
-            return self.get_state(), 0, True, {"battle_over": True}
+            return self.get_state(), 0, True, truncated, {"battle_over": True}
 
         # 보상 계산을 위한 이전 상태 저장
         prev_player_hp_sum = self.prev_player_hp_sum
@@ -109,7 +126,7 @@ class PokemonEnv:
                 if valid_moves:
                     action_index = valid_moves[0]
                 else:
-                    return self.get_state(), -1, False, {"error": "No valid moves available"}
+                    return self.get_state(), -1, False, truncated, {"error": "No valid moves available"}
         else:  # 포켓몬 교체
             action_type = "switch"
             valid_switches = self.battle.player_team.get_valid_switches()
@@ -118,7 +135,7 @@ class PokemonEnv:
             if switch_index < len(valid_switches):
                 action_index = valid_switches[switch_index]
             else:
-                return self.get_state(), -1, False, {"error": "Invalid switch index"}
+                return self.get_state(), -1, False, truncated, {"error": "Invalid switch index"}
 
         # 플레이어 행동 수행 (상대방 행동 포함)
         results = self.battle.player_action(action_type, action_index, self.opponent_agent)
@@ -171,7 +188,7 @@ class PokemonEnv:
 
                 reward = loss_penalty + damage_bonus
 
-            return self.get_state(), reward, True, {"battle_over": True, "winner": winner}
+            return self.get_state(), reward, True, truncated, {"battle_over": True, "winner": winner}
 
         # 중간 보상 계산
         damage_reward = -opponent_hp_diff * 3.0
@@ -218,7 +235,7 @@ class PokemonEnv:
 
         reward = max(-10.0, min(10.0, reward))
 
-        return self.get_state(), reward, False, {
+        return self.get_state(), reward, False, False, {
             "player_result": player_result,
             "opponent_result": opponent_result,
             "player_hp_diff": player_hp_diff,
@@ -227,7 +244,7 @@ class PokemonEnv:
 
     def get_state(self):
         """강화학습을 위한 상태 벡터 반환"""
-        return self.battle.get_state()
+        return BattleState.get_state_vector(self.battle)
 
     def get_valid_actions(self):
         """유효한 행동 목록 반환"""
