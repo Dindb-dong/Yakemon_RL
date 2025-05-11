@@ -6,7 +6,7 @@ from .selfplay_manager import SelfPlayManager
 from .model_evaluator import ModelEvaluator
 from .training_logger import TrainingLogger
 from .trainer import train_with_improved_selfplay, continue_training_from_best_model
-from .environment import PokemonEnv, ParallelPokemonEnv, create_fixed_team, create_balanced_team
+from .environment import PokemonEnv, ParallelPokemonEnv, create_fixed_team, create_balanced_team, create_pokemon_teams
 from .state import BattleState
 from .reward import BattleReward
 

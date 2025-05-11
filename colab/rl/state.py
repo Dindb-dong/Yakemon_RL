@@ -1,7 +1,7 @@
 """강화학습을 위한 상태 표현 모듈"""
 
 import numpy as np
-from ..p_models.types import PokemonType
+from colab.p_models.types import PokemonType
 
 class BattleState:
     """배틀 상태를 강화학습에 적합한 형태로 변환하는 클래스"""

@@ -1,5 +1,6 @@
 """포켓몬 템플릿 데이터 모듈"""
 
+from .pokemon import Pokemon
 from .types import TYPE_NAMES, PokemonType
 from .moves import Move
 
@@ -338,3 +339,31 @@ GRASS_POKEMON = [p for p in POKEMON_TEMPLATES if PokemonType.GRASS in p["types"]
 OTHER_POKEMON = [p for p in POKEMON_TEMPLATES if PokemonType.FIRE not in p["types"] and
                                                PokemonType.WATER not in p["types"] and
                                                PokemonType.GRASS not in p["types"]] 
+
+def create_pokemon_from_template(template):
+    """Create a Pokémon from a template"""
+    # 기술 목록을 깊은 복사하여 참조 문제 방지
+    moves_copy = []
+    for move in template["moves"]:
+        # Move 객체 속성 복사
+        move_copy = Move(
+            move.name,
+            move.type,
+            move.category,
+            move.power,
+            move.accuracy,
+            move.pp,  # 원본 PP 값 사용
+            move.effects.copy() if move.effects else {}
+        )
+        move_copy.max_pp = move.max_pp
+        if hasattr(move, 'battle_effects'):
+            move_copy.battle_effects = move.battle_effects.copy()
+        moves_copy.append(move_copy)
+
+    return Pokemon(
+        name=template["name"],
+        types=template["types"],
+        stats=template["stats"],
+        moves=moves_copy,  # 복사된 기술 목록 사용
+        level=50
+    )
