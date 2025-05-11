@@ -1,9 +1,9 @@
 import os
 import numpy as np
 import random
-import tensorflow as tf
-import keras
-from keras import backend as K
+import torch
+import torch.nn as nn
+import torch.optim as optim
 from collections import deque
 from .replay_buffer import ReplayBuffer
 
@@ -15,12 +15,63 @@ os.makedirs(MODEL_PATH, exist_ok=True)
 BEST_MODEL_PATH = './pokemon_best_models'
 os.makedirs(BEST_MODEL_PATH, exist_ok=True)
 
-def subtract_mean(x):
-    """명시적으로 정의된 평균 차감 함수"""
-    return x - K.mean(x, axis=1, keepdims=True)
+class DuelingDQN(nn.Module):
+    """Dueling DQN 네트워크"""
+    def __init__(self, state_size, action_size, use_dueling=True):
+        super(DuelingDQN, self).__init__()
+        self.use_dueling = use_dueling
 
-# 커스텀 객체 등록
-keras.utils.get_custom_objects().update({'subtract_mean': subtract_mean})
+        # 특징 추출 레이어
+        self.features = nn.Sequential(
+            nn.Linear(state_size, 512),
+            nn.ReLU(),
+            nn.BatchNorm1d(512),
+            nn.Dropout(0.2),
+            
+            nn.Linear(512, 256),
+            nn.ReLU(),
+            nn.BatchNorm1d(256),
+            nn.Dropout(0.2),
+            
+            nn.Linear(256, 128),
+            nn.ReLU(),
+            nn.BatchNorm1d(128)
+        )
+
+        if use_dueling:
+            # 상태 가치 스트림
+            self.value_stream = nn.Sequential(
+                nn.Linear(128, 64),
+                nn.ReLU(),
+                nn.Linear(64, 1)
+            )
+            
+            # 행동 이점 스트림
+            self.advantage_stream = nn.Sequential(
+                nn.Linear(128, 64),
+                nn.ReLU(),
+                nn.Linear(64, action_size)
+            )
+        else:
+            # 표준 DQN
+            self.output = nn.Sequential(
+                nn.Linear(128, 64),
+                nn.ReLU(),
+                nn.Linear(64, action_size)
+            )
+
+    def forward(self, x):
+        features = self.features(x)
+        
+        if self.use_dueling:
+            values = self.value_stream(features)
+            advantages = self.advantage_stream(features)
+            # Q = V + (A - mean(A))
+            qvals = values + (advantages - advantages.mean(dim=1, keepdim=True))
+        else:
+            qvals = self.output(features)
+            
+        return qvals
 
 class DQNAgent:
     """향상된 DQN 에이전트 (Dueling DQN + Double DQN + Prioritized Experience Replay)"""
@@ -28,6 +79,7 @@ class DQNAgent:
     def __init__(self, state_size, action_size, **kwargs):
         self.state_size = state_size
         self.action_size = action_size
+        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
         # 하이퍼파라미터
         self.gamma = kwargs.get('gamma', 0.99)  # 할인 계수
@@ -41,11 +93,12 @@ class DQNAgent:
         self.grad_clip_norm = kwargs.get('grad_clip_norm', 10.0)  # 그래디언트 클리핑 값
 
         # 네트워크 생성
-        self.online_network = self._build_network()
-        self.target_network = self._build_network()
+        self.online_network = DuelingDQN(state_size, action_size, self.use_dueling).to(self.device)
+        self.target_network = DuelingDQN(state_size, action_size, self.use_dueling).to(self.device)
+        self.target_network.load_state_dict(self.online_network.state_dict())
 
-        # 타겟 네트워크 초기화
-        self.update_target_network()
+        # 옵티마이저 설정
+        self.optimizer = optim.Adam(self.online_network.parameters(), lr=self.learning_rate)
 
         # 경험 재생 버퍼
         buffer_size = kwargs.get('buffer_size', 200000)
@@ -64,53 +117,13 @@ class DQNAgent:
         # 자가 대전 버전 정보
         self.version = 0
 
-        # 그래디언트 클리핑이 있는 커스텀 옵티마이저
-        self.optimizer = tf.keras.optimizers.Adam(learning_rate=self.learning_rate, clipnorm=self.grad_clip_norm)
-
-    def _build_network(self):
-        inputs = tf.keras.layers.Input(shape=(self.state_size,))
-
-        # 특징 추출 레이어
-        features = tf.keras.layers.Dense(512, activation='relu')(inputs)
-        features = tf.keras.layers.BatchNormalization()(features)
-        features = tf.keras.layers.Dropout(0.2)(features)
-
-        features = tf.keras.layers.Dense(256, activation='relu')(features)
-        features = tf.keras.layers.BatchNormalization()(features)
-        features = tf.keras.layers.Dropout(0.2)(features)
-
-        features = tf.keras.layers.Dense(128, activation='relu')(features)
-        features = tf.keras.layers.BatchNormalization()(features)
-
-        if self.use_dueling:
-            # Dueling DQN: 상태 가치 (V) + 행동 이점 (A)
-            state_value = tf.keras.layers.Dense(64, activation='relu')(features)
-            state_value = tf.keras.layers.Dense(1)(state_value)
-
-            action_advantages = tf.keras.layers.Dense(64, activation='relu')(features)
-            action_advantages = tf.keras.layers.Dense(self.action_size)(action_advantages)
-
-            # 명시적 함수 참조
-            action_advantages_mean = tf.keras.layers.Lambda(
-                subtract_mean  # 직접 함수 참조
-            )(action_advantages)
-
-            # Q = V + A
-            outputs = tf.keras.layers.Add()([state_value, action_advantages_mean])
-        else:
-            # 표준 DQN
-            outputs = tf.keras.layers.Dense(64, activation='relu')(features)
-            outputs = tf.keras.layers.Dense(self.action_size, activation='linear')(outputs)
-
-        model = tf.keras.Model(inputs=inputs, outputs=outputs)
-        return model
-
     def update_target_network(self):
         """타겟 네트워크 업데이트"""
-        self.target_network.set_weights(self.online_network.get_weights())
+        self.target_network.load_state_dict(self.online_network.state_dict())
 
     def choose_action(self, state, valid_actions):
         """행동 선택 (epsilon-greedy)"""
+        self.online_network.eval() # Set to evaluation mode for inference
         # 유효한 행동이 없으면 기본 행동 반환
         if not valid_actions:
             return 0
@@ -126,8 +139,9 @@ class DQNAgent:
             return random.choice(valid_actions)
 
         # 아니면 최대 Q값을 가진 행동 선택 (활용)
-        state_tensor = np.expand_dims(state, axis=0)
-        q_values = self.online_network.predict(state_tensor, verbose=0)[0]
+        with torch.no_grad():
+            state_tensor = torch.FloatTensor(state).unsqueeze(0).to(self.device)
+            q_values = self.online_network(state_tensor).cpu().numpy()[0]
 
         # 유효하지 않은 행동은 큰 음수 값으로 마스킹
         masked_q_values = q_values.copy()
@@ -142,57 +156,54 @@ class DQNAgent:
         """경험 저장"""
         self.replay_buffer.add(state, action, reward, next_state, done)
 
-    @tf.function
-    def _train_step(self, states, actions, targets):
-        """TensorFlow 그래프로 최적화된 학습 단계"""
-        actions_one_hot = tf.one_hot(actions, self.action_size)
-
-        with tf.GradientTape() as tape:
-            q_values = self.online_network(states, training=True)
-            q_values_for_actions = tf.reduce_sum(q_values * actions_one_hot, axis=1)
-            td_errors = targets - q_values_for_actions
-            loss = tf.reduce_mean(tf.square(td_errors))
-
-        gradients = tape.gradient(loss, self.online_network.trainable_variables)
-        self.optimizer.apply_gradients(zip(gradients, self.online_network.trainable_variables))
-
-        return loss, td_errors
-
     def train_batch(self):
         """배치 학습 - Double DQN + Prioritized Experience Replay"""
         if len(self.replay_buffer) < self.batch_size:
             return None
 
+        self.online_network.train() # Set to training mode
+
         # 배치 샘플링
         states, actions, rewards, next_states, dones, indices = self.replay_buffer.sample(self.batch_size)
 
-        # numpy 배열로 변환
-        states = np.array(states, dtype=np.float32)
-        next_states = np.array(next_states, dtype=np.float32)
-        rewards = np.array(rewards, dtype=np.float32)
-        dones = np.array(dones, dtype=np.float32)
-        actions = np.array(actions, dtype=np.int32)
+        # torch 텐서로 변환
+        states = torch.FloatTensor(np.array(states)).to(self.device)
+        next_states = torch.FloatTensor(np.array(next_states)).to(self.device)
+        rewards = torch.FloatTensor(np.array(rewards)).to(self.device)
+        dones = torch.FloatTensor(np.array(dones)).to(self.device)
+        actions = torch.LongTensor(np.array(actions)).to(self.device)
 
-        # Double DQN: 온라인 네트워크로 행동 선택, 타겟 네트워크로 평가
-        next_q_values = self.online_network.predict(next_states, verbose=0)
-        best_actions = np.argmax(next_q_values, axis=1)
+        # Double DQN
+        with torch.no_grad():
+            # Double DQN: 온라인 네트워크로 행동 선택, 타겟 네트워크로 평가
+            next_q_values = self.online_network(next_states)
+            best_actions = torch.argmax(next_q_values, dim=1)
+            
+            # 선택된 행동에 대한 타겟 네트워크의 Q값 획득
+            target_q_values = self.target_network(next_states)
+            target_values = target_q_values.gather(1, best_actions.unsqueeze(1)).squeeze()
+            
+            # Q 타겟 계산
+            targets = rewards + self.gamma * target_values * (1 - dones)
 
-        # 선택된 행동에 대한 타겟 네트워크의 Q값 획득
-        target_q_values = self.target_network.predict(next_states, verbose=0)
-        target_values = np.array([target_q_values[i, action] for i, action in enumerate(best_actions)])
+        # 현재 Q 값 계산
+        q_values = self.online_network(states)
+        current_q_values = q_values.gather(1, actions.unsqueeze(1)).squeeze()
 
-        # Q 타겟 계산
-        targets = rewards + self.gamma * target_values * (1 - dones)
+        # 손실 계산 및 역전파
+        loss = nn.MSELoss()(current_q_values, targets)
+        self.optimizer.zero_grad()
+        loss.backward()
+        torch.nn.utils.clip_grad_norm_(self.online_network.parameters(), self.grad_clip_norm)
+        self.optimizer.step()
 
-        # 그래프 모드에서 학습
-        loss_value, td_errors = self._train_step(states, actions, targets)
-
-        # 우선순위 업데이트
-        self.replay_buffer.update_priorities(indices, td_errors.numpy())
+        # TD 오차 계산 및 우선순위 업데이트
+        td_errors = abs(targets - current_q_values.detach()).cpu().numpy()
+        self.replay_buffer.update_priorities(indices, td_errors)
 
         # 손실 기록
-        loss = float(loss_value)
-        self.loss_history.append(loss)
+        loss_value = loss.item()
+        self.loss_history.append(loss_value)
 
         # 단계 카운터 증가 및 탐색률 감소
         self.train_step += 1
@@ -203,7 +214,7 @@ class DQNAgent:
         if self.train_step % self.update_target_freq == 0:
             self.update_target_network()
 
-        return loss
+        return loss_value
 
     def add_win(self):
         """승리 기록"""
@@ -238,47 +249,38 @@ class DQNAgent:
         # 저장 경로 결정 (최고 모델 여부에 따라)
         save_path = BEST_MODEL_PATH if is_best else MODEL_PATH
 
-        self.online_network.save(os.path.join(save_path, f"{filename}_online.keras"))
-        self.target_network.save(os.path.join(save_path, f"{filename}_target.keras"))
-
-        # 메트릭 및 파라미터 저장
-        np.save(os.path.join(save_path, f"{filename}_loss_history.npy"), np.array(self.loss_history))
-        np.save(os.path.join(save_path, f"{filename}_reward_history.npy"), np.array(self.reward_history))
-
-        params = {
+        torch.save({
+            'online_state_dict': self.online_network.state_dict(),
+            'target_state_dict': self.target_network.state_dict(),
+            'optimizer_state_dict': self.optimizer.state_dict(),
             'epsilon': self.epsilon,
             'train_step': self.train_step,
             'episode_count': self.episode_count,
             'win_count': self.win_count,
-            'version': self.version
-        }
-        np.save(os.path.join(save_path, f"{filename}_params.npy"), params)
+            'version': self.version,
+            'loss_history': self.loss_history,
+            'reward_history': self.reward_history
+        }, os.path.join(save_path, f"{filename}.pt"))
 
         status = "최고 성능" if is_best else "일반"
         print(f"{status} 모델 저장 완료: {os.path.join(save_path, filename)}")
 
     def load_model(self, filename, model_dir='./'):
-        """모델 로드 - 온라인 모델만 있는 경우도 처리"""
+        """모델 로드"""
         try:
-            # 온라인 모델 경로
-            online_path = os.path.join(model_dir, f"{filename}_online.keras")
-
-            # 온라인 모델 로드
-            print(f"온라인 모델 로드 시도: {online_path}")
-            self.online_network = tf.keras.models.load_model(online_path)
-
-            # 타겟 모델 경로
-            target_path = os.path.join(model_dir, f"{filename}_target.keras")
-
-            # 타겟 모델이 있으면 로드, 없으면 온라인 모델 복사
-            if os.path.exists(target_path):
-                print(f"타겟 모델 로드: {target_path}")
-                self.target_network = tf.keras.models.load_model(target_path)
-            else:
-                print(f"타겟 모델 없음, 온라인 모델 복사")
-                # 온라인 모델의 가중치를 타겟 모델에 복사
-                self.target_network = tf.keras.models.clone_model(self.online_network)
-                self.target_network.set_weights(self.online_network.get_weights())
+            checkpoint = torch.load(os.path.join(model_dir, f"{filename}.pt"))
+            
+            self.online_network.load_state_dict(checkpoint['online_state_dict'])
+            self.target_network.load_state_dict(checkpoint['target_state_dict'])
+            self.optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
+            
+            self.epsilon = checkpoint['epsilon']
+            self.train_step = checkpoint['train_step']
+            self.episode_count = checkpoint['episode_count']
+            self.win_count = checkpoint['win_count']
+            self.version = checkpoint['version']
+            self.loss_history = checkpoint['loss_history']
+            self.reward_history = checkpoint['reward_history']
 
             print(f"모델 로드 성공: {filename}")
             return True
@@ -309,8 +311,7 @@ class DQNAgent:
             learning_rate=self.learning_rate,
             batch_size=self.batch_size
         )
-        # 가중치 복사
-        clone_agent.online_network.set_weights(self.online_network.get_weights())
-        clone_agent.target_network.set_weights(self.target_network.get_weights())
+        clone_agent.online_network.load_state_dict(self.online_network.state_dict())
+        clone_agent.target_network.load_state_dict(self.target_network.state_dict())
         clone_agent.version = self.version  # 버전 정보 복사
-        return clone_agent 
+        return clone_agent
