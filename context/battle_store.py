@@ -1,4 +1,4 @@
-from typing import List, Optional, Dict, Callable, Literal, Any
+from typing import List, Optional, Dict, Callable, Literal, Any, TypedDict
 from copy import deepcopy
 
 from p_models.battle_pokemon import BattlePokemon
@@ -7,9 +7,22 @@ from context.form_check_wrapper import with_form_check
 
 SideType = Literal["my", "enemy"]
 
+class BattleStoreState(TypedDict):
+    my_team: List[BattlePokemon]
+    enemy_team: List[BattlePokemon]
+    active_my: int
+    active_enemy: int
+    public_env: PublicBattleEnvironment
+    my_env: IndividualBattleEnvironment
+    enemy_env: IndividualBattleEnvironment
+    turn: int
+    logs: List[str]
+    is_switch_waiting: bool
+    switch_request: Optional[Dict[str, Any]]
+
 class BattleStore:
     def __init__(self) -> None:
-        self.state: Dict[str, Any] = {
+        self.state: BattleStoreState = {
             "my_team": [],
             "enemy_team": [],
             "active_my": 0,
@@ -21,8 +34,6 @@ class BattleStore:
             "logs": [],
             "is_switch_waiting": False,
             "switch_request": None,
-            "win_count": 0,
-            "enemy_roster": [],
         }
 
     def set_my_team(self, team: List[BattlePokemon]) -> None:
