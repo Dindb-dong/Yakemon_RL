@@ -102,7 +102,7 @@ def base_ai_choose_action(
         return best
 
     def get_speed_up_move() -> Optional[MoveInfo]:
-        prankster = my_pokemon.base.ability.name == "심술꾸러기"
+        prankster = True if (my_pokemon.base.ability and my_pokemon.base.ability.name == "심술꾸러기") else False
         enemy_types = enemy_pokemon.base.types
 
         for move in usable_moves:

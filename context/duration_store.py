@@ -82,9 +82,11 @@ class DurationStore:
     def decrement_turns(self):
         expired = {"my": [], "enemy": [], "public": [], "my_env": [], "enemy_env": []}
 
-        def dec(effects, side):
+        def dec(effects: List[TimedEffect], side: SideType):
             new_list = []
             for e in effects:
+                if not isinstance(e, dict):
+                    continue  # dict가 아닌 값은 무시
                 if e["name"] in special_status:
                     if self.decrement_special_effect(side, e["owner_index"], e["name"]):
                         expired[side].append(e["name"])
@@ -142,18 +144,18 @@ class DurationStore:
             self.add_effect({"name": status, "remaining_turn": next_turn, "owner_index": index}, side)
             return False
 
-    def decrement_yawn_turn(self, side, index):
+    def decrement_yawn_turn(self, side: SideType, index: int):
         return self.decrement_special_effect(side, index, "하품", lambda: 
             store.update_pokemon(side, index, lambda p: add_status(p, "잠듦", side))
         )
 
-    def decrement_confusion_turn(self, side, index):
+    def decrement_confusion_turn(self, side: SideType, index: int):
         return self.decrement_special_effect(side, index, "혼란")
 
-    def decrement_sleep_turn(self, side, index):
+    def decrement_sleep_turn(self, side: SideType, index: int):
         return self.decrement_special_effect(side, index, "잠듦")
 
-    def decrement_disable_turn(self, side, index):
+    def decrement_disable_turn(self, side: SideType, index: int):
         return self.decrement_special_effect(side, index, "사슬묶기", lambda: (
             store.update_pokemon(side, index, lambda p: p.deepcopy(un_usable_move=None)),
             store.add_log("사슬묶기 상태가 풀렸다!")

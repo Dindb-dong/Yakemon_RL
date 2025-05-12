@@ -20,20 +20,20 @@ def apply_defensive_ability_effect_before_damage(used_move: MoveInfo, side: Side
         for category in ability.defensive:
             name = ability.name
             if category == "type_nullification":
-                if name in ["저수", "축전", "마중물", "건조피부"] and used_move.type == "물":
+                if name in ["저수", "마중물", "건조피부"] and used_move.type == "물":
                     rate = 0
-                    if name in ["저수", "축전", "건조피부"]:
-                        store.update_pokemon(opponent_side, active_opponent, lambda p: change_hp(p, round(p['base']['hp'] / 4)))
+                    if name in ["저수", "건조피부"]:
+                        store.update_pokemon(opponent_side, active_opponent, lambda p: change_hp(p, round(p.base.hp / 4)))
                     elif name == "마중물":
                         store.update_pokemon(opponent_side, active_opponent, lambda p: change_rank(p, "spAttack", 1))
                 elif name == "흙먹기" and used_move.type == "땅":
                     rate = 0
-                    store.update_pokemon(opponent_side, active_opponent, lambda p: change_hp(p, round(p['base']['hp'] / 4)))
+                    store.update_pokemon(opponent_side, active_opponent, lambda p: change_hp(p, round(p.base.hp / 4)))
                 elif name == "건조피부" and used_move.type == "불":
                     rate *= 1.25
                 elif name == "타오르는불꽃" and used_move.type == "불":
                     rate = 0
-                    stat = "attack" if defender['base']['attack'] > defender['base']['spAttack'] else "spAttack"
+                    stat = "attack" if defender.base.attack > defender.base.spAttack else "spAttack"
                     store.update_pokemon(opponent_side, active_opponent, lambda p: change_rank(p, stat, 1))
                 elif name == "피뢰침" and used_move.type == "전기":
                     rate = 0
@@ -44,16 +44,16 @@ def apply_defensive_ability_effect_before_damage(used_move: MoveInfo, side: Side
                     rate = 0
                     store.update_pokemon(opponent_side, active_opponent, lambda p: change_rank(p, "attack", 1))
             elif category == "damage_nullification":
-                if name == "방진" and getattr(used_move, 'affiliation', None) == "가루":
+                if name == "방진" and used_move.affiliation == "가루":
                     rate = 0
-                elif name == "방탄" and getattr(used_move, 'affiliation', None) == "폭탄":
+                elif name == "방탄" and used_move.affiliation == "폭탄":
                     rate = 0
-                elif name == "여왕의위엄" and getattr(used_move, 'priority', 0) > 0:
+                elif name == "여왕의위엄" and used_move.priority > 0:
                     rate = 0
-                elif name == "방음" and getattr(used_move, 'affiliation', None) == "소리":
+                elif name == "방음" and used_move.affiliation == "소리":
                     rate = 0
             elif category == "damage_reduction":
-                if name == "이상한비늘" and defender.get('status') and getattr(used_move, 'category', None) == "물리":
+                if name == "이상한비늘" and defender.status and used_move.category == "물리":
                     rate = 2 / 3
                 elif name == "두꺼운지방" and used_move.type in ["불", "얼음"]:
                     rate = 0.5
@@ -61,7 +61,7 @@ def apply_defensive_ability_effect_before_damage(used_move: MoveInfo, side: Side
                     rate = 0.5
                 elif name in ["하드록", "필터"] and (was_effective or 0) > 0:
                     rate = 0.75
-                elif name == "펑크록" and getattr(used_move, 'affiliation', None) == "소리":
+                elif name == "펑크록" and used_move.affiliation == "소리":
                     rate = 0.5
 
     if rate < 1:
@@ -87,7 +87,7 @@ def apply_offensive_ability_effect_before_damage(used_move: MoveInfo, side: Side
             if category == "damage_buff":
                 if name == "우격다짐" and used_move.effects:
                     rate *= 1.3
-                if name == "이판사판" and any(d.get("recoil") or d.get("fail") for d in used_move.demerit_effects or []):
+                if name == "이판사판" and any(d.recoil or d.fail for d in used_move.demerit_effects or []):
                     rate *= 1.2
                 if name == "철주먹" and used_move.affiliation == "펀치":
                     rate *= 1.2
@@ -101,7 +101,7 @@ def apply_offensive_ability_effect_before_damage(used_move: MoveInfo, side: Side
                     rate *= 1.5
                 if name == "벌레의알림" and used_move.type == "벌레" and attacker.current_hp <= attacker.base.hp / 3:
                     rate *= 1.5
-                if name == "의욕" and getattr(used_move, 'category', None) == "물리":
+                if name == "의욕" and used_move.category == "물리":
                     rate *= 1.5
                 if name == "적응력" and used_move.type in attacker.base.types:
                     rate *= 4 / 3

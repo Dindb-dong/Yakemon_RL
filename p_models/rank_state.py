@@ -8,6 +8,10 @@ RankStat = Literal['attack', 'sp_attack', 'defense', 'sp_defense', 'speed', 'acc
 # RankState = 공격/방어/스피드/명중률/회피율/급소율 등을 관리하는 dict
 RankState = Dict[RankStat, int]
 
+def clamp_rank(value: int, limit: int = 6) -> int:
+    """랭크 값을 제한 범위 내로 조정합니다."""
+    return max(-limit, min(limit, value))
+
 class RankManager:
     def __init__(self, initial_state: RankState):
         self.state: RankState = self.clamp_state(initial_state.copy())
@@ -47,16 +51,13 @@ class RankManager:
             self.state = self.clamp_state(self.state)
 
     def clamp_state(self, state: RankState) -> RankState:
-        def clamp(value: int, limit: int = 6) -> int:
-            return max(-limit, min(limit, value))
-
         return {
-            'attack': clamp(state.get('attack', 0)),
-            'sp_attack': clamp(state.get('sp_attack', 0)),
-            'defense': clamp(state.get('defense', 0)),
-            'sp_defense': clamp(state.get('sp_defense', 0)),
-            'speed': clamp(state.get('speed', 0)),
-            'accuracy': clamp(state.get('accuracy', 0)),
-            'dodge': clamp(state.get('dodge', 0)),
+            'attack': clamp_rank(state.get('attack', 0)),
+            'sp_attack': clamp_rank(state.get('sp_attack', 0)),
+            'defense': clamp_rank(state.get('defense', 0)),
+            'sp_defense': clamp_rank(state.get('sp_defense', 0)),
+            'speed': clamp_rank(state.get('speed', 0)),
+            'accuracy': clamp_rank(state.get('accuracy', 0)),
+            'dodge': clamp_rank(state.get('dodge', 0)),
             'critical': max(0, min(4, state.get('critical', 0))),  # 급소율만 0~4로 따로 관리
         }

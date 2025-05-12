@@ -671,9 +671,9 @@ def apply_change_effect(
                     if effect.stat_change:  # 랭크업 기술일 경우
                         for stat_change in effect.stat_change:
                             store.update_pokemon(side, active_mine, 
-                                            lambda p: change_rank(p, stat_change["stat"], stat_change["change"]))
-                            print(f"{active_team[active_mine].base.name}의 {stat_change['stat']}이/가 {stat_change['change']}랭크 변했다!")
-                            store.add_log(f"🔃 {active_team[active_mine].base.name}의 {stat_change['stat']}이/가 {stat_change['change']}랭크 변했다!")
+                                            lambda p: change_rank(p, stat_change.stat, stat_change.change))
+                            print(f"{active_team[active_mine].base.name}의 {stat_change.stat}이/가 {stat_change.change}랭크 변했다!")
+                            store.add_log(f"🔃 {active_team[active_mine].base.name}의 {stat_change.stat}이/가 {stat_change.change}랭크 변했다!")
                     
                     if effect.heal and effect.heal > 0:
                         heal = effect.heal
@@ -696,19 +696,19 @@ def apply_change_effect(
                 print(f"{side}는 {move_info.name}을/를 사용했다!")
             
             if move_info.field:
-                store.update_environment("public", lambda e: set_field(e, move_info.field))
+                set_field(move_info.field)
                 store.add_log(f"⛰️ {side}는 필드를 {move_info.name}로 바꿨다!")
                 print(f"{side}는 필드를 {move_info.name}로 바꿨다!")
             
             if move_info.weather:
-                store.update_environment("public", lambda e: set_weather(e, move_info.weather))
+                set_weather(move_info.name)
                 print(f"{side}는 날씨를 {move_info.weather}로 바꿨다!")
             
             if move_info.room:
-                store.update_environment("public", lambda e: set_room(e, move_info.room))
+                set_room(move_info.room)
             
             if move_info.screen:
-                store.update_environment(side, lambda e: set_screen(e, move_info.screen))
+                set_screen(move_info.screen)
     
     store.add_log(f"{side}는 {move_info.name}을/를 사용했다!")
     store.update_pokemon(side, active_mine, lambda p: set_used_move(p, move_info))

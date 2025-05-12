@@ -10,6 +10,7 @@ from utils.battle_logics.apply_after_damage import (
 from utils.battle_logics.apply_end_turn import apply_end_turn_effects
 from utils.battle_logics.calculate_order import calculate_order
 from utils.battle_logics.damage_calculator import calculate_move_damage
+from utils.battle_logics.get_best_switch_index import get_best_switch_index
 from utils.battle_logics.switch_pokemon import switch_pokemon
 from utils.battle_logics.helpers import has_ability
 from utils.battle_logics.update_battle_pokemon import (
@@ -313,22 +314,21 @@ async def handle_move(
         return
 
 async def remove_fainted_pokemon(side: Literal["my", "enemy"]) -> None:
-    state = store.get_state()
-    team = state["my_team"] if side == "my" else state["enemy_team"]
-    next_index = next((i for i, p in enumerate(team) if p.current_hp > 0), -1)
+    next_index = get_best_switch_index(side)
     if next_index != -1:
+        print(f"{side}의 포켓몬이 쓰러졌다! 교체 중...")
         await switch_pokemon(side, next_index)
 
 def get_hit_count(move: MoveInfo) -> int:
     hit_count = 0
     for effect in (move.effects or []):
-        if effect.get("double_hit"):
+        if effect.double_hit:
             print("2회 공격 시도")
             hit_count = 2
-        if effect.get("triple_hit"):
+        if effect.triple_hit:
             print("3회 공격 시도")
             hit_count = 3
-        if effect.get("multi_hit"):
+        if effect.multi_hit:
             print("다회 공격 시도")
 
     if hit_count > 0:

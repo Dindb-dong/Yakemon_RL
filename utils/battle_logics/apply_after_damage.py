@@ -115,7 +115,7 @@ async def apply_move_effect_after_multi_damage(
     side: SideType,
     attacker: BattlePokemon,
     defender: BattlePokemon,
-    used_move,
+    used_move: MoveInfo,
     applied_damage: Optional[int] = None,
 ):
 
@@ -342,25 +342,3 @@ async def apply_move_effect_after_damage(
             idx = random.choice(available)
             await switch_pokemon(opponent_side, idx, baton_touch)
             store.add_log(f"💨 {opp_team[active_opp].base.name}은/는 강제 교체되었다!")
-
-async def apply_move_effect_after_multi_damage(pokemon: BattlePokemon, move: MoveInfo, side: str) -> BattlePokemon:
-    """다중 데미지 후 기술 효과 적용"""
-    # TODO: 이거 재후형이 맘대로 바꾼건데, 원래대로 되돌려야함..
-    if not move.effect:
-        return pokemon
-        
-    # 기술 효과 적용
-    if move.effect.stat_changes:
-        for stat_change in move.effect.stat_changes:
-            change_rank(pokemon, stat_change.stat, stat_change.stages)
-            
-    if move.effect.status_effect:
-        add_status(pokemon, move.effect.status_effect, side)
-        
-    if move.effect.weather:
-        store.set_public_env({"weather": move.effect.weather})
-        
-    if move.effect.field:
-        store.set_public_env({"field": move.effect.field})
-        
-    return pokemon

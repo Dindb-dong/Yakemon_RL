@@ -1,4 +1,4 @@
-from context.battle_store import store
+from context.battle_store import BattleStoreState, store
 from context.duration_store import duration_store
 from utils.battle_logics.update_battle_pokemon import (
     add_status, change_hp, change_rank, remove_status, reset_state, set_locked_move
@@ -10,7 +10,7 @@ import random
 
 
 def apply_end_turn_effects():
-    state = store.get_state()
+    state: BattleStoreState = store.get_state()
     my_team = state["my_team"]
     enemy_team = state["enemy_team"]
     active_my = state["active_my"]
@@ -41,11 +41,11 @@ def apply_end_turn_effects():
         active_opponent = active_enemy if side == "my" else active_my
 
         for status in ["화상", "맹독", "독", "조이기"]:
-            if status in pokemon.status:
+            if pokemon and pokemon.current_hp > 0 and status in pokemon.status:
                 updated = apply_status_condition_damage(pokemon, status)
                 store.update_pokemon(side, active_index, lambda p: updated)
 
-        if "씨뿌리기" in pokemon.status and (not (pokemon.base.ability and pokemon.base.ability.name == "매직가드")):
+        if pokemon and pokemon.current_hp > 0 and "씨뿌리기" in pokemon.status and (not (pokemon.base.ability and pokemon.base.ability.name == "매직가드")):
             damage = pokemon.base.hp // 8
             store.update_pokemon(side, active_index, lambda p: change_hp(p, -damage))
             if opponent_team[active_opponent].current_hp > 0:
