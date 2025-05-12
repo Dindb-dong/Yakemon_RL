@@ -122,71 +122,59 @@ def get_state(
 
     # 8. 상대 포켓몬 정보
     # 8-1. HP와 타입 (3차원)
-    if opponent is not None:
-        state['enemy_hp'] = opponent.current_hp / opponent.base.hp
-        enemy_type1 = get_type_index(opponent.base.types[0]) if opponent.base.types else 0
-        enemy_type2 = get_type_index(opponent.base.types[1]) if len(opponent.base.types) > 1 else 0
-    else:
-        state['enemy_hp'] = 0.0
-        enemy_type1 = 0
-        enemy_type2 = 0
+    state['enemy_hp'] = opponent.current_hp / opponent.base.hp
+    enemy_type1 = get_type_index(opponent.base.types[0]) if opponent.base.types else 0
+    enemy_type2 = get_type_index(opponent.base.types[1]) if len(opponent.base.types) > 1 else 0
     state['enemy_type1'] = enemy_type1 / 19.0
     state['enemy_type2'] = enemy_type2 / 19.0
     # 누적 차원: 52
 
     # 8-2. 종족값 (5차원)
-    if opponent is not None:
-        state['enemy_attack'] = opponent.base.attack / 255
-        state['enemy_defense'] = opponent.base.defense / 255
-        state['enemy_sp_attack'] = opponent.base.sp_attack / 255
-        state['enemy_sp_defense'] = opponent.base.sp_defense / 255
-        state['enemy_speed'] = opponent.base.speed / 255
-    else:
-        state['enemy_attack'] = 0.0
-        state['enemy_defense'] = 0.0
-        state['enemy_sp_attack'] = 0.0
-        state['enemy_sp_defense'] = 0.0
-        state['enemy_speed'] = 0.0
+    state['enemy_attack'] = opponent.base.attack / 255
+    state['enemy_defense'] = opponent.base.defense / 255
+    state['enemy_sp_attack'] = opponent.base.sp_attack / 255
+    state['enemy_sp_defense'] = opponent.base.sp_defense / 255
+    state['enemy_speed'] = opponent.base.speed / 255
     # 누적 차원: 57
 
     # 8-3. 상태이상 (14차원)
     for status in status_list:
-        state[f'enemy_status_{status}'] = 1.0 if opponent is not None and status in opponent.status else 0.0
+        state[f'enemy_status_{status}'] = 1.0 if status in opponent.status else 0.0
     # 누적 차원: 71
 
     # 8-4. 랭크 (7차원)
     for stat in ranks:
-        rank = opponent.rank.get(stat, 0) if opponent is not None else 0
+        rank = opponent.rank.get(stat, 0)
         state[f'enemy_rank_{stat}'] = (rank + 6) / 12.0
     # 누적 차원: 78
 
     # 8-5. 상대 포켓몬 추가 상태 정보
     # 8-5-1. 포지션 (1차원)
-    state['enemy_position'] = get_position_index(opponent.position if opponent is not None and hasattr(opponent, 'position') else '없음') / 5.0
+    state['enemy_position'] = get_position_index(opponent.position if hasattr(opponent, 'position') else '없음') / 5.0
     # 누적 차원: 79
 
     # 8-5-2. 기타 상태 (13개)
-    state['enemy_is_active'] = 1.0 if opponent is not None and getattr(opponent, 'is_active', False) else 0.0
+    state['enemy_is_active'] = 1.0 if getattr(opponent, 'is_active', False) else 0.0
     # locked_move 관련 정보
-    state['enemy_locked_move_id'] = getattr(getattr(opponent, 'locked_move', None), 'id', 0) / 1000.0 if opponent is not None else 0.0
-    state['enemy_locked_move_turn'] = (getattr(opponent, 'locked_move_turn', 0) or 0) / 5.0 if opponent is not None else 0.0
-    state['enemy_is_protecting'] = 1.0 if opponent is not None and getattr(opponent, 'is_protecting', False) else 0.0
+    state['enemy_locked_move_id'] = getattr(getattr(opponent, 'locked_move', None), 'id', 0) / 1000.0
+    state['enemy_locked_move_turn'] = (getattr(opponent, 'locked_move_turn', 0) or 0) / 5.0
+    state['enemy_is_protecting'] = 1.0 if getattr(opponent, 'is_protecting', False) else 0.0
     # used_move 정보
-    state['enemy_used_move_id'] = getattr(getattr(opponent, 'used_move', None), 'id', 0) / 1000.0 if opponent is not None else 0.0
-    state['enemy_had_missed'] = 1.0 if opponent is not None and getattr(opponent, 'had_missed', False) else 0.0
-    state['enemy_had_rank_up'] = 1.0 if opponent is not None and getattr(opponent, 'had_rank_up', False) else 0.0
-    state['enemy_is_charging'] = 1.0 if opponent is not None and getattr(opponent, 'is_charging', False) else 0.0
+    state['enemy_used_move_id'] = getattr(getattr(opponent, 'used_move', None), 'id', 0) / 1000.0
+    state['enemy_had_missed'] = 1.0 if getattr(opponent, 'had_missed', False) else 0.0
+    state['enemy_had_rank_up'] = 1.0 if getattr(opponent, 'had_rank_up', False) else 0.0
+    state['enemy_is_charging'] = 1.0 if getattr(opponent, 'is_charging', False) else 0.0
     # charging_move 정보
-    state['enemy_charging_move_id'] = getattr(getattr(opponent, 'charging_move', None), 'id', 0) / 1000.0 if opponent is not None else 0.0
-    state['enemy_received_damage_ratio'] = (getattr(opponent, 'received_damage', 0) or 0) / opponent.base.hp if opponent is not None and hasattr(opponent, 'received_damage') else 0
-    state['enemy_is_first_turn'] = 1.0 if opponent is not None and getattr(opponent, 'is_first_turn', False) else 0.0
-    state['enemy_cannot_move'] = 1.0 if opponent is not None and getattr(opponent, 'cannot_move', False) else 0.0
+    state['enemy_charging_move_id'] = getattr(getattr(opponent, 'charging_move', None), 'id', 0) / 1000.0
+    state['enemy_received_damage_ratio'] = (getattr(opponent, 'received_damage', 0) or 0) / opponent.base.hp if hasattr(opponent, 'received_damage') else 0
+    state['enemy_is_first_turn'] = 1.0 if getattr(opponent, 'is_first_turn', False) else 0.0
+    state['enemy_cannot_move'] = 1.0 if getattr(opponent, 'cannot_move', False) else 0.0
     # unusable_move 정보
-    state['enemy_unusable_move_id'] = getattr(getattr(opponent, 'un_usable_move', None), 'id', 0) / 1000.0 if opponent is not None else 0.0
+    state['enemy_unusable_move_id'] = getattr(getattr(opponent, 'un_usable_move', None), 'id', 0) / 1000.0
     # 누적 차원: 92
 
     # 8-5-3. 임시 타입 (2차원)
-    temp_type = getattr(opponent, 'temp_type', []) or [] if opponent is not None else []
+    temp_type = getattr(opponent, 'temp_type', []) or []
     temp_type1 = get_type_index(temp_type[0]) if temp_type else 0
     temp_type2 = get_type_index(temp_type[1]) if len(temp_type) > 1 else 0
     state['enemy_temp_type1'] = temp_type1 / 19.0  # 정규화
