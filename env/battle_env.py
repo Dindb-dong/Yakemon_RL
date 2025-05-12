@@ -28,7 +28,7 @@ from p_data.mock_pokemon import create_mock_pokemon_list
 from RL.get_state_vector import get_state
 from RL.base_ai_choose_action import base_ai_choose_action
 from RL.reward_calculator import calculate_reward
-from utils.battle_logics.battle_sequence import battle_sequence, BattleAction
+from utils.battle_logics.battle_sequence import battle_sequence, BattleAction, remove_fainted_pokemon
 from context.battle_environment import PublicBattleEnvironment, IndividualBattleEnvironment
 from context.battle_store import store
 from context.duration_store import duration_store
@@ -174,6 +174,18 @@ class YakemonEnv(gym.Env):
             battle_action = move
         else:  # 포켓몬 교체
             switch_index = action - 4
+            current_index = self.battle_store.get_active_index("my")
+            
+            # 자기 자신으로 교체하는 경우 방지
+            if switch_index == current_index:
+                print("자기 자신으로 교체할 수 없습니다.")
+                return current_state, -1, self.done, {"error": "self_switch"}
+            
+            # 교체하려는 포켓몬이 쓰러진 경우 방지
+            if self.my_team[switch_index].current_hp <= 0:
+                print("쓰러진 포켓몬으로 교체할 수 없습니다.")
+                return current_state, -1, self.done, {"error": "fainted_switch"}
+            
             battle_action = {"type": "switch", "index": switch_index}
             print(f"내가 교체하려는 포켓몬: {self.my_team[switch_index].base.name}")
         
@@ -201,6 +213,48 @@ class YakemonEnv(gym.Env):
                 my_action=battle_action,
                 enemy_action=enemy_action
             )
+            
+            # 쓰러진 포켓몬 처리
+            active_my = self.battle_store.get_active_index("my")
+            active_enemy = self.battle_store.get_active_index("enemy")
+            
+            # 게임 종료 체크
+            self.done = self.check_game_end()
+            
+            # 게임이 끝났다면 더 이상의 처리를 하지 않고 종료
+            if self.done:
+                next_state = self._get_state()
+                reward = calculate_reward(
+                    my_team=self.my_team,
+                    enemy_team=self.enemy_team,
+                    active_my=self.battle_store.get_active_index("my"),
+                    active_enemy=self.battle_store.get_active_index("enemy"),
+                    public_env=self.public_env.__dict__,
+                    my_env=self.my_env.__dict__,
+                    enemy_env=self.enemy_env.__dict__,
+                    turn=self.turn,
+                    my_effects=self.duration_store.my_effects,
+                    enemy_effects=self.duration_store.enemy_effects,
+                    action=action,
+                    done=self.done,
+                    battle_store=self.battle_store,
+                    duration_store=self.duration_store
+                )
+                return next_state, reward, self.done, {}
+            
+            # 내 포켓몬이 쓰러졌는지 확인
+            if self.my_team[active_my].current_hp <= 0:
+                await remove_fainted_pokemon("my")
+                next_state = self._get_state()
+                reward = 0  # 교체만으로는 보상 없음
+                return next_state, reward, self.done, {}
+                
+            # 상대 포켓몬이 쓰러졌는지 확인
+            if self.enemy_team[active_enemy].current_hp <= 0:
+                await remove_fainted_pokemon("enemy")
+                next_state = self._get_state()
+                reward = 0  # 교체만으로는 보상 없음
+                return next_state, reward, self.done, {}
         
         # 다음 상태 가져오기
         next_state = self._get_state()
@@ -225,9 +279,6 @@ class YakemonEnv(gym.Env):
         
         # 턴 증가
         self.turn += 1
-        
-        # 게임 종료 체크
-        self.done = self.check_game_end()
         
         # 추가 정보
         info = {

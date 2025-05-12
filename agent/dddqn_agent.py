@@ -153,3 +153,24 @@ class DDDQNAgent:
         loss = self.train()
         self.update_epsilon()
         return loss
+
+    def save(self, path):
+        """모델의 상태를 저장합니다."""
+        torch.save({
+            'policy_net_state_dict': self.policy_net.state_dict(),
+            'target_net_state_dict': self.target_net.state_dict(),
+            'optimizer_state_dict': self.optimizer.state_dict(),
+            'epsilon': self.epsilon,
+            'steps': self.steps
+        }, path)
+        print(f"Model saved to {path}")
+
+    def load(self, path):
+        """저장된 모델의 상태를 불러옵니다."""
+        checkpoint = torch.load(path)
+        self.policy_net.load_state_dict(checkpoint['policy_net_state_dict'])
+        self.target_net.load_state_dict(checkpoint['target_net_state_dict'])
+        self.optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
+        self.epsilon = checkpoint['epsilon']
+        self.steps = checkpoint['steps']
+        print(f"Model loaded from {path}")
