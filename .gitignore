@@ -17,6 +17,8 @@
 venv/
 .venv/
 
+# Model
+models/
 # Distribution / packaging
 dist/
 build/
