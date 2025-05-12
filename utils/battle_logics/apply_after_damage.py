@@ -176,6 +176,7 @@ async def apply_move_effect_after_multi_damage(
                     heal = attacker.base.hp * eff["heal"] if eff["heal"] < 1 else calculate_rank_effect(defender.rank['attack']) * defender.base.attack
                     store.update_pokemon(side, active_mine, lambda p: change_hp(p, heal))
                     add_log(f"➕ {attacker.base.name}은 체력을 회복했다!")
+                    print("apply_after_damage.py1") # 맞은 포켓몬의 체력이 회복되는 오류 확인 위한 디버깅
                 for sc in eff.get("statChange", []):
                     target_side = (
                         side if sc["target"] == "self"
@@ -296,6 +297,7 @@ async def apply_move_effect_after_damage(
                     heal_amt = attacker.base.hp * effect.heal if effect.heal < 1 else calculate_rank_effect(defender.rank['attack']) * defender.base.attack
                     store.update_pokemon(side, active_mine, lambda p: change_hp(p, heal_amt))
                     store.add_log(f"➕ {attacker.base.name}은/는 체력을 회복했다!")
+                    print("apply_after_damage.py2") # 맞은 포켓몬의 체력이 회복되는 오류 확인 위한 디버깅
                 if effect.stat_change:
                     for sc in effect.stat_change:
                         target_side = opponent_side if sc.target == "opponent" else side
@@ -334,6 +336,7 @@ async def apply_move_effect_after_damage(
                 if effect.heal and applied_damage and applied_damage > 0:
                     store.update_pokemon(side, active_mine, lambda p: change_hp(p, applied_damage * effect.heal))
                     store.add_log(f"➕ {attacker.base.name}은/는 체력을 회복했다!")
+                    print("apply_after_damage.py") # 맞은 포켓몬의 체력이 회복되는 오류 확인 위한 디버깅
 
     # 강제 교체
     if used_move.exile and defender.current_hp > 0:

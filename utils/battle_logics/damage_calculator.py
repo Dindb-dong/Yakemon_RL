@@ -679,6 +679,7 @@ def apply_change_effect(
                         heal = effect.heal
                         store.update_pokemon(side, active_mine, 
                                           lambda p: change_hp(p, p.base.hp * heal))
+                        print("damage_calculator.py") # 맞은 포켓몬의 체력이 회복되는 오류 확인 위한 디버깅
                     
                     if effect.status:
                         if effect.status == "잠듦" and not (
@@ -716,9 +717,10 @@ def apply_change_effect(
                     lambda p: use_move_pp(p, move_info.name, defender.ability.name == "프레셔" if defender and defender.ability else False, is_multi_hit))
 
 def get_move_info(my_pokemon: PokemonInfo, move_name: str) -> MoveInfo:
-    print(f"my_pokemon: {my_pokemon.name}")
+    print(f"pokemon: {my_pokemon.name}")
     for move in my_pokemon.moves:
-        print(f"move: {move.name}")
+        print(f"- {move.name} (PP: {move.pp})")
+    for move in my_pokemon.moves:
         if move.name == move_name:
             return move
     raise ValueError(f"{my_pokemon.name}의 {move_name} 기술을 찾을 수 없습니다.") 

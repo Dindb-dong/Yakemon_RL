@@ -17,9 +17,14 @@ unmain_status_with_duration: list[str] = [
 # 체력 변화
 def change_hp(pokemon: BattlePokemon, amount: int) -> BattlePokemon:
     add_log = store.add_log
+    if amount > 0 and pokemon.current_hp >= pokemon.base.hp:
+        print(f"{pokemon.base.name}은(는) 이미 최대 체력이다!")
+        return pokemon
+        
     new_hp = max(0, round(pokemon.current_hp + amount))
+    new_hp = min(pokemon.base.hp, new_hp)
     print(f"{pokemon.base.name}의 체력이 {pokemon.current_hp}에서 {new_hp}로 변경되었습니다.")
-    pokemon.current_hp = min(pokemon.base.hp, new_hp)
+    pokemon.current_hp = new_hp
     if pokemon.current_hp <= 0:
         add_log(f"😭 {pokemon.base.name}은/는 쓰러졌다!")
     return pokemon
