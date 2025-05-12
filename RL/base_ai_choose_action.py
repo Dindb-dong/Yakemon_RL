@@ -126,7 +126,7 @@ def base_ai_choose_action(
         return None
 
     def get_attack_up_move() -> Optional[MoveInfo]:
-        prankster = my_pokemon.base.ability.name == "심술꾸러기"
+        prankster = my_pokemon.base.ability and my_pokemon.base.ability.name == "심술꾸러기"
         
         for move in usable_moves:
             for effect in move.effects or []:

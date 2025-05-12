@@ -5,6 +5,9 @@ from utils.type_relation import calculate_type_effectiveness
 from p_models.types import WeatherType
 
 async def apply_trap_damage(pokemon: BattlePokemon, trap: List[str]) -> Tuple[BattlePokemon, Optional[str], Optional[str]]:
+    if not pokemon or not pokemon.base:
+        return pokemon, None, None
+
     damage = 0
     log = None
     status_condition = ""
@@ -62,6 +65,9 @@ async def apply_trap_damage(pokemon: BattlePokemon, trap: List[str]) -> Tuple[Ba
 
 
 async def apply_weather_damage(pokemon: BattlePokemon, weather: WeatherType) -> BattlePokemon:
+    if not pokemon or not pokemon.base:
+        return pokemon
+
     add_log = store.add_log
     damage = 0
     types = pokemon.base.types
@@ -77,6 +83,9 @@ async def apply_weather_damage(pokemon: BattlePokemon, weather: WeatherType) -> 
 
 
 async def apply_recoil_damage(pokemon: BattlePokemon, recoil: float, applied_damage: int) -> BattlePokemon:
+    if not pokemon or not pokemon.base:
+        return pokemon
+
     add_log = store.add_log
     ability_name = pokemon.base.ability.name if pokemon.base.ability else None
     damage = 0
@@ -89,6 +98,9 @@ async def apply_recoil_damage(pokemon: BattlePokemon, recoil: float, applied_dam
 
 
 async def apply_thorn_damage(pokemon: BattlePokemon) -> BattlePokemon:
+    if not pokemon or not pokemon.base:
+        return pokemon
+
     add_log = store.add_log
     ability_name = pokemon.base.ability.name if pokemon.base.ability else None
     damage = 0
@@ -101,6 +113,9 @@ async def apply_thorn_damage(pokemon: BattlePokemon) -> BattlePokemon:
 
 
 async def apply_status_condition_damage(pokemon: BattlePokemon, status: str) -> BattlePokemon:
+    if not pokemon or not pokemon.base:
+        return pokemon
+
     add_log = store.add_log
     ability_name = pokemon.base.ability.name if pokemon.base.ability else None
     damage = 0

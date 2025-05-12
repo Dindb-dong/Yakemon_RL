@@ -269,7 +269,7 @@ def remove_types(pokemon: BattlePokemon, type_: str, is_normal: bool = False) ->
 
 
 # 상태 초기화 (교체 시)
-def reset_state(pokemon: BattlePokemon, is_switch: bool = False) -> BattlePokemon:
+async def reset_state(pokemon: BattlePokemon, is_switch: bool = False) -> BattlePokemon:
     pokemon.is_protecting = False
     pokemon.had_rank_up = False
     pokemon.received_damage = 0

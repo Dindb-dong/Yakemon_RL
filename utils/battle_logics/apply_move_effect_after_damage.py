@@ -57,9 +57,9 @@ async def apply_move_effect_after_multi_damage(
     if demerit_effects:
         for demerit in demerit_effects:
             if demerit and random.random() < demerit.get("chance", 0):
-                if "recoil" in demerit and applied_damage:
-                    updated = await apply_recoil_damage(attacker, demerit["recoil"], applied_damage)
-                    store.update_pokemon(side, active_mine, lambda _: updated["updated"])
+                if demerit.get("recoil") and applied_damage:
+                    updated_pokemon = await apply_recoil_damage(attacker, demerit["recoil"], applied_damage)
+                    store.update_pokemon(side, active_mine, lambda _: updated_pokemon)
                 for sc in demerit.get("statChange", []):
                     store.update_pokemon(
                         side, active_mine,
@@ -72,12 +72,11 @@ async def apply_move_effect_after_multi_damage(
         roll = random.random() * 2 if (attacker.base.ability and attacker.base.ability.name == "하늘의은총") else random.random()
         for eff in effect or []:
             if roll < eff.get("chance", 0):
-                if eff.get("heal") and applied_damage:
-                    heal = int(applied_damage * eff["heal"])
-                    if heal > 0:
-                        store.update_pokemon(side, active_mine, lambda p: change_hp(p, heal))
-                        add_log(f"➕ {attacker.base.name}은 체력을 {heal}만큼 회복했다!")
-                        print("apply_move_effect_after_damage.py")
+                if eff.get("heal") and not applied_damage:
+                    heal = attacker.base.hp * eff["heal"] if eff["heal"] < 1 else calculate_rank_effect(defender.rank['attack']) * defender.base.attack
+                    store.update_pokemon(side, active_mine, lambda p: change_hp(p, heal))
+                    add_log(f"➕ {attacker.base.name}은 체력을 회복했다!")
+                    print("apply_move_effect_after_damage.py") # 맞은 포켓몬의 체력이 회복되는 오류 확인 위한 디버깅
                 for sc in eff.get("statChange", []):
                     target_side = (
                         side if sc["target"] == "self"

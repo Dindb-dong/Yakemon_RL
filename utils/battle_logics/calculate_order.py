@@ -75,10 +75,10 @@ async def calculate_order(player_move: Optional[MoveInfo], ai_move: Optional[Mov
 
     # 그래스슬라이더 예외
     if player_move and player_move.name == "그래스슬라이더" and public_env.field != "그래스필드":
-        player_move["priority"] = 0
+        player_move.priority = 0
         print("그래스슬라이더의 우선도가 0으로 변경되었습니다!")
     if ai_move and ai_move.name == "그래스슬라이더" and public_env.field != "그래스필드":
-        ai_move["priority"] = 0
+        ai_move.priority = 0
         print("그래스슬라이더의 우선도가 0으로 변경되었습니다!")
 
     # 우선도 비교

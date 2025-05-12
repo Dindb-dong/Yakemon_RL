@@ -250,11 +250,14 @@ class YakemonEnv(gym.Env):
                 return next_state, reward, self.done, {}
                 
             # 상대 포켓몬이 쓰러졌는지 확인
-            if self.enemy_team[active_enemy].current_hp <= 0:
-                await remove_fainted_pokemon("enemy")
-                next_state = self._get_state()
-                reward = 0  # 교체만으로는 보상 없음
-                return next_state, reward, self.done, {}
+            if active_enemy is not None:
+                enemy_team = self.battle_store.get_team("enemy")
+                if enemy_team and 0 <= active_enemy < len(enemy_team) and enemy_team[active_enemy] is not None:
+                    if enemy_team[active_enemy].current_hp <= 0:
+                        await remove_fainted_pokemon("enemy")
+                        next_state = self._get_state()
+                        reward = 0  # 교체만으로는 보상 없음
+                        return next_state, reward, self.done, {}
         
         # 다음 상태 가져오기
         next_state = self._get_state()
@@ -295,10 +298,10 @@ class YakemonEnv(gym.Env):
     def check_game_end(self) -> bool:
         """게임 종료 조건 체크"""
         # 내 팀의 모든 포켓몬이 쓰러졌는지 확인
-        my_all_fainted = all(p.current_hp <= 0 for p in self.my_team)
+        my_all_fainted = all(p is not None and p.current_hp <= 0 for p in self.my_team)
         
         # 상대 팀의 모든 포켓몬이 쓰러졌는지 확인
-        enemy_all_fainted = all(p.current_hp <= 0 for p in self.enemy_team)
+        enemy_all_fainted = all(p is not None and p.current_hp <= 0 for p in self.enemy_team)
         
         return my_all_fainted or enemy_all_fainted
 

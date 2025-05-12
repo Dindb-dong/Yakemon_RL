@@ -156,38 +156,38 @@ async def apply_move_effect_after_multi_damage(
     # 디메리트 효과
     if demerit_effects:
         for demerit in demerit_effects:
-            if demerit and random.random() < demerit.get("chance", 0):
+            if demerit and random.random() < demerit.chance:
                 if demerit.recoil and applied_damage:
                     result = await apply_recoil_damage(attacker, demerit.recoil, applied_damage)
                     store.update_pokemon(side, active_mine, lambda _: result)
-                for sc in demerit.get("statChange", []):
+                for sc in demerit.stat_change:
                     store.update_pokemon(
                         side, active_mine,
-                        lambda p: change_rank(p, sc["stat"], sc["change"])
+                        lambda p: change_rank(p, sc.stat, sc.change)
                     )
-                    add_log(f"🔃 {attacker.base.name}의 {sc['stat']}이(가) {sc['change']}랭크 변했다!")
+                    add_log(f"🔃 {attacker.base.name}의 {sc.stat}이(가) {sc.change}랭크 변했다!")
 
     # 부가효과
     if used_move.target == "opponent" and (attacker.base.ability is None or attacker.base.ability.name != "우격다짐"):
         roll = random.random() * 2 if (attacker.base.ability and attacker.base.ability.name == "하늘의은총") else random.random()
         for eff in effect or []:
-            if roll < eff.get("chance", 0):
-                if eff.get("heal") and not applied_damage:
-                    heal = attacker.base.hp * eff["heal"] if eff["heal"] < 1 else calculate_rank_effect(defender.rank['attack']) * defender.base.attack
+            if roll < (eff.chance if eff.chance is not None else 0):
+                if eff.heal and not applied_damage:
+                    heal = attacker.base.hp * eff.heal if eff.heal < 1 else calculate_rank_effect(defender.rank['attack']) * defender.base.attack
                     store.update_pokemon(side, active_mine, lambda p: change_hp(p, heal))
                     add_log(f"➕ {attacker.base.name}은 체력을 회복했다!")
                     print("apply_after_damage.py1") # 맞은 포켓몬의 체력이 회복되는 오류 확인 위한 디버깅
-                for sc in eff.get("statChange", []):
+                for sc in eff.stat_change:
                     target_side = (
-                        side if sc["target"] == "self"
+                        side if sc.target == "self"
                         else opponent_side
                     )
                     index = active_mine if target_side == side else active_opponent
-                    store.update_pokemon(target_side, index, lambda p: change_rank(p, sc["stat"], sc["change"]))
-                    add_log(f"🔃 {attacker.base.name}의 {sc['stat']}이(가) {sc['change']}랭크 변했다!")
-                if "status" in eff:
-                    store.update_pokemon(opponent_side, active_opponent, lambda p: add_status(p, eff["status"], opponent_side, nullification))
-                    add_log(f"{defender.base.name}은 {eff['status']} 상태가 되었다!")
+                    store.update_pokemon(target_side, index, lambda p: change_rank(p, sc.stat, sc.change))
+                    add_log(f"🔃 {attacker.base.name}의 {sc.stat}이(가) {sc.change}랭크 변했다!")
+                if eff.status:
+                    store.update_pokemon(opponent_side, active_opponent, lambda p: add_status(p, eff.status, opponent_side, nullification))
+                    add_log(f"{defender.base.name}은 {eff.status} 상태가 되었다!")
 
     # 강제 교체
     if used_move.exile:

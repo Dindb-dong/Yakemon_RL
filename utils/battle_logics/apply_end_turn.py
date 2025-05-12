@@ -9,7 +9,7 @@ from utils.battle_logics.update_environment import set_weather, set_field, set_s
 import random
 
 
-def apply_end_turn_effects():
+async def apply_end_turn_effects():
     state: BattleStoreState = store.get_state()
     my_team = state["my_team"]
     enemy_team = state["enemy_team"]
@@ -132,7 +132,9 @@ def apply_end_turn_effects():
     for i, side in enumerate(["my", "enemy"]):
         active = active_my if side == "my" else active_enemy
         team = my_team if side == "my" else enemy_team
-        store.update_pokemon(side, active, lambda p: reset_state(p))
+        pokemon = team[active]
+        reset_pokemon = await reset_state(pokemon)
+        store.update_pokemon(side, active, lambda p: reset_pokemon)
         if team[active].locked_move and team[active].locked_move_turn == 0:
             store.update_pokemon(side, active, lambda p: set_locked_move(p, None))
             store.add_log(f"{team[active].base.name}은 지쳐서 혼란에 빠졌다..!")

@@ -46,7 +46,9 @@ async def switch_pokemon(side: SideType, new_index: int, baton_touch: bool = Fal
         ))
         duration_store.transfer_effects(side, current_index, new_index)
 
-    store.update_pokemon(side, current_index, lambda p: reset_state(p, is_switch=True))
+    pokemon = store.get_team(side)[current_index]
+    reset_pokemon = await reset_state(pokemon, is_switch=True)
+    store.update_pokemon(side, current_index, lambda p: reset_pokemon)
     store.update_pokemon(side, current_index, lambda p: reset_rank(p))
     store.update_pokemon(side, current_index, lambda p: p.copy_with(is_first_turn=False))
 

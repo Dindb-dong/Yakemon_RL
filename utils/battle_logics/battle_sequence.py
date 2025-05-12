@@ -283,7 +283,7 @@ async def handle_move(
                 active_enemy if side == "my" else active_my
             ]
             if "damage" in result:
-                await apply_move_effect_after_multi_damage(side, attacker, current_defender1, move, result["damage"], watch_mode)
+                await apply_move_effect_after_multi_damage(side, attacker, current_defender1, move, result["damage"]) #, watch_mode
             store.add_log(f"📊 총 {hit_count}번 맞았다!")
             print(f"총 {hit_count}번 맞았다!")
 
