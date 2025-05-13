@@ -19,6 +19,10 @@ venv/
 
 # Model
 models/
+
+# Results
+results/
+
 # Distribution / packaging
 dist/
 build/
