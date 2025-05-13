@@ -67,8 +67,26 @@ def calculate_reward(
             # 특성으로 인한 역효과에 대한 패널티
             if target_pokemon.base.ability:
                 ability_name = target_pokemon.base.ability.name
-                if (ability_name == "타오르는 불꽃" and move.type == "불꽃") or \
-                   (ability_name == "저수" and move.type == "물"):
+                # 물 타입 무효화 특성
+                if ability_name in ["저수", "마중물", "건조피부", "증기기관"] and move.type == "물":
+                    reward -= 0.5  # 특성으로 인한 역효과 패널티
+                # 불 타입 무효화 특성
+                elif ability_name in ["타오르는불꽃", "증기기관"] and move.type == "불":
+                    reward -= 0.5  # 특성으로 인한 역효과 패널티
+                # 땅 타입 무효화 특성
+                elif ability_name in ["흙먹기", "부유"] and move.type == "땅":
+                    reward -= 0.5  # 특성으로 인한 역효과 패널티
+                # 풀 타입 무효화 특성
+                elif ability_name == "초식" and move.type == "풀":
+                    reward -= 0.5  # 특성으로 인한 역효과 패널티
+                # 전기 타입 무효화 특성
+                elif ability_name in ["피뢰침", "전기엔진"] and move.type == "전기":
+                    reward -= 0.5  # 특성으로 인한 역효과 패널티
+                # 특정 계열 기술 무효화 특성
+                elif (ability_name == "방진" and move.affiliation == "가루") or \
+                     (ability_name == "방탄" and move.affiliation == "폭탄") or \
+                     (ability_name == "여왕의위엄" and move.priority > 0) or \
+                     (ability_name == "방음" and move.affiliation == "소리"):
                     reward -= 0.5  # 특성으로 인한 역효과 패널티
     
     # 3. 상태 이상에 따른 보상
