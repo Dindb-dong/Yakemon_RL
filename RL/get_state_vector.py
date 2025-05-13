@@ -82,7 +82,7 @@ def get_state(
         if i < len(player.base.moves):
             move = player.base.moves[i]
             pp = player.pp.get(move.name, 0)
-            state[f'move_{i}_pp'] = pp / move.pp
+            state[f'move_{i}_pp'] = pp / move.pp if move.pp > 0 else 0.0
         else:
             state[f'move_{i}_pp'] = 0.0
     # 누적 차원: 33

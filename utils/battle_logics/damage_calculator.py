@@ -721,9 +721,24 @@ def apply_change_effect(
 
 def get_move_info(my_pokemon: PokemonInfo, move_name: str) -> MoveInfo:
     print(f"pokemon: {my_pokemon.name}")
+    state = store.get_state()
+    my_team = state["my_team"]
+    enemy_team = state["enemy_team"]
+    
+    # 현재 포켓몬이 어느 팀에 있는지 찾기
+    battle_pokemon = None
+    for pokemon in my_team + enemy_team:
+        if pokemon.base.name == my_pokemon.name:
+            battle_pokemon = pokemon
+            break
+    
     for move in my_pokemon.moves:
-        print(f"- {move.name} (PP: {move.pp})")
-    for move in my_pokemon.moves:
+        current_pp = move.pp
+        if battle_pokemon and move.name in battle_pokemon.pp:
+            current_pp = battle_pokemon.pp[move.name]
+            print(f"- {move.name} (PP: {current_pp})")
         if move.name == move_name:
+            if battle_pokemon and move_name in battle_pokemon.pp:
+                move.pp = battle_pokemon.pp[move_name]
             return move
     raise ValueError(f"{my_pokemon.name}의 {move_name} 기술을 찾을 수 없습니다.") 
