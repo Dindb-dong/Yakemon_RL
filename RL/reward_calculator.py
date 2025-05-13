@@ -59,6 +59,17 @@ def calculate_reward(
         # 기술의 위력과 카테고리 고려
         if move.category != '변화':
             reward += move.power * 0.001  # 기술 위력에 대한 보상
+            
+            # 효과가 없는 기술 사용에 대한 패널티
+            if type_effectiveness == 0:
+                reward -= 0.3  # 효과가 없는 기술 사용 패널티
+                
+            # 특성으로 인한 역효과에 대한 패널티
+            if target_pokemon.base.ability:
+                ability_name = target_pokemon.base.ability.name
+                if (ability_name == "타오르는 불꽃" and move.type == "불꽃") or \
+                   (ability_name == "저수" and move.type == "물"):
+                    reward -= 0.5  # 특성으로 인한 역효과 패널티
     
     # 3. 상태 이상에 따른 보상
     current_status = current_pokemon.status
