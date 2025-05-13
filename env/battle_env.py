@@ -140,6 +140,12 @@ class YakemonEnv(gym.Env):
         mask = np.ones(6, dtype=np.int32)  # 기본적으로 모든 행동 가능
         
         current_index = self.battle_store.get_active_index("my")
+        current_pokemon = self.my_team[current_index]
+        
+        # 기술 사용(0-3)에 대한 마스킹
+        for i in range(4):
+            if current_pokemon.pp.get(current_pokemon.base.moves[i].name, 0) <= 0:
+                mask[i] = 0
         
         # 교체 행동(4,5)에 대한 마스킹
         for i in range(2):  # 교체 행동 2개
