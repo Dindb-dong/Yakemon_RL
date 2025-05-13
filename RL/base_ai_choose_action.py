@@ -69,6 +69,44 @@ def base_ai_choose_action(
         active_env = my_env if side == 'my' else enemy_env
         if move.screen and move.screen == active_env.get('screen'):
             continue
+            
+        # 방어적 특성에 의한 기술 사용 제한
+        if enemy_pokemon.base.ability and enemy_pokemon.base.ability.defensive:
+            ability_name = enemy_pokemon.base.ability.name
+            
+            # 타입 무효화 특성 체크
+            if "type_nullification" in enemy_pokemon.base.ability.defensive:
+                # 물 타입 무효화 특성
+                if ability_name in ["저수", "마중물", "건조피부"] and move.type == "물":
+                    continue
+                # 불 타입 무효화 특성
+                elif ability_name == "타오르는불꽃" and move.type == "불":
+                    continue
+                # 땅 타입 무효화 특성
+                elif ability_name in ["흙먹기", "부유"] and move.type == "땅":
+                    continue
+                # 풀 타입 무효화 특성
+                elif ability_name == "초식" and move.type == "풀":
+                    continue
+                # 전기 타입 무효화 특성
+                elif ability_name in ["전기엔진", "피뢰침"] and move.type == "전기":
+                    continue
+            
+            # 데미지 무효화 특성 체크
+            if "damage_nullification" in enemy_pokemon.base.ability.defensive:
+                # 가루 계열 기술 무효화
+                if ability_name == "방진" and move.affiliation == "가루":
+                    continue
+                # 폭탄 계열 기술 무효화
+                elif ability_name == "방탄" and move.affiliation == "폭탄":
+                    continue
+                # 우선도 기술 무효화
+                elif ability_name == "여왕의위엄" and move.priority > 0:
+                    continue
+                # 소리 계열 기술 무효화
+                elif ability_name == "방음" and move.affiliation == "소리":
+                    continue
+                
         usable_moves.append(move)
 
     def type_effectiveness(attacker_types: List[str], defender_types: List[str]) -> float:
