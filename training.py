@@ -349,6 +349,7 @@ async def test_agent(
     """
     rewards = []
     steps_list = []
+    victories = 0  # 승리 횟수 추적
     
     for episode in range(num_episodes):
         # 1. 팀 생성 단계
@@ -452,6 +453,11 @@ async def test_agent(
             
             # 배틀이 끝났는지 확인
             if done:
+                # 승리 여부 확인
+                my_team_alive = any(pokemon.current_hp > 0 for pokemon in my_team)
+                enemy_team_alive = any(pokemon.current_hp > 0 for pokemon in enemy_team)
+                if my_team_alive and not enemy_team_alive:
+                    victories += 1
                 break
         
         rewards.append(total_reward)
@@ -465,12 +471,14 @@ async def test_agent(
     avg_reward = np.mean(rewards)
     std_reward = np.std(rewards)
     avg_steps = np.mean(steps_list)
+    win_rate = (victories / num_episodes) * 100
     
     print(f'\nTest Results:')
     print(f'Average Reward: {avg_reward:.2f} ± {std_reward:.2f}')
     print(f'Average Steps: {avg_steps:.2f}')
+    print(f'Victories: {victories}/{num_episodes} (Win Rate: {win_rate:.1f}%)')
     
-    return avg_reward, std_reward, avg_steps
+    return avg_reward, std_reward, avg_steps, victories, win_rate
 
 #%% [markdown]
 # 메인 실행 코드
@@ -540,7 +548,9 @@ if __name__ == "__main__":
     test_stats = {
         'avg_reward': test_results[0],
         'std_reward': test_results[1],
-        'avg_steps': test_results[2]
+        'avg_steps': test_results[2],
+        'victories': test_results[3],
+        'win_rate': test_results[4]
     }
     
     with open(os.path.join(results_dir, 'test_results.json'), 'w') as f:
@@ -551,6 +561,7 @@ if __name__ == "__main__":
         f.write("=" * 50 + "\n\n")
         f.write(f"Average Reward: {test_stats['avg_reward']:.4f} ± {test_stats['std_reward']:.4f}\n")
         f.write(f"Average Steps: {test_stats['avg_steps']:.2f}\n")
+        f.write(f"Victories: {test_stats['victories']}/{HYPERPARAMS['test_episodes']} (Win Rate: {test_stats['win_rate']:.1f}%)\n")
     
     print("\nTest completed!")
     print(f"Test results saved in: {results_dir}")
