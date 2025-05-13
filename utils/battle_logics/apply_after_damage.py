@@ -133,11 +133,12 @@ async def apply_move_effect_after_multi_damage(
     baton_touch = used_move.name == "배턴터치"
     nullification = attacker.base.ability and attacker.base.ability.name == "부식"
     effect = getattr(used_move, "effects", None)
-    demerit_effects = getattr(used_move, "demeritEffects", None)
+    demerit_effects = getattr(used_move, "demerit_effects", None)
 
     if used_move.cannot_move:
         store.update_pokemon(side, active_mine, lambda p: p.deepcopy(cannot_move=True))
-        add_log(f"💥 {attacker.base.name}은 피로로 인해 다음 턴 움직일 수 없다!")
+        store.add_log(f"💥 {attacker.base.name}은 피로로 인해 다음 턴 움직일 수 없다!")
+        print(f"피로 효과 적용: {attacker.base.name}은 피로로 인해 다음 턴 움직일 수 없다!")
 
     # 유턴 처리
     if used_move.u_turn and "교체불가" not in attacker.status:
@@ -147,11 +148,14 @@ async def apply_move_effect_after_multi_damage(
         if available_indexes:
             best_index = get_best_switch_index(side)
             await switch_pokemon(side, best_index, baton_touch)
+            store.add_log(f"💨 {attacker.base.name}이(가) 교체되었습니다!")
+            print(f"유턴 효과 적용: {attacker.base.name}이(가) 교체되었습니다!")
 
     # 자폭류 처리
     if used_move.self_kill:
         store.update_pokemon(side, active_mine, lambda p: change_hp(p, -p.base.hp))
-        add_log(f"🤕 {attacker.base.name}은/는 반동으로 기절했다...!")
+        store.add_log(f"🤕 {attacker.base.name}은/는 반동으로 기절했다...!")
+        print(f"자폭 효과 적용: {attacker.base.name}은/는 반동으로 기절했다...!")
 
     # 디메리트 효과
     if demerit_effects:
@@ -160,12 +164,16 @@ async def apply_move_effect_after_multi_damage(
                 if demerit.recoil and applied_damage:
                     result = await apply_recoil_damage(attacker, demerit.recoil, applied_damage)
                     store.update_pokemon(side, active_mine, lambda _: result)
+                    recoil_damage = int(applied_damage * demerit.recoil)
+                    store.add_log(f"🤕 {attacker.base.name}이(가) 반동 데미지 {recoil_damage}를 입었다!")
+                    print(f"반동 데미지 적용: {attacker.base.name}이(가) 반동 데미지 {recoil_damage}를 입었다!")
                 for sc in demerit.stat_change:
                     store.update_pokemon(
                         side, active_mine,
                         lambda p: change_rank(p, sc.stat, sc.change)
                     )
-                    add_log(f"🔃 {attacker.base.name}의 {sc.stat}이(가) {sc.change}랭크 변했다!")
+                    store.add_log(f"🔃 {attacker.base.name}의 {sc.stat}이(가) {sc.change}랭크 변했다!")
+                    print(f"디메리트 효과 적용: {attacker.base.name}의 {sc.stat}이(가) {sc.change}랭크 변했다!")
 
     # 부가효과
     if used_move.target == "opponent" and (attacker.base.ability is None or attacker.base.ability.name != "우격다짐"):
@@ -175,8 +183,8 @@ async def apply_move_effect_after_multi_damage(
                 if eff.heal and not applied_damage:
                     heal = attacker.base.hp * eff.heal if eff.heal < 1 else calculate_rank_effect(defender.rank['attack']) * defender.base.attack
                     store.update_pokemon(side, active_mine, lambda p: change_hp(p, heal))
-                    add_log(f"➕ {attacker.base.name}은 체력을 회복했다!")
-                    print("apply_after_damage.py1") # 맞은 포켓몬의 체력이 회복되는 오류 확인 위한 디버깅
+                    store.add_log(f"➕ {attacker.base.name}은 체력을 회복했다!")
+                    print(f"체력 회복 효과 적용: {attacker.base.name}이(가) 체력을 회복했다!")
                 for sc in eff.stat_change:
                     target_side = (
                         side if sc.target == "self"
@@ -184,10 +192,12 @@ async def apply_move_effect_after_multi_damage(
                     )
                     index = active_mine if target_side == side else active_opponent
                     store.update_pokemon(target_side, index, lambda p: change_rank(p, sc.stat, sc.change))
-                    add_log(f"🔃 {attacker.base.name}의 {sc.stat}이(가) {sc.change}랭크 변했다!")
+                    store.add_log(f"🔃 {attacker.base.name}의 {sc.stat}이(가) {sc.change}랭크 변했다!")
+                    print(f"부가효과 적용: {attacker.base.name}의 {sc.stat}이(가) {sc.change}랭크 변했다!")
                 if eff.status:
                     store.update_pokemon(opponent_side, active_opponent, lambda p: add_status(p, eff.status, opponent_side, nullification))
-                    add_log(f"{defender.base.name}은 {eff.status} 상태가 되었다!")
+                    store.add_log(f"{defender.base.name}은 {eff.status} 상태가 되었다!")
+                    print(f"상태이상 효과 적용: {defender.base.name}이(가) {eff.status} 상태가 되었다!")
 
     # 강제 교체
     if used_move.exile:
@@ -197,7 +207,8 @@ async def apply_move_effect_after_multi_damage(
         if alive_opponents:
             new_index = random.choice(alive_opponents)
             await switch_pokemon(opponent_side, new_index, baton_touch)
-            add_log(f"💨 {defender.base.name}은(는) 강제 교체되었다!")
+            store.add_log(f"💨 {defender.base.name}은(는) 강제 교체되었다!")
+            print(f"강제 교체 효과 적용: {defender.base.name}이(가) 강제 교체되었다!")
 
 async def apply_offensive_ability_effect_after_damage(
     side: Literal["my", "enemy"],
@@ -220,7 +231,9 @@ async def apply_offensive_ability_effect_after_damage(
             if ability.name == "독수" and used_move.is_touch:
                 if random.random() < 0.3:
                     store.update_pokemon(opponent_side, active_opponent, lambda p: add_status(p, "독", opponent_side))
-                    
+                    store.add_log(f"🦂 {defender.base.name}은(는) 독수 특성으로 독 상태가 되었다!")
+                    print(f"특성 효과 적용: {defender.base.name}이(가) 독수 특성으로 독 상태가 되었다!")
+
 async def apply_move_effect_after_damage(
     side: Literal["my", "enemy"],
     attacker: BattlePokemon,
@@ -245,6 +258,7 @@ async def apply_move_effect_after_damage(
     if used_move.cannot_move:
         store.update_pokemon(side, active_mine, lambda p: p.deepcopy(cannot_move=True))
         store.add_log(f"💥 {attacker.base.name}은 피로로 인해 다음 턴 움직일 수 없다!")
+        print(f"피로 효과 적용: {attacker.base.name}은 피로로 인해 다음 턴 움직일 수 없다!")
 
     # 유턴: UI 없이 자동 교체
     if used_move.u_turn and "교체불가" not in attacker.status:
@@ -258,11 +272,13 @@ async def apply_move_effect_after_damage(
         if available:
             switch_index = get_best_switch_index(side)
             await switch_pokemon(side, switch_index, baton_touch)
+            print(f"유턴 효과 적용: {attacker.base.name}이(가) 교체되었습니다!")
 
     # 자폭류 처리
     if used_move.self_kill:
         store.update_pokemon(side, active_mine, lambda p: change_hp(p, -p.base.hp))
         store.add_log(f"🤕 {attacker.base.name}은/는 반동으로 기절했다...!")
+        print(f"자폭 효과 적용: {attacker.base.name}은/는 반동으로 기절했다...!")
 
     # 디메리트 효과
     if used_move.demerit_effects:
@@ -271,10 +287,17 @@ async def apply_move_effect_after_damage(
                 if demerit.recoil and applied_damage:
                     result = await apply_recoil_damage(attacker, demerit.recoil, applied_damage)
                     store.update_pokemon(side, active_mine, lambda _: result)
+                    recoil_damage = int(applied_damage * demerit.recoil)
+                    store.add_log(f"🤕 {attacker.base.name}이(가) 반동 데미지 {recoil_damage}를 입었다!")
+                    print(f"반동 데미지 적용: {attacker.base.name}이(가) 반동 데미지 {recoil_damage}를 입었다!")
                 if demerit.stat_change:
                     for sc in demerit.stat_change:
-                        store.update_pokemon(side, active_mine, lambda p: change_rank(p, sc.stat, sc.change))
-                        store.add_log(f"🔃 {attacker.base.name}의 {sc.stat}이/가 {sc.change}랭크 변했다!")
+                        store.update_pokemon(
+                            side, active_mine,
+                            lambda p: change_rank(p, sc.stat, sc.change)
+                        )
+                        store.add_log(f"🔃 {attacker.base.name}의 {sc.stat}이(가) {sc.change}랭크 변했다!")
+                        print(f"디메리트 효과 적용: {attacker.base.name}의 {sc.stat}이(가) {sc.change}랭크 변했다!")
 
     # 부가효과
     if attacker.base.ability and attacker.base.ability.name != "우격다짐" and used_move.target == "opponent" and not multi_hit:
@@ -284,10 +307,12 @@ async def apply_move_effect_after_damage(
                 if effect.status:
                     store.update_pokemon(side, active_mine, lambda p: add_status(p, effect.status, side))
                     store.add_log(f"🪞 {attacker.base.name}은/는 {effect.status} 상태가 되었다!")
+                    print(f"상태이상 효과 적용: {defender.base.name}이(가) {effect.status} 상태가 되었다!")
                 if effect.stat_change:
                     for sc in effect.stat_change:
                         store.update_pokemon(side, active_mine, lambda p: change_rank(p, sc.stat, sc.change))
                         store.add_log(f"🪞 {attacker.base.name}의 {sc.stat}이/가 {sc.change}랭크 변했다!")
+                        print(f"부가효과 적용: {attacker.base.name}의 {sc.stat}이(가) {sc.change}랭크 변했다!")
                 continue
             
             if roll < (effect.chance if effect.chance else 0):
@@ -297,7 +322,7 @@ async def apply_move_effect_after_damage(
                     heal_amt = attacker.base.hp * effect.heal if effect.heal < 1 else calculate_rank_effect(defender.rank['attack']) * defender.base.attack
                     store.update_pokemon(side, active_mine, lambda p: change_hp(p, heal_amt))
                     store.add_log(f"➕ {attacker.base.name}은/는 체력을 회복했다!")
-                    print("apply_after_damage.py2") # 맞은 포켓몬의 체력이 회복되는 오류 확인 위한 디버깅
+                    print(f"체력 회복 효과 적용: {attacker.base.name}이(가) 체력을 회복했다!")
                 if effect.stat_change:
                     for sc in effect.stat_change:
                         target_side = opponent_side if sc.target == "opponent" else side
@@ -312,6 +337,7 @@ async def apply_move_effect_after_damage(
 
                         store.update_pokemon(target_side, active_idx, lambda p: change_rank(p, sc.stat, sc.change))
                         store.add_log(f"🔃 {target_team[active_idx].base.name}의 {sc.stat}이/가 {sc.change}랭크 변했다!")
+                        print(f"부가효과 적용: {attacker.base.name}의 {sc.stat}이(가) {sc.change}랭크 변했다!")
                 if effect.status:
                     skip = False
                     status = effect.status
@@ -332,11 +358,12 @@ async def apply_move_effect_after_damage(
 
                     if not skip:
                         store.update_pokemon(opponent_side, active_opp, lambda p: add_status(p, status, opponent_side, nullification))
+                        print(f"상태이상 효과 적용: {defender.base.name}이(가) {status} 상태가 되었다!")
 
                 if effect.heal and applied_damage and applied_damage > 0:
                     store.update_pokemon(side, active_mine, lambda p: change_hp(p, applied_damage * effect.heal))
                     store.add_log(f"➕ {attacker.base.name}은/는 체력을 회복했다!")
-                    print("apply_after_damage.py") # 맞은 포켓몬의 체력이 회복되는 오류 확인 위한 디버깅
+                    print(f"체력 회복 효과 적용: {attacker.base.name}이(가) 체력을 회복했다!")
 
     # 강제 교체
     if used_move.exile and defender.current_hp > 0:
@@ -345,3 +372,4 @@ async def apply_move_effect_after_damage(
             idx = random.choice(available)
             await switch_pokemon(opponent_side, idx, baton_touch)
             store.add_log(f"💨 {opp_team[active_opp].base.name}은/는 강제 교체되었다!")
+            print(f"강제 교체 효과 적용: {opp_team[active_opp].base.name}이(가) 강제 교체되었다!")

@@ -727,10 +727,15 @@ def get_move_info(my_pokemon: PokemonInfo, move_name: str) -> MoveInfo:
     
     # 현재 포켓몬이 어느 팀에 있는지 찾기
     battle_pokemon = None
-    for pokemon in my_team + enemy_team:
+    for pokemon in my_team:
         if pokemon.base.name == my_pokemon.name:
             battle_pokemon = pokemon
             break
+    if battle_pokemon is None:
+        for pokemon in enemy_team:
+            if pokemon.base.name == my_pokemon.name:
+                battle_pokemon = pokemon
+                break
     
     for move in my_pokemon.moves:
         current_pp = move.pp
