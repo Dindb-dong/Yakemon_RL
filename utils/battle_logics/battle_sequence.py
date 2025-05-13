@@ -176,12 +176,6 @@ async def handle_move(
     defender = enemy_team[active_enemy] if side == "my" else my_team[active_my]
     active_index = active_my if side == "my" else active_enemy
 
-    # PP 체크
-    if move.name in attacker.pp and attacker.pp[move.name] <= 0:
-        store.add_log(f"⚠️ {attacker.base.name}의 {move.name}의 PP가 부족합니다!")
-        print(f"⚠️ {attacker.base.name}의 {move.name}의 PP가 부족합니다!")
-        return
-
     if attacker and attacker.current_hp > 0:
         print(f"{side}의 {attacker.base.name}이 {move.name}을 사용하려 한다!")
     # 현재 활성화된 포켓몬이 아닌 경우 실행하지 않음
