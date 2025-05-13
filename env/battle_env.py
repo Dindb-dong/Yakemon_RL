@@ -326,6 +326,10 @@ class YakemonEnv(gym.Env):
 
     def check_game_end(self) -> bool:
         """게임 종료 조건 체크"""
+        # 턴 제한 체크
+        if self.turn > 40:
+            return True
+            
         # 내 팀의 모든 포켓몬이 쓰러졌는지 확인
         my_all_fainted = all(p is not None and p.current_hp <= 0 for p in self.my_team)
         
