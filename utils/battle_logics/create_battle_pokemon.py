@@ -3,7 +3,6 @@ from typing import Dict, Callable
 from p_models.pokemon_info import PokemonInfo
 from p_models.battle_pokemon import BattlePokemon
 from p_models.rank_state import RankState
-from p_data.move_data import move_data
 
 # 기본 랭크 상태
 default_rank: RankState = {
@@ -30,18 +29,11 @@ def create_battle_pokemon(base: PokemonInfo, exchange: bool = False) -> BattlePo
     if not base or not base.moves:
         raise ValueError(f"create_battle_pokemon: 유효하지 않은 포켓몬 데이터: {base}")
 
-    # 새로운 MoveInfo 객체들을 생성하여 원래의 PP 값으로 초기화
-    moves = []
+    # moves의 PP를 초기화
     for move in base.moves:
-        # move_data에서 원래의 기술 정보를 찾아서 새로운 MoveInfo 객체 생성
-        original_move = next((m for m in move_data if m.id == move.id), None)
-        if original_move:
-            moves.append(original_move.copy())
-        else:
-            moves.append(move.copy())
+        move.pp = move.pp if move.pp is not None else 10
 
-    # 모든 기술의 PP를 최대값으로 초기화
-    pp: Dict[str, int] = {move.name: move.pp for move in moves}
+    pp: Dict[str, int] = {move.name: move.pp for move in base.moves}
 
     if exchange: # 상대 포켓몬 가져올 때 인데... 시뮬레이터에서는 이거 쓰지 않음
         if base.memorized_base:
@@ -58,7 +50,7 @@ def create_battle_pokemon(base: PokemonInfo, exchange: bool = False) -> BattlePo
             id=base.id,
             name=base.name,
             types=base.types,
-            moves=moves,  # 새로운 moves 리스트 사용
+            moves=base.moves,
             sex=base.sex,
             ability=base.ability,
             hp=base.hp + 75,
