@@ -36,6 +36,7 @@ class AbilityInfo:
         self,
         id: int,
         name: str,
+        description: str = "",
         appear: Optional[List[AppearanceAbility]] = None,
         offensive: Optional[List[OffensiveBeforeAbility | OffensiveAfterAbility]] = None,
         defensive: Optional[List[DefensiveBeforeAbility | DefensiveAfterAbility]] = None,
@@ -44,6 +45,7 @@ class AbilityInfo:
     ):
         self.id = id
         self.name = name
+        self.description = description
         self.appear = appear
         self.offensive = offensive
         self.defensive = defensive

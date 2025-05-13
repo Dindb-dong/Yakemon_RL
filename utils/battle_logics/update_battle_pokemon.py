@@ -1,12 +1,12 @@
 import numpy as np
-from typing import Optional, List, Dict, Union
+from typing import Optional, List
 from copy import deepcopy
 from p_models.battle_pokemon import BattlePokemon
 from p_models.ability_info import AbilityInfo
 from p_models.move_info import MoveInfo
 from p_models.rank_state import RankManager
 from p_models.status import StatusManager, StatusState
-from context.battle_store import battle_store_instance as store
+from context.battle_store import store
 from context.duration_store import duration_store
 unmain_status_with_duration: list[str] = [
     "도발", "트집", "사슬묶기", "회복봉인", "앵콜",
@@ -17,9 +17,14 @@ unmain_status_with_duration: list[str] = [
 # 체력 변화
 def change_hp(pokemon: BattlePokemon, amount: int) -> BattlePokemon:
     add_log = store.add_log
+    if amount > 0 and pokemon.current_hp >= pokemon.base.hp:
+        print(f"{pokemon.base.name}은(는) 이미 최대 체력이다!")
+        return pokemon
+        
     new_hp = max(0, round(pokemon.current_hp + amount))
-    pokemon.current_hp = min(pokemon.base.hp, new_hp)
-
+    new_hp = min(pokemon.base.hp, new_hp)
+    print(f"{pokemon.base.name}의 체력이 {pokemon.current_hp}에서 {new_hp}로 변경되었습니다.")
+    pokemon.current_hp = new_hp
     if pokemon.current_hp <= 0:
         add_log(f"😭 {pokemon.base.name}은/는 쓰러졌다!")
     return pokemon
@@ -77,7 +82,7 @@ DURATION_MAP = {
     "앵콜": 3,
     "소리기술사용불가": 2,
     "하품": 2,
-    "혼란": np.floor(np.random() * 3) + 2 ,  # 랜덤 2~4은 일단 기본 3으로 단순화
+    "혼란": int(np.floor(np.random.random() * 3) + 2), # 랜덤 2~4은 일단 기본 3으로 단순화
     "교체불가": 4,
     "조이기": 4,
     "멸망의노래": 3,
@@ -176,8 +181,9 @@ def has_status(pokemon: BattlePokemon, status: StatusState) -> bool:
 
 
 # PP 차감
-def use_move_pp(pokemon: BattlePokemon, move_name: str, pressure: bool = False) -> BattlePokemon:
+def use_move_pp(pokemon: BattlePokemon, move_name: str, pressure: bool = False, is_multi_hit: bool = False) -> BattlePokemon:
     pp = deepcopy(pokemon.pp)
+    if is_multi_hit: return pokemon
     if move_name in pp:
         pp[move_name] -= 2 if pressure else 1
         pp[move_name] = max(pp[move_name], 0)

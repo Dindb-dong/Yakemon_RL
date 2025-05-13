@@ -1,31 +1,33 @@
-from typing import Optional, List, Dict, Callable
-from move_info import MoveInfo
-from pokemon_info import PokemonInfo
+from typing import Optional, List, Dict, Callable, TYPE_CHECKING
+from p_models.pokemon_info import PokemonInfo
+from p_models.rank_state import RankState
+if TYPE_CHECKING:
+    from p_models.move_info import MoveInfo
 
 class BattlePokemon:
     def __init__(
         self,
-        base: PokemonInfo,  # 기본 정보 (나중에 PokemonInfo 클래스 따로 정의해야 함)
+        base: PokemonInfo,  
         current_hp: int,
         pp: Dict[str, int],
-        rank: Dict[str, int],
+        rank: RankState,
         status: List[str],
         position: Optional[str] = None,  # '땅', '하늘', '바다', '공허' 중 하나
         is_active: bool = False,
-        locked_move: Optional[MoveInfo] = None, # vector로 표현할 때에는, moves.id 로 표현
+        locked_move: Optional['MoveInfo'] = None, # vector로 표현할 때에는, moves.id 로 표현
         locked_move_turn: Optional[int] = None,
         is_protecting: bool = False,
-        used_move: Optional[MoveInfo] = None, # vector로 표현할 때에는, moves.id 로 표현
+        used_move: Optional['MoveInfo'] = None, # vector로 표현할 때에는, moves.id 로 표현
         had_missed: bool = False,
         had_rank_up: bool = False,
         is_charging: bool = False,
-        charging_move: Optional[MoveInfo] = None, # vector로 표현할 때에는, moves.id 로 표현
+        charging_move: Optional['MoveInfo'] = None, # vector로 표현할 때에는, moves.id 로 표현
         received_damage: Optional[int] = None,
         is_first_turn: bool = False,
         cannot_move: bool = False,
         form_num: Optional[int] = None, # 이거는 생략
         form_condition: Optional[Callable[['BattlePokemon'], bool]] = None, # 이거는 생략
-        un_usable_move: Optional[MoveInfo] = None, # vector로 표현할 때에는, moves.id 로 표현
+        un_usable_move: Optional['MoveInfo'] = None, # vector로 표현할 때에는, moves.id 로 표현
         lost_type: bool = False, # 이거는 생략
         temp_type: Optional[List[str]] = None, # vector로 표현할 때에는, 타입 정규화한 방식처럼 표현.
         substitute: Optional['BattlePokemon'] = None, # 이거는 vector로 표현할 때 생략.

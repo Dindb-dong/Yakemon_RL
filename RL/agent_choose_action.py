@@ -1,6 +1,9 @@
+# 엉터리임 고쳐야함 
 import tensorflow as tf
 import numpy as np
 from typing import Union, Dict, List, Optional
+
+from p_models.battle_pokemon import BattlePokemon
 from .get_state_vector import get_state  # 이것도 나중에 구현 필요
 
 rl_model: Optional[tf.keras.Model] = None
@@ -55,8 +58,8 @@ def get_switch_target_index(current_index: int, switch_action_index: int) -> int
 
 def agent_choose_action(
     side: str,
-    my_team: List[Dict],
-    enemy_team: List[Dict],
+    my_team: List[BattlePokemon],
+    enemy_team: List[BattlePokemon],
     active_my: int,
     active_enemy: int
 ) -> Union[Dict, Dict[str, Union[str, int]]]:
@@ -81,8 +84,8 @@ def agent_choose_action(
     my_pokemon = mine_team[active_enemy if is_enemy else active_my]
     
     # 사용 가능한 기술 필터링
-    usable_moves = [move for move in my_pokemon['base']['moves'] 
-                   if my_pokemon['pp'][move['name']] > 0]
+    usable_moves = [move for move in my_pokemon.base.moves
+                   if my_pokemon.pp[move.name] > 0]
     
     if result is not None:
         if result < 4:

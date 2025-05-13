@@ -1,16 +1,16 @@
-from context.battle_store import store
+from context.battle_store import BattleStoreState, store
 from context.duration_store import duration_store
 from utils.battle_logics.update_battle_pokemon import (
     add_status, change_hp, change_rank, remove_status, reset_state, set_locked_move
 )
 from utils.battle_logics.apply_none_move_damage import apply_status_condition_damage
-from utils.battle_logics.switch_pokemon import main_status_condition
+from utils.battle_logics.switch_pokemon import MAIN_STATUS_CONDITION
 from utils.battle_logics.update_environment import set_weather, set_field, set_screen
 import random
 
 
-def apply_end_turn_effects():
-    state = store.get_state()
+async def apply_end_turn_effects():
+    state: BattleStoreState = store.get_state()
     my_team = state["my_team"]
     enemy_team = state["enemy_team"]
     active_my = state["active_my"]
@@ -41,11 +41,11 @@ def apply_end_turn_effects():
         active_opponent = active_enemy if side == "my" else active_my
 
         for status in ["화상", "맹독", "독", "조이기"]:
-            if status in pokemon.status:
-                updated = apply_status_condition_damage(pokemon, status)
+            if pokemon and pokemon.current_hp > 0 and status in pokemon.status:
+                updated = await apply_status_condition_damage(pokemon, status)
                 store.update_pokemon(side, active_index, lambda p: updated)
 
-        if "씨뿌리기" in pokemon.status and (not (pokemon.base.ability and pokemon.base.ability.name == "매직가드")):
+        if pokemon and pokemon.current_hp > 0 and "씨뿌리기" in pokemon.status and (not (pokemon.base.ability and pokemon.base.ability.name == "매직가드")):
             damage = pokemon.base.hp // 8
             store.update_pokemon(side, active_index, lambda p: change_hp(p, -damage))
             if opponent_team[active_opponent].current_hp > 0:
@@ -92,7 +92,7 @@ def apply_end_turn_effects():
     for i, pokemon in enumerate([my_active, enemy_active]):
         side = "my" if i == 0 else "enemy"
         active_index = active_my if side == "my" else active_enemy
-        ability_name = pokemon.base.ability.name if pokemon.base.ability else None
+        ability_name = pokemon.base.ability.name if pokemon.base.ability and pokemon else None
 
         if ability_name == "포이즌힐":
             if "독" in pokemon.status:
@@ -122,9 +122,9 @@ def apply_end_turn_effects():
             store.update_pokemon(side, active_index, lambda p: change_hp(p, -p.base.hp // 16))
             store.add_log(f"🦅 {pokemon.base.name}의 선파워 특성 발동!")
 
-        if ability_name == "탈피" and any(s in main_status_condition for s in pokemon.status):
+        if ability_name == "탈피" and any(s in MAIN_STATUS_CONDITION for s in pokemon.status):
             for s in pokemon.status:
-                if s in main_status_condition:
+                if s in MAIN_STATUS_CONDITION:
                     store.update_pokemon(side, active_index, lambda p: remove_status(p, s))
             store.add_log(f"🦅 {pokemon.base.name}의 탈피 특성 발동!")
 
@@ -132,7 +132,9 @@ def apply_end_turn_effects():
     for i, side in enumerate(["my", "enemy"]):
         active = active_my if side == "my" else active_enemy
         team = my_team if side == "my" else enemy_team
-        store.update_pokemon(side, active, lambda p: reset_state(p))
+        pokemon = team[active]
+        reset_pokemon = reset_state(pokemon)
+        store.update_pokemon(side, active, lambda p: reset_pokemon)
         if team[active].locked_move and team[active].locked_move_turn == 0:
             store.update_pokemon(side, active, lambda p: set_locked_move(p, None))
             store.add_log(f"{team[active].base.name}은 지쳐서 혼란에 빠졌다..!")

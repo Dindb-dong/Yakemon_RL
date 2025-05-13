@@ -1,4 +1,4 @@
-from typing import List, Optional, Dict, Callable, Literal, Any
+from typing import List, Optional, Dict, Callable, Literal, Any, TypedDict
 from copy import deepcopy
 
 from p_models.battle_pokemon import BattlePokemon
@@ -7,9 +7,22 @@ from context.form_check_wrapper import with_form_check
 
 SideType = Literal["my", "enemy"]
 
+class BattleStoreState(TypedDict):
+    my_team: List[BattlePokemon]
+    enemy_team: List[BattlePokemon]
+    active_my: int
+    active_enemy: int
+    public_env: PublicBattleEnvironment
+    my_env: IndividualBattleEnvironment
+    enemy_env: IndividualBattleEnvironment
+    turn: int
+    logs: List[str]
+    is_switch_waiting: bool
+    switch_request: Optional[Dict[str, Any]]
+
 class BattleStore:
     def __init__(self) -> None:
-        self.state: Dict[str, Any] = {
+        self.state: BattleStoreState = {
             "my_team": [],
             "enemy_team": [],
             "active_my": 0,
@@ -21,8 +34,6 @@ class BattleStore:
             "logs": [],
             "is_switch_waiting": False,
             "switch_request": None,
-            "win_count": 0,
-            "enemy_roster": [],
         }
 
     def set_my_team(self, team: List[BattlePokemon]) -> None:
@@ -30,6 +41,12 @@ class BattleStore:
 
     def set_enemy_team(self, team: List[BattlePokemon]) -> None:
         self.state["enemy_team"] = team
+        
+    def set_active_index(self, side: SideType, index: int) -> None:
+        if side == "my":
+            self.state["active_my"] = index
+        else:
+            self.state["active_enemy"] = index
 
     def set_active_my(self, index: int) -> None:
         self.state["active_my"] = index
@@ -94,10 +111,10 @@ class BattleStore:
     def get_active_index(self, side: SideType) -> int:
         return self.state["active_my"] if side == "my" else self.state["active_enemy"]
 
-
-store = BattleStore()
-battle_store_instance: BattleStore = with_form_check(lambda set_state, get_state, api: api)(
-    lambda s: setattr(store, "state", s),
-    lambda: store.get_state(),
-    store
+# 전역 인스턴스 생성
+battle_store_instance = BattleStore()
+store: BattleStore = with_form_check(lambda set_state, get_state, api: api)(
+    lambda s: setattr(battle_store_instance, "state", s),
+    lambda: battle_store_instance.get_state(),
+    battle_store_instance
 )

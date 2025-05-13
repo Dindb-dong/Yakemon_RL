@@ -1,71 +1,76 @@
-from typing import List, Dict, Optional, Literal, Union
-from p_models.battle_pokemon import BattlePokemon
-from p_models.types import FieldType, WeatherType
+from typing import List, Dict, Optional, Literal, Union, TYPE_CHECKING
 from p_models.status import StatusState
-from p_models.rank_state import RankStat
+
+
+if TYPE_CHECKING:
+    from p_models.battle_pokemon import BattlePokemon
 
 # 타입 정의
 ScreenType = Optional[Literal['빛의장막', '리플렉터', '오로라베일']]
+AffiliationType = Optional[Literal['소리', '펀치', '물기', '폭탄', '가루']]
+TrapType = Optional[Literal['독압정', '스텔스록', '압정뿌리기', '압정뿌리기2', '압정뿌리기3', '끈적끈적네트']]
+PositionType = Optional[Literal['땅', '하늘', '바다', '공허']]
 
 class StatChange:
-    def __init__(self, target: Literal['opponent', 'self'], stat: RankStat, change: int):
+    def __init__(self, target: str, stat: str, change: int):
         self.target = target
         self.stat = stat
-        self.change = change  # -6 ~ +6  # -6 ~ +6 범위
+        self.change = change
 
 class MoveEffect:
     def __init__(
         self,
-        id: int,
-        chance: float,
+        id: Optional[int] = None,
+        chance: Optional[float] = None,
+        stat_change: Optional[List[StatChange]] = None,
         status: Optional[StatusState] = None,
         recoil: Optional[float] = None,
-        fail: Optional[float] = None,
-        lost_type: Optional[str] = None,
+        multi_hit: Optional[tuple] = None,
         heal: Optional[float] = None,
-        stat_change: Optional[List[StatChange]] = None,
-        multi_hit: bool = False,
-        double_hit: bool = False,
-        triple_hit: bool = False,
-        break_screen: bool = False,
-        rank_nullification: bool = False,
-        type_change: Optional[str] = None
+        rank_nullification: Optional[bool] = None,
+        triple_hit: Optional[bool] = None,
+        double_hit: Optional[bool] = None,
+        break_screen: Optional[bool] = None,
+        type_change: Optional[str] = None,
+        lost_type: Optional[str] = None,
+        fail: Optional[float] = None
     ):
         self.id = id
         self.chance = chance
+        self.stat_change = stat_change or []
         self.status = status
         self.recoil = recoil
-        self.fail = fail
-        self.lost_type = lost_type
-        self.heal = heal
-        self.stat_change = stat_change or []
         self.multi_hit = multi_hit
-        self.double_hit = double_hit
-        self.triple_hit = triple_hit
-        self.break_screen = break_screen
+        self.heal = heal
         self.rank_nullification = rank_nullification
+        self.triple_hit = triple_hit
+        self.double_hit = double_hit
+        self.break_screen = break_screen
         self.type_change = type_change
+        self.lost_type = lost_type
+        self.fail = fail
 
 class MoveInfo:
     def __init__(
         self,
         id: int,
         name: str,
+        power: Optional[int],
+        accuracy: Optional[int],
+        pp: int,
         type: str,
         category: Literal['물리', '특수', '변화'],
-        power: int,
-        pp: int,
-        is_touch: bool,
-        affiliation: Optional[Literal['펀치', '폭탄', '바람', '가루', '소리', '파동', '물기', '베기']] = None,
-        accuracy: int = 100,
-        critical_rate: int = 0,
-        demerit_effects: Optional[List[MoveEffect]] = None,
+        target: Literal['self', 'opponent', 'none'],
         effects: Optional[List[MoveEffect]] = None,
-        priority: Optional[int] = 0,
-        trap: Optional[str] = None,
-        field: Optional[FieldType] = None,
+        demerit_effects: Optional[List[MoveEffect]] = None,
+        is_touch: bool = False,
+        affiliation: AffiliationType = None,
+        priority: int = 0,
+        critical_rate: int = 0,
+        trap: TrapType = None,
+        field: Optional[str] = None,
         room: Optional[str] = None,
-        weather: Optional[WeatherType] = None,
+        weather: Optional[str] = None,
         u_turn: bool = False,
         exile: bool = False,
         protect: bool = False,
@@ -73,29 +78,29 @@ class MoveInfo:
         revenge: bool = False,
         boost_on_missed_prev: bool = False,
         charge_turn: bool = False,
-        position: Optional[Literal['땅', '하늘', '바다', '공허']] = None,
+        position: PositionType = None,
         one_hit_ko: bool = False,
         first_turn_only: bool = False,
         self_kill: bool = False,
         screen: ScreenType = None,
         pass_substitute: bool = False,
         cannot_move: bool = False,
-        locked_move: bool = False,
-        target: Literal['self', 'opponent', 'none'] = 'opponent',
+        locked_move: bool = False
     ):
         self.id = id
         self.name = name
+        self.power = power
+        self.accuracy = accuracy
+        self.pp = pp
         self.type = type
         self.category = category
-        self.power = power
-        self.pp = pp
+        self.target = target
+        self.effects = effects or [MoveEffect()]
+        self.demerit_effects = demerit_effects or []
         self.is_touch = is_touch
         self.affiliation = affiliation
-        self.accuracy = accuracy
-        self.critical_rate = critical_rate
-        self.demerit_effects = demerit_effects or []
-        self.effects = effects or []
         self.priority = priority
+        self.critical_rate = critical_rate
         self.trap = trap
         self.field = field
         self.room = room
@@ -115,14 +120,13 @@ class MoveInfo:
         self.pass_substitute = pass_substitute
         self.cannot_move = cannot_move
         self.locked_move = locked_move
-        self.target = target
-        
-    def get_power(self, team: List[BattlePokemon], side: str, base_power: Optional[int] = None) -> int:
+
+    def get_power(self, team: List['BattlePokemon'], side: Literal['my', 'enemy'], base_power: Optional[int] = None) -> int:
         if base_power is not None:
             return base_power
         return self.power
 
-    def get_accuracy(self, env: Dict, side: str, base_accuracy: Optional[int] = None) -> int:
+    def get_accuracy(self, env: Dict, side: Literal['my', 'enemy'], base_accuracy: Optional[int] = None) -> int:
         if base_accuracy is not None:
             return base_accuracy
         return self.accuracy
@@ -131,17 +135,18 @@ class MoveInfo:
         return MoveInfo(
             id=self.id,
             name=self.name,
+            power=self.power,
+            accuracy=self.accuracy,
+            pp=self.pp,
             type=self.type,
             category=self.category,
-            power=self.power,
-            pp=self.pp,
+            target=self.target,
+            effects=self.effects,
+            demerit_effects=self.demerit_effects,
             is_touch=self.is_touch,
             affiliation=self.affiliation,
-            accuracy=self.accuracy,
-            critical_rate=self.critical_rate,
-            demerit_effects=self.demerit_effects,
-            effects=self.effects,
             priority=self.priority,
+            critical_rate=self.critical_rate,
             trap=self.trap,
             field=self.field,
             room=self.room,
@@ -160,6 +165,5 @@ class MoveInfo:
             screen=self.screen,
             pass_substitute=self.pass_substitute,
             cannot_move=self.cannot_move,
-            locked_move=self.locked_move,
-            target=self.target
+            locked_move=self.locked_move
         )

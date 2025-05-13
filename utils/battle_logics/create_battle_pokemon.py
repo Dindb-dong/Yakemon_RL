@@ -7,9 +7,9 @@ from p_models.rank_state import RankState
 # 기본 랭크 상태
 default_rank: RankState = {
     "attack": 0,
-    "spAttack": 0,
+    "sp_attack": 0,
     "defense": 0,
-    "spDefense": 0,
+    "sp_defense": 0,
     "speed": 0,
     "accuracy": 0,
     "dodge": 0,
@@ -29,7 +29,11 @@ def create_battle_pokemon(base: PokemonInfo, exchange: bool = False) -> BattlePo
     if not base or not base.moves:
         raise ValueError(f"create_battle_pokemon: 유효하지 않은 포켓몬 데이터: {base}")
 
-    pp: Dict[str, int] = {move.name: move.pp if move.pp is not None else 10 for move in base.moves}
+    # moves의 PP를 초기화
+    for move in base.moves:
+        move.pp = move.pp if move.pp is not None else 10
+
+    pp: Dict[str, int] = {move.name: move.pp for move in base.moves}
 
     if exchange: # 상대 포켓몬 가져올 때 인데... 시뮬레이터에서는 이거 쓰지 않음
         if base.memorized_base:
