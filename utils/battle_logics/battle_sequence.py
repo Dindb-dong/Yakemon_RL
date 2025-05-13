@@ -130,7 +130,7 @@ async def battle_sequence(
                 if current_defender and current_defender.current_hp <= 0:
                     await apply_end_turn_effects()
                     return
-                await handle_move("enemy", enemy_action, store.get_active_index("enemy"), watch_mode, True)
+                await handle_move("enemy", enemy_action, active_enemy, watch_mode, True)
         else:  # 상대가 선공일 경우
             if enemy_action.name == "기습" and my_action.category == "변화":
                 # 상대 기습 실패, 내 기술만 작동
@@ -151,7 +151,7 @@ async def battle_sequence(
                 if current_defender and current_defender.current_hp <= 0:
                     await apply_end_turn_effects()
                     return
-                await handle_move("my", my_action, store.get_active_index("my"), watch_mode, True)
+                await handle_move("my", my_action, active_my, watch_mode, True)
 
     await apply_end_turn_effects()
 
