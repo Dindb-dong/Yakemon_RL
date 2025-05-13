@@ -60,7 +60,8 @@ class YakemonEnv(gym.Env):
         )
         
         # 행동 공간 정의 (6개 행동: 4개 기술 + 2개 교체)
-        self.action_space = spaces.Discrete(6)
+        # 각 행동이 가능한지 여부를 나타내는 마스크 추가
+        self.action_space = spaces.MultiDiscrete([2] * 6)  # 각 행동이 가능하면 1, 불가능하면 0
         
         # 배틀 스토어와 환경 초기화
         self.battle_store = store
@@ -130,9 +131,31 @@ class YakemonEnv(gym.Env):
         # 초기 상태 반환
         return self._get_state()
 
+    def _get_action_mask(self) -> np.ndarray:
+        """
+        현재 상태에서 가능한 행동들의 마스크를 반환
+        Returns:
+            np.ndarray: 각 행동이 가능하면 1, 불가능하면 0인 마스크
+        """
+        mask = np.ones(6, dtype=np.int32)  # 기본적으로 모든 행동 가능
+        
+        current_index = self.battle_store.get_active_index("my")
+        
+        # 교체 행동(4,5)에 대한 마스킹
+        for i in range(2):  # 교체 행동 2개
+            switch_index = i
+            # 자기 자신으로 교체하는 경우
+            if switch_index == current_index:
+                mask[4 + i] = 0
+            # 교체하려는 포켓몬이 쓰러진 경우
+            elif self.my_team[switch_index].current_hp <= 0:
+                mask[4 + i] = 0
+        
+        return mask
+
     def _get_state(self):
         """현재 상태 벡터 반환"""
-        return get_state(
+        state_dict = get_state(
             store=self.battle_store,
             my_team=self.my_team,
             enemy_team=self.enemy_team,
@@ -145,6 +168,14 @@ class YakemonEnv(gym.Env):
             my_effects=self.duration_store.my_effects,
             enemy_effects=self.duration_store.enemy_effects
         )
+        
+        # 정해진 순서로 상태 벡터 생성
+        state_keys = sorted(state_dict.keys())
+        state_vector = np.array([state_dict[key] for key in state_keys], dtype=np.float32)
+        
+        # 상태 벡터에 action mask 추가
+        action_mask = self._get_action_mask()
+        return np.concatenate([state_vector, action_mask])
 
     async def step(self, action: int) -> Tuple[np.ndarray, float, bool, Dict]:
         """
@@ -179,12 +210,12 @@ class YakemonEnv(gym.Env):
             # 자기 자신으로 교체하는 경우 방지
             if switch_index == current_index:
                 print("자기 자신으로 교체할 수 없습니다.")
-                return current_state, -1, self.done, {"error": "self_switch"}
+                return current_state, -float('inf'), self.done, {"error": "self_switch"}
             
             # 교체하려는 포켓몬이 쓰러진 경우 방지
             if self.my_team[switch_index].current_hp <= 0:
                 print("쓰러진 포켓몬으로 교체할 수 없습니다.")
-                return current_state, -1, self.done, {"error": "fainted_switch"}
+                return current_state, -float('inf'), self.done, {"error": "fainted_switch"}
             
             battle_action = {"type": "switch", "index": switch_index}
             print(f"내가 교체하려는 포켓몬: {self.my_team[switch_index].base.name}")
@@ -243,11 +274,10 @@ class YakemonEnv(gym.Env):
                 return next_state, reward, self.done, {}
             
             # 내 포켓몬이 쓰러졌는지 확인
-            if self.my_team[active_my].current_hp <= 0:
+            if self.my_team[active_my] and self.my_team[active_my].current_hp <= 0:
                 await remove_fainted_pokemon("my")
                 next_state = self._get_state()
                 reward = 0  # 교체만으로는 보상 없음
-                return next_state, reward, self.done, {}
                 
             # 상대 포켓몬이 쓰러졌는지 확인
             if active_enemy is not None:
@@ -257,7 +287,6 @@ class YakemonEnv(gym.Env):
                         await remove_fainted_pokemon("enemy")
                         next_state = self._get_state()
                         reward = 0  # 교체만으로는 보상 없음
-                        return next_state, reward, self.done, {}
         
         # 다음 상태 가져오기
         next_state = self._get_state()

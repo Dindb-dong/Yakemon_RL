@@ -30,6 +30,12 @@ async def battle_sequence(
     state: BattleStoreState = store.get_state()
     active_enemy = state["active_enemy"]
     active_my = state["active_my"]
+    
+    def is_move_action(action: BattleAction) -> bool:
+        return isinstance(action, MoveInfo)
+
+    def is_switch_action(action: BattleAction) -> bool:
+        return isinstance(action, dict) and action.get("type") == "switch"
 
     # === 0. 한 쪽만 null ===
     if my_action is None and enemy_action is not None:
@@ -39,7 +45,7 @@ async def battle_sequence(
             await handle_move("enemy", enemy_action, active_enemy, watch_mode)
         elif is_switch_action(enemy_action):
             await switch_pokemon("enemy", enemy_action["index"])
-        apply_end_turn_effects()
+        await apply_end_turn_effects()
         return
 
     if enemy_action is None and my_action is not None:
@@ -49,23 +55,17 @@ async def battle_sequence(
             await handle_move("my", my_action, active_my, watch_mode)
         elif is_switch_action(my_action):
             await switch_pokemon("my", my_action["index"])
-        apply_end_turn_effects()
+        await apply_end_turn_effects()
         return
 
     if enemy_action is None and my_action is None:
         store.add_log("😴 양측 모두 행동할 수 없었다...")
         print("😴 양측 모두 행동할 수 없었다...")
-        apply_end_turn_effects()
+        await apply_end_turn_effects()
         return
 
     store.add_log("우선도 및 스피드 계산중...")
     print("우선도 및 스피드 계산중...")
-
-    def is_move_action(action: BattleAction) -> bool:
-        return isinstance(action, MoveInfo)
-
-    def is_switch_action(action: BattleAction) -> bool:
-        return isinstance(action, dict) and action.get("type") == "switch"
 
     who_is_first = await calculate_order(
         my_action if is_move_action(my_action) else None,
@@ -80,7 +80,7 @@ async def battle_sequence(
         else:
             await switch_pokemon("enemy", enemy_action["index"])
             await switch_pokemon("my", my_action["index"])
-        apply_end_turn_effects()
+        await apply_end_turn_effects()
         return
 
     # === 2. 한 쪽만 교체 ===
@@ -93,7 +93,7 @@ async def battle_sequence(
             else:
                 print('나는 교체, 상대는 공격!')
                 await handle_move("enemy", enemy_action, store.get_active_index("enemy"), watch_mode, True)
-        apply_end_turn_effects()
+        await apply_end_turn_effects()
         return
 
     if is_switch_action(enemy_action):
@@ -105,7 +105,7 @@ async def battle_sequence(
             else:
                 print('상대는 교체, 나는 공격!')
                 await handle_move("my", my_action, store.get_active_index("my"), watch_mode, True)
-        apply_end_turn_effects()
+        await apply_end_turn_effects()
         return
 
     # === 3. 둘 다 기술 ===
@@ -127,8 +127,8 @@ async def battle_sequence(
                 # 상대가 쓰러졌는지 확인
                 opponent_pokemon = store.get_team("enemy")
                 current_defender = opponent_pokemon[store.get_active_index("enemy")]
-                if current_defender.current_hp <= 0:
-                    apply_end_turn_effects()
+                if current_defender and current_defender.current_hp <= 0:
+                    await apply_end_turn_effects()
                     return
                 await handle_move("enemy", enemy_action, store.get_active_index("enemy"), watch_mode, True)
         else:  # 상대가 선공일 경우
@@ -148,12 +148,12 @@ async def battle_sequence(
                 # 내가 쓰러졌는지 확인
                 opponent_pokemon = store.get_team("my")
                 current_defender = opponent_pokemon[store.get_active_index("my")]
-                if current_defender.current_hp <= 0:
-                    apply_end_turn_effects()
+                if current_defender and current_defender.current_hp <= 0:
+                    await apply_end_turn_effects()
                     return
                 await handle_move("my", my_action, store.get_active_index("my"), watch_mode, True)
 
-    apply_end_turn_effects()
+    await apply_end_turn_effects()
 
 async def handle_move(
     side: Literal["my", "enemy"],
@@ -175,7 +175,8 @@ async def handle_move(
     attacker = my_team[active_my] if side == "my" else enemy_team[active_enemy]
     defender = enemy_team[active_enemy] if side == "my" else my_team[active_my]
     active_index = active_my if side == "my" else active_enemy
-    print(f"{side}의 {attacker.base.name}이 {move.name}을 사용하려 한다!")
+    if attacker and attacker.current_hp > 0:
+        print(f"{side}의 {attacker.base.name}이 {move.name}을 사용하려 한다!")
     # 현재 활성화된 포켓몬이 아닌 경우 실행하지 않음
     if current_index != active_index:
         store.add_log(f"⚠️ {attacker.base.name}는 현재 활성화된 포켓몬이 아닙니다!")
@@ -188,7 +189,7 @@ async def handle_move(
         hit_count = get_hit_count(move)
 
         # 리베로, 변환자재
-        if attacker.base.ability and has_ability(attacker.base.ability, ["리베로", "변환자재"]):
+        if attacker and attacker.base.ability and has_ability(attacker.base.ability, ["리베로", "변환자재"]):
             store.update_pokemon(side, active_index, lambda p: set_types(p, [move.type]))
             store.update_pokemon(side, active_index, lambda p: set_ability(p, None))
             store.add_log(f"🔃 {attacker.base.name}의 타입은 {move.type}타입으로 변했다!")
@@ -236,7 +237,7 @@ async def handle_move(
 
     elif is_double_hit or is_multi_hit:  # 첫타 맞으면 다 맞춤
         # 리베로, 변환자재
-        if attacker.base.ability and has_ability(attacker.base.ability, ["리베로", "변환자재"]):
+        if attacker and attacker.base.ability and has_ability(attacker.base.ability, ["리베로", "변환자재"]):
             store.update_pokemon(side, active_index, lambda p: set_types(p, [move.type]))
             store.update_pokemon(side, active_index, lambda p: set_ability(p, None))
             store.add_log(f"{attacker.base.name}의 타입은 {move.type}타입으로 변했다!")
@@ -291,7 +292,7 @@ async def handle_move(
 
     else:  # 그냥 다른 기술들
         # 리베로, 변환자재
-        if attacker.base.ability and has_ability(attacker.base.ability, ["리베로", "변환자재"]):
+        if attacker and attacker.base.ability and has_ability(attacker.base.ability, ["리베로", "변환자재"]):
             store.update_pokemon(side, active_index, lambda p: set_types(p, [move.type]))
             store.update_pokemon(side, active_index, lambda p: set_ability(p, None))
             store.add_log(f"🔃 {attacker.base.name}의 타입은 {move.type}타입으로 변했다!")
@@ -299,7 +300,7 @@ async def handle_move(
 
         result = await calculate_move_damage(move_name=move.name, side=side, was_late=was_late)
         if result and result["success"]:
-            if defender.base.ability and defender.base.ability.name == "매직가드" and move.category == "변화":
+            if defender and defender.base.ability and defender.base.ability.name == "매직가드" and move.category == "변화":
                 store.add_log(f"{defender.base.name}은 매직가드로 피해를 입지 않았다!")
                 print(f"{defender.base.name}은 매직가드로 피해를 입지 않았다!")
                 await apply_after_damage(side, attacker, defender, move, result["damage"] if "damage" in result else 0, watch_mode)

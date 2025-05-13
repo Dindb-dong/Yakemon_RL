@@ -38,8 +38,8 @@ def get_state(
     state = {}
     player_team = my_team if not for_opponent else enemy_team
     opponent_team = enemy_team if not for_opponent else my_team
-    player = my_team[active_my] if not for_opponent else enemy_team[active_enemy]
-    opponent = enemy_team[active_enemy] if not for_opponent else my_team[active_my]
+    player: BattlePokemon = my_team[active_my] if not for_opponent else enemy_team[active_enemy]
+    opponent: BattlePokemon = enemy_team[active_enemy] if not for_opponent else my_team[active_my]
 
     # 1. 내 포켓몬의 HP 비율 (1차원)
     state['current_hp'] = player.current_hp / player.base.hp

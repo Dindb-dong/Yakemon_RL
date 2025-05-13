@@ -33,7 +33,6 @@ async def calculate_order(player_move: Optional[MoveInfo], ai_move: Optional[Mov
     # 스피드 계산
     def calculate_speed(pokemon: BattlePokemon):
         speed = pokemon.base.speed * calculate_rank_effect(pokemon.rank['speed'])
-        print(f"{pokemon.base.name}의 기본 스피드: {speed}")
         
         if "마비" in pokemon.status:
             speed *= 0.5

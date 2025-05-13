@@ -46,9 +46,7 @@ async def switch_pokemon(side: SideType, new_index: int, baton_touch: bool = Fal
         ))
         duration_store.transfer_effects(side, current_index, new_index)
 
-    pokemon = store.get_team(side)[current_index]
-    reset_pokemon = await reset_state(pokemon, is_switch=True)
-    store.update_pokemon(side, current_index, lambda p: reset_pokemon)
+    store.update_pokemon(side, current_index, lambda p: reset_state(p, is_switch=True))
     store.update_pokemon(side, current_index, lambda p: reset_rank(p))
     store.update_pokemon(side, current_index, lambda p: p.copy_with(is_first_turn=False))
 
@@ -84,12 +82,9 @@ async def switch_pokemon(side: SideType, new_index: int, baton_touch: bool = Fal
         store.set_active_enemy(new_index)
     print(f"교체 후 포켓몬: {next_pokemon.base.name}")
     if env.trap:
-        result = await apply_trap_damage(next_pokemon, env.trap)
-        trapped = result["updated"]
-        trap_log = result.get("log")
-        trap_condition = result.get("status_condition")
+        damage, trap_log, trap_condition = await apply_trap_damage(next_pokemon, env.trap)
 
-        store.update_pokemon(side, new_index, lambda _: trapped)
+        store.update_pokemon(side, new_index, lambda p: p.copy_with(current_hp=max(0, p.current_hp - damage)))
 
         if trap_condition:
             if trap_condition == "독압정 제거":
@@ -104,12 +99,10 @@ async def switch_pokemon(side: SideType, new_index: int, baton_touch: bool = Fal
         if trap_log:
             store.add_log(trap_log)
 
-        next_pokemon = trapped
-
-    if next_pokemon.current_hp <= 0 and side == "enemy":
+    if team[new_index].current_hp <= 0 and side == "enemy":
         switch_index = get_best_switch_index(side)
         await switch_pokemon(side, switch_index)
     else:
         wncp = "나" if side == "my" else "상대"
         store.add_log(f"{wncp}는 {team[new_index].base.name}을/를 내보냈다!")
-        apply_appearance(next_pokemon, side)
+        apply_appearance(team[new_index], side)

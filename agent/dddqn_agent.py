@@ -5,6 +5,7 @@ import torch.optim as optim
 import random
 from collections import namedtuple
 import torch.nn.functional as F
+import numpy as np
 
 from utils.replay_buffer import ReplayBuffer
 
@@ -75,30 +76,45 @@ class DDDQNAgent:
     def select_action(self, state, store=None, duration_store=None):
         """ε-greedy 정책에 따라 행동을 선택합니다."""
         if random.random() < self.epsilon:
+            # 마스크를 고려한 랜덤 행동 선택
+            action_mask = self._get_action_mask(store)
+            valid_actions = [i for i, mask in enumerate(action_mask) if mask == 1]
+            if valid_actions:
+                return random.choice(valid_actions)
             return random.randrange(self.action_dim)
-        
-        # 활성화된 포켓몬의 인덱스 확인
-        active_index = store.get_active_index("my") if store else 0
         
         with torch.no_grad():
             state = torch.FloatTensor(state).unsqueeze(0).to(self.device)
             q_values = self.policy_net(state)
             
-            # 활성화된 포켓몬의 기술만 선택 가능하도록 마스킹
-            if active_index is not None:
-                # 기술 선택 (0-3)과 교체 선택 (4-5)을 구분
-                move_mask = torch.ones(self.action_dim, device=self.device)
-                if active_index >= 0 and active_index < len(store.get_state()["my_team"]):
-                    # 활성화된 포켓몬의 기술만 선택 가능
-                    q_values[0, :4] = float('-inf')  # 모든 기술을 마스킹
-                    active_pokemon = store.get_state()["my_team"][active_index]
-                    for i, move in enumerate(active_pokemon.base.moves):
-                        if i < 4:  # 기술은 4개까지만
-                            q_values[0, i] = q_values[0, i]  # 해당 기술의 Q값 유지
-                
-                return q_values.argmax().item()
-            else:
-                return q_values.argmax().item()
+            # 마스크 적용
+            action_mask = self._get_action_mask(store)
+            masked_q_values = q_values.clone()
+            masked_q_values[0, action_mask == 0] = float('-inf')
+            
+            return masked_q_values.argmax().item()
+    
+    def _get_action_mask(self, store):
+        """현재 상태에서 가능한 행동들의 마스크를 반환합니다."""
+        mask = np.ones(self.action_dim, dtype=np.int32)
+        
+        if store is None:
+            return mask
+            
+        current_index = store.get_active_index("my")
+        my_team = store.get_team("my")
+        
+        # 교체 행동(4-5)에 대한 마스킹
+        for i in range(2):  # 교체 행동 2개
+            switch_index = i
+            # 자기 자신으로 교체하는 경우
+            if switch_index == current_index:
+                mask[4 + i] = 0
+            # 교체하려는 포켓몬이 쓰러진 경우
+            elif my_team[switch_index].current_hp <= 0:
+                mask[4 + i] = 0
+        
+        return mask
     
     def store_transition(self, state, action, reward, next_state, done):
         """경험을 리플레이 버퍼에 저장합니다."""
@@ -133,7 +149,11 @@ class DDDQNAgent:
         
         # 다음 상태의 최대 Q 값 계산 (Double DQN)
         with torch.no_grad():
-            next_actions = self.policy_net(next_state_batch).max(1)[1].unsqueeze(1)
+            # 다음 상태의 Q 값 계산
+            next_q_values = self.policy_net(next_state_batch)
+            
+            # 마스크 적용 (다음 상태에서 가능한 행동만 고려)
+            next_actions = next_q_values.max(1)[1].unsqueeze(1)
             next_q_values = self.target_net(next_state_batch).gather(1, next_actions)
             expected_q_values = reward_batch.unsqueeze(1) + (1 - done_batch.unsqueeze(1)) * self.gamma * next_q_values
         

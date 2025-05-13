@@ -42,7 +42,7 @@ async def apply_end_turn_effects():
 
         for status in ["화상", "맹독", "독", "조이기"]:
             if pokemon and pokemon.current_hp > 0 and status in pokemon.status:
-                updated = apply_status_condition_damage(pokemon, status)
+                updated = await apply_status_condition_damage(pokemon, status)
                 store.update_pokemon(side, active_index, lambda p: updated)
 
         if pokemon and pokemon.current_hp > 0 and "씨뿌리기" in pokemon.status and (not (pokemon.base.ability and pokemon.base.ability.name == "매직가드")):
@@ -92,7 +92,7 @@ async def apply_end_turn_effects():
     for i, pokemon in enumerate([my_active, enemy_active]):
         side = "my" if i == 0 else "enemy"
         active_index = active_my if side == "my" else active_enemy
-        ability_name = pokemon.base.ability.name if pokemon.base.ability else None
+        ability_name = pokemon.base.ability.name if pokemon.base.ability and pokemon else None
 
         if ability_name == "포이즌힐":
             if "독" in pokemon.status:
@@ -133,7 +133,7 @@ async def apply_end_turn_effects():
         active = active_my if side == "my" else active_enemy
         team = my_team if side == "my" else enemy_team
         pokemon = team[active]
-        reset_pokemon = await reset_state(pokemon)
+        reset_pokemon = reset_state(pokemon)
         store.update_pokemon(side, active, lambda p: reset_pokemon)
         if team[active].locked_move and team[active].locked_move_turn == 0:
             store.update_pokemon(side, active, lambda p: set_locked_move(p, None))

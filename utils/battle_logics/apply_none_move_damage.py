@@ -4,9 +4,9 @@ from context.battle_store import store
 from utils.type_relation import calculate_type_effectiveness
 from p_models.types import WeatherType
 
-async def apply_trap_damage(pokemon: BattlePokemon, trap: List[str]) -> Tuple[BattlePokemon, Optional[str], Optional[str]]:
+async def apply_trap_damage(pokemon: BattlePokemon, trap: List[str]) -> Tuple[Optional[int], Optional[str], Optional[str]]:
     if not pokemon or not pokemon.base:
-        return pokemon, None, None
+        return None, None, None
 
     damage = 0
     log = None
@@ -60,8 +60,7 @@ async def apply_trap_damage(pokemon: BattlePokemon, trap: List[str]) -> Tuple[Ba
                         damage += spike_damage
                         log = f"{pokemon.base.name}은(는) {item}의 피해를 입었다!"
 
-    updated = pokemon.copy_with(current_hp=max(0, pokemon.current_hp - damage))
-    return updated, log, status_condition
+    return damage, log, status_condition
 
 
 async def apply_weather_damage(pokemon: BattlePokemon, weather: WeatherType) -> BattlePokemon:

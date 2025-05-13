@@ -42,10 +42,10 @@ async def calculate_move_damage(
     public_env: PublicBattleEnvironment = state["public_env"]
     
     # Set attacker and defender based on side
-    attacker = my_team[active_my] if side == "my" else enemy_team[active_enemy]
-    defender = enemy_team[active_enemy] if side == "my" else my_team[active_my]
-    my_pokemon = attacker.base 
-    opponent_pokemon = defender.base
+    attacker: BattlePokemon = my_team[active_my] if side == "my" else enemy_team[active_enemy]
+    defender: BattlePokemon = enemy_team[active_enemy] if side == "my" else my_team[active_my]
+    my_pokemon: PokemonInfo = attacker.base 
+    opponent_pokemon: PokemonInfo = defender.base
     opponent_side = "enemy" if side == "my" else "my"
     active_mine = active_my if side == "my" else active_enemy
     active_opponent = active_enemy if side == "my" else active_my
@@ -127,7 +127,7 @@ async def calculate_move_damage(
         print(f"{defender.base.name}는 방어중이여서 {attacker.base.name}의 공격은 실패했다!")
         
         if defender.used_move and defender.used_move.name == "니들가드" and move_info.is_touch:
-            updated_pokemon = apply_thorn_damage(attacker)
+            updated_pokemon = await apply_thorn_damage(attacker)
             store.update_pokemon(side, active_my if side == "my" else active_enemy, lambda p: updated_pokemon)
             print(f"공격 포켓몬의 남은 체력: {defender.current_hp}")
             store.add_log(f"{attacker.base.name}는 가시에 상처를 입었다!")
@@ -619,6 +619,7 @@ def apply_change_effect(
     defender: Optional[PokemonInfo] = None,
     is_multi_hit: bool = False
 ) -> None:
+    print("apply_change_effect 호출")
     state = store.get_state()
     my_team = state["my_team"]
     enemy_team = state["enemy_team"]
@@ -691,8 +692,7 @@ def apply_change_effect(
         
         elif move_info.target == "none":  # 필드에 거는 기술일 경우
             if move_info.trap:  # 독압정, 스텔스록 등
-                store.update_pokemon(opponent_side, active_opponent, 
-                                lambda p: add_trap(p, move_info.trap))
+                add_trap(opponent_side, move_info.trap)
                 store.add_log(f"🥊 {side}는 {move_info.name}을/를 사용했다!")
                 print(f"{side}는 {move_info.name}을/를 사용했다!")
             
