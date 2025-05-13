@@ -116,8 +116,8 @@ def calculate_reward(
     # 6. 승리/패배에 따른 보상
     if done:
         if next_hp > 0:
-            reward += 1.0  # 승리 보상
+            reward += 100.0  # 승리 보상
         else:
-            reward -= 1.0  # 패배 패널티
+            reward -= 20.0  # 패배 패널티
     
     return reward 
