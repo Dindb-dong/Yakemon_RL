@@ -435,7 +435,7 @@ move_datas = [
         affiliation=None,
         accuracy=90,
         critical_rate=0,
-        priority=-1,
+        priority=-5,
         exile=True,
         target='opponent'
     ),

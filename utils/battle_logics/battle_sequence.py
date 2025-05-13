@@ -210,6 +210,7 @@ async def handle_move(
             result: dict[Literal["success", "damage"], Union[bool, int]] = await calculate_move_damage(
                 move_name=move.name,
                 side=side,
+                current_index=current_index,
                 override_power=current_power,
                 was_late=was_late,
                 is_multi_hit=is_triple_hit
@@ -243,7 +244,7 @@ async def handle_move(
             store.add_log(f"{attacker.base.name}의 타입은 {move.type}타입으로 변했다!")
             print(f"{attacker.base.name}의 타입은 {move.type}타입으로 변했다!")
 
-        result = await calculate_move_damage(move_name=move.name, side=side, was_late=was_late)
+        result = await calculate_move_damage(move_name=move.name, side=side, current_index=current_index, was_late=was_late)
         print("1번째 타격!")
         if result and result["success"]:
             state: BattleStoreState = store.get_state()
@@ -267,6 +268,7 @@ async def handle_move(
                 result = await calculate_move_damage(
                     move_name=move.name,
                     side=side,
+                    current_index=current_index,
                     is_always_hit=True,
                     was_late=was_late,
                     is_multi_hit=True
@@ -298,7 +300,7 @@ async def handle_move(
             store.add_log(f"🔃 {attacker.base.name}의 타입은 {move.type}타입으로 변했다!")
             print(f"{attacker.base.name}의 타입은 {move.type}타입으로 변했다!")
 
-        result = await calculate_move_damage(move_name=move.name, side=side, was_late=was_late)
+        result = await calculate_move_damage(move_name=move.name, side=side, current_index=current_index, was_late=was_late)
         if result and result["success"]:
             if defender and defender.base.ability and defender.base.ability.name == "매직가드" and move.category == "변화":
                 store.add_log(f"{defender.base.name}은 매직가드로 피해를 입지 않았다!")

@@ -20,10 +20,23 @@ UNMAIN_STATUS_CONDITION_WITH_DURATION = [
 MAIN_STATUS_CONDITION = ['화상', '마비', '잠듦', '얼음', '독', '맹독']
 
 
-async def switch_pokemon(side: SideType, new_index: int, baton_touch: bool = False):
+async def switch_pokemon(side: SideType, new_index: int, baton_touch: bool = False) -> None:
+    """
+    포켓몬 교체 함수
+    
+    Args:
+        side: 'my' 또는 'enemy'
+        new_index: 교체할 포켓몬의 인덱스
+        baton_touch: 배턴터치로 인한 교체인지 여부
+    """
     state: BattleStoreState = store.get_state()
     team = state["my_team"] if side == "my" else state["enemy_team"]
     current_index = state["active_my"] if side == "my" else state["active_enemy"]
+    
+    # 현재 포켓몬과 교체하려는 포켓몬이 같으면 조기 종료
+    if current_index == new_index:
+        return
+        
     env = state["my_env"] if side == "my" else state["enemy_env"]
     switching_pokemon = team[current_index]
     next_pokemon = team[new_index]
@@ -101,7 +114,9 @@ async def switch_pokemon(side: SideType, new_index: int, baton_touch: bool = Fal
 
     if team[new_index].current_hp <= 0 and side == "enemy":
         switch_index = get_best_switch_index(side)
-        await switch_pokemon(side, switch_index)
+        if switch_index != -1 and switch_index != new_index:  # 새로운 인덱스가 다를 때만 재귀 호출
+            await switch_pokemon(side, switch_index)
+        return
     else:
         wncp = "나" if side == "my" else "상대"
         store.add_log(f"{wncp}는 {team[new_index].base.name}을/를 내보냈다!")

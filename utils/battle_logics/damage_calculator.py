@@ -27,6 +27,7 @@ SideType = Literal["my", "enemy"]
 async def calculate_move_damage(
     move_name: str,
     side: SideType,
+    current_index: int,
     is_always_hit: bool = False,
     additional_damage: Optional[int] = None,
     override_power: Optional[int] = None,
@@ -39,8 +40,10 @@ async def calculate_move_damage(
     enemy_team: List[BattlePokemon] = state["enemy_team"]
     active_my: int = state["active_my"]
     active_enemy: int = state["active_enemy"]
+    active_index: int = active_my if side == "my" else active_enemy
     public_env: PublicBattleEnvironment = state["public_env"]
-    
+    if (current_index != active_index): # 강제교체 당해서 공격 못함
+        return {"success": False}
     # Set attacker and defender based on side
     attacker: BattlePokemon = my_team[active_my] if side == "my" else enemy_team[active_enemy]
     defender: BattlePokemon = enemy_team[active_enemy] if side == "my" else my_team[active_my]

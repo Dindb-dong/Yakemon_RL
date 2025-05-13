@@ -23,6 +23,7 @@ def get_best_switch_index(side: str) -> int:
     # 교체 가능한 포켓몬들의 점수 계산
     scores = []
     for i, pokemon in enumerate(my_team):
+        # 현재 포켓몬이거나 쓰러진 포켓몬은 제외
         if i == active_my or pokemon.current_hp <= 0:
             scores.append(float('-inf'))
             continue
@@ -42,6 +43,10 @@ def get_best_switch_index(side: str) -> int:
         # 최종 점수 계산
         total_score = hp_score + type_score + status_score
         scores.append(total_score)
+    
+    # 모든 포켓몬이 쓰러졌거나 교체할 수 없는 경우
+    if all(score == float('-inf') for score in scores):
+        return -1
     
     # 가장 높은 점수를 가진 포켓몬의 인덱스 반환
     return scores.index(max(scores))
