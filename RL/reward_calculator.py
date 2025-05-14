@@ -62,7 +62,7 @@ def calculate_reward(
             
             # 효과가 없는 기술 사용에 대한 패널티
             if type_effectiveness == 0:
-                reward -= 0.3  # 효과가 없는 기술 사용 패널티
+                reward -= 3  # 효과가 없는 기술 사용 패널티
                 
             # 특성으로 인한 역효과에 대한 패널티
             if target_pokemon.base.ability:
@@ -103,21 +103,77 @@ def calculate_reward(
         if 0 <= switch_index < len(my_team):
             next_pokemon = my_team[switch_index]
             if next_pokemon.current_hp > current_pokemon.current_hp:
-                reward += 0.2  # 더 높은 HP를 가진 포켓몬으로 교체
+                reward += 0.1  # 더 높은 HP를 가진 포켓몬으로 교체
             if any(t in next_pokemon.base.types for t in target_pokemon.base.types):
                 reward += 0.3  # 유리한 타입으로 교체
     
-    # # 5. 환경 효과에 따른 보상
-    # if public_env['weather'] and public_env['weather'] in current_pokemon.weather_boost:
-    #     reward += 0.2  # 날씨 효과 활용
-    # if public_env['field'] and public_env['field'] in current_pokemon.field_boost:
-    #     reward += 0.2  # 필드 효과 활용
+    # 5. 랭크업/다운에 따른 보상
+    if action < 4:  # 기술 사용
+        move = current_pokemon.base.moves[action]
+        
+        # 스피드 비교
+        my_speed = current_pokemon.base.speed
+        enemy_speed = target_pokemon.base.speed
+        
+        # 모든 효과에 대해 랭크업/다운 확인
+        for effect in move.effects:
+            if effect.stat_change and effect.chance >= 0.5:
+                for stat_change in effect.stat_change:
+                    # 자신의 스탯 변화
+                    if stat_change.target == 'self':
+                        # 랭크업
+                        if stat_change.change > 0:
+                            # 스피드 랭크업
+                            if stat_change.stat == 'speed':
+                                if my_speed < enemy_speed:
+                                    reward += 0.5  # 상대보다 느린 상태에서 스피드 랭크업
+                                else:
+                                    reward += 0.2  # 일반적인 스피드 랭크업
+                            
+                            # 공격/특수공격 랭크업
+                            elif stat_change.stat in ['attack', 'sp_attack']:
+                                if my_speed > enemy_speed:
+                                    reward += 0.4  # 상대보다 빠른 상태에서 공격력 랭크업
+                                else:
+                                    reward += 0.2  # 일반적인 공격력 랭크업
+                            
+                            # 방어/특수방어 랭크업
+                            elif stat_change.stat in ['defense', 'sp_defense']:
+                                reward += 0.2  # 방어력 랭크업
+                        
+                        # 랭크다운 (자신의 랭크가 깎일 때)
+                        elif stat_change.change < 0:
+                            reward -= 0.3  # 자신의 랭크 다운에 대한 패널티
+                    
+                    # 상대의 스탯 변화
+                    elif stat_change.target == 'opponent':
+                        # 랭크다운
+                        if stat_change.change < 0:
+                            # 스피드 랭크다운
+                            if stat_change.stat == 'speed':
+                                if my_speed < enemy_speed:
+                                    reward += 0.5  # 상대보다 느린 상태에서 상대 스피드 다운
+                                else:
+                                    reward += 0.2  # 일반적인 상대 스피드 다운
+                            
+                            # 공격/특수공격 랭크다운
+                            elif stat_change.stat in ['attack', 'sp_attack']:
+                                reward += 0.3  # 상대 공격력 다운
+                            
+                            # 방어/특수방어 랭크다운
+                            elif stat_change.stat in ['defense', 'sp_defense']:
+                                reward += 0.2  # 상대 방어력 다운
+    
+    # 5-2. 랭크 다운에 대한 일반적인 패널티 (기술과 관계없이)
+    for stat in ['attack', 'defense', 'sp_attack', 'sp_defense', 'speed']:
+        if current_pokemon.rank.get(stat, 0) < 0:
+            reward -= 0.3  # 랭크 다운에 대한 패널티
     
     # 6. 승리/패배에 따른 보상
     if done:
         if next_hp > 0:
             reward += 100.0  # 승리 보상
         else:
-            reward -= 20.0  # 패배 패널티
+            reward -= 100.0  # 패배 패널티
     
     return reward 

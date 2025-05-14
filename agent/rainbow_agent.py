@@ -605,7 +605,8 @@ class DQNAgent:
         
         # PER: update priorities
         loss_for_prior = elementwise_loss.detach().cpu().numpy()
-        new_priorities = loss_for_prior + self.prior_eps
+        # Ensure all priorities are positive and above a minimum threshold
+        new_priorities = np.clip(np.abs(loss_for_prior), 1e-6, None) + self.prior_eps
         self.memory.update_priorities(indices, new_priorities)
         
         # NoisyNet: reset noise
@@ -724,9 +725,10 @@ class DQNAgent:
             proj_dist.view(-1).index_add_(
                 0, (u.clamp(max=self.atom_size - 1) + offset).view(-1), (next_dist * (b - l.float())).view(-1)
             )
+            proj_dist = proj_dist + 1e-6  # Add small epsilon to avoid zero values
 
         dist = self.dqn.dist(state)
-        log_p = torch.log(dist[range(self.batch_size), action])
+        log_p = torch.log(dist[range(self.batch_size), action] + 1e-6)  # Add small epsilon to avoid log(0)
         elementwise_loss = -(proj_dist * log_p).sum(1)
 
         return elementwise_loss
