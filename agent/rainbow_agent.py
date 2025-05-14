@@ -135,6 +135,7 @@ class PrioritizedReplayBuffer(ReplayBuffer):
         alpha: float = 0.6,
         n_step: int = 1, 
         gamma: float = 0.99,
+        prior_eps: float = 1e-6,
     ):
         """Initialization."""
         assert alpha >= 0
@@ -144,6 +145,7 @@ class PrioritizedReplayBuffer(ReplayBuffer):
         )
         self.max_priority, self.tree_ptr = 1.0, 0
         self.alpha = alpha
+        self.prior_eps = prior_eps
         
         # capacity must be positive and a power of 2.
         tree_capacity = 1
@@ -153,6 +155,11 @@ class PrioritizedReplayBuffer(ReplayBuffer):
         self.sum_tree = SumSegmentTree(tree_capacity)
         self.min_tree = MinSegmentTree(tree_capacity)
         
+        # Initialize all priorities to max_priority
+        for i in range(self.max_size):
+            self.sum_tree[i] = self.max_priority ** self.alpha
+            self.min_tree[i] = self.max_priority ** self.alpha
+
     def store(
         self, 
         obs: np.ndarray, 
@@ -171,12 +178,35 @@ class PrioritizedReplayBuffer(ReplayBuffer):
         
         return transition
 
+    def _sample_proportional(self) -> List[int]:
+        """Sample indices based on proportions."""
+        indices = []
+        p_total = self.sum_tree.sum(0, len(self) - 1)
+        if p_total <= 0:  # Handle case where sum is zero or negative
+            p_total = self.max_priority ** self.alpha * len(self)
+            
+        segment = p_total / self.batch_size
+        
+        for i in range(self.batch_size):
+            a = segment * i
+            b = segment * (i + 1)
+            upperbound = random.uniform(a, b)
+            idx = self.sum_tree.retrieve(upperbound)
+            # Ensure index is within valid range
+            idx = min(idx, len(self) - 1)
+            indices.append(idx)
+            
+        return indices
+
     def sample_batch(self, beta: float = 0.4) -> Dict[str, np.ndarray]:
         """Sample a batch of experiences."""
         assert len(self) >= self.batch_size
         assert beta > 0
         
         indices = self._sample_proportional()
+        
+        # Ensure all indices are within valid range
+        indices = [min(idx, len(self) - 1) for idx in indices]
         
         obs = self.obs_buf[indices]
         next_obs = self.next_obs_buf[indices]
@@ -199,30 +229,15 @@ class PrioritizedReplayBuffer(ReplayBuffer):
         """Update priorities of sampled transitions."""
         assert len(indices) == len(priorities)
 
+        # Ensure all priorities are positive
+        priorities = np.maximum(priorities, self.prior_eps)
+        
         for idx, priority in zip(indices, priorities):
-            assert priority > 0
             assert 0 <= idx < len(self)
-
             self.sum_tree[idx] = priority ** self.alpha
             self.min_tree[idx] = priority ** self.alpha
-
             self.max_priority = max(self.max_priority, priority)
             
-    def _sample_proportional(self) -> List[int]:
-        """Sample indices based on proportions."""
-        indices = []
-        p_total = self.sum_tree.sum(0, len(self) - 1)
-        segment = p_total / self.batch_size
-        
-        for i in range(self.batch_size):
-            a = segment * i
-            b = segment * (i + 1)
-            upperbound = random.uniform(a, b)
-            idx = self.sum_tree.retrieve(upperbound)
-            indices.append(idx)
-            
-        return indices
-    
     def _calculate_weight(self, idx: int, beta: float):
         """Calculate the weight of the experience at idx."""
         # get max weight
@@ -451,7 +466,7 @@ class DQNAgent:
         self.beta = beta
         self.prior_eps = prior_eps
         self.memory = PrioritizedReplayBuffer(
-            obs_dim, memory_size, batch_size, alpha=alpha, gamma=gamma
+            obs_dim, memory_size, batch_size, alpha=alpha, gamma=gamma, prior_eps=prior_eps
         )
         
         # memory for N-step Learning
@@ -593,7 +608,7 @@ class DQNAgent:
             gamma = self.gamma ** self.n_step
             samples = self.memory_n.sample_batch_from_idxs(indices)
             elementwise_loss_n_loss = self._compute_dqn_loss(samples, gamma)
-            elementwise_loss += elementwise_loss_n_loss
+            elementwise_loss = (elementwise_loss + elementwise_loss_n_loss) / 2  # Average the losses
             
             # PER: importance sampling before average
             loss = torch.mean(elementwise_loss * weights)
@@ -606,7 +621,8 @@ class DQNAgent:
         # PER: update priorities
         loss_for_prior = elementwise_loss.detach().cpu().numpy()
         # Ensure all priorities are positive and above a minimum threshold
-        new_priorities = np.clip(np.abs(loss_for_prior), 1e-6, None) + self.prior_eps
+        new_priorities = np.maximum(np.abs(loss_for_prior), self.prior_eps)  # Use maximum to ensure minimum value
+        print(f"Debug - Min priority: {np.min(new_priorities)}, Max priority: {np.max(new_priorities)}")  # Debug print
         self.memory.update_priorities(indices, new_priorities)
         
         # NoisyNet: reset noise

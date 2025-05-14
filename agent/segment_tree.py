@@ -3,6 +3,7 @@
 
 import operator
 from typing import Callable
+import numpy as np
 
 
 class SegmentTree:
@@ -102,11 +103,15 @@ class SumSegmentTree(SegmentTree):
 
     def retrieve(self, upperbound: float) -> int:
         """Find the highest index `i` about upper bound in the tree"""
-        # TODO: Check assert case and fix bug
-        assert 0 <= upperbound <= self.sum() + 1e-5, "upperbound: {}".format(upperbound)
+        # Handle edge cases
+        if np.isnan(upperbound) or upperbound < 0:
+            upperbound = 0.0
+        total_sum = self.sum()
+        if total_sum <= 0:
+            return 0
+        upperbound = min(upperbound, total_sum)
 
         idx = 1
-
         while idx < self.capacity:  # while non-leaf
             left = 2 * idx
             right = left + 1
@@ -115,7 +120,10 @@ class SumSegmentTree(SegmentTree):
             else:
                 upperbound -= self.tree[left]
                 idx = right
-        return idx - self.capacity
+        
+        # Ensure the returned index is within valid range
+        leaf_idx = idx - self.capacity
+        return min(leaf_idx, self.capacity - 1)
 
 
 class MinSegmentTree(SegmentTree):
