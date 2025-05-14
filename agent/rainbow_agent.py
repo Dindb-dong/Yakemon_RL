@@ -1,867 +1,753 @@
-"""
-Deep Q-Networks (DQN, Rainbow, Parametric DQN)
-==============================================
+import math
+import os
+import random
+from collections import deque
+from typing import Deque, Dict, List, Tuple
 
-This file defines the distributed Algorithm class for the Deep Q-Networks
-algorithm. See `dqn_[tf|torch]_policy.py` for the definition of the policies.
-
-Detailed documentation:
-https://docs.ray.io/en/master/rllib-algorithms.html#deep-q-networks-dqn-rainbow-parametric-dqn
-"""  # noqa: E501
-
-from collections import defaultdict
-import logging
-from typing import Any, Callable, Dict, List, Optional, Tuple, Type, Union
+import gymnasium as gym
+from gymnasium.spaces import MultiDiscrete
+import matplotlib.pyplot as plt
 import numpy as np
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+import torch.optim as optim
+from IPython.display import clear_output
+from torch.nn.utils import clip_grad_norm_
 
-from ray.rllib.algorithms.algorithm import Algorithm
-from ray.rllib.algorithms.algorithm_config import AlgorithmConfig, NotProvided
-from ray.rllib.algorithms.dqn.dqn_tf_policy import DQNTFPolicy
-from ray.rllib.algorithms.dqn.dqn_torch_policy import DQNTorchPolicy
-from ray.rllib.core.learner import Learner
-from ray.rllib.core.rl_module.rl_module import RLModuleSpec
-from ray.rllib.execution.rollout_ops import (
-    synchronous_parallel_sample,
-)
-from ray.rllib.policy.sample_batch import MultiAgentBatch
-from ray.rllib.execution.train_ops import (
-    train_one_step,
-    multi_gpu_train_one_step,
-)
-from ray.rllib.policy.policy import Policy
-from ray.rllib.utils import deep_update
-from ray.rllib.utils.annotations import override
-from ray.rllib.utils.numpy import convert_to_numpy
-from ray.rllib.utils.replay_buffers.utils import (
-    update_priorities_in_episode_replay_buffer,
-    update_priorities_in_replay_buffer,
-    validate_buffer_config,
-)
-from ray.rllib.utils.typing import ResultDict
-from ray.rllib.utils.metrics import (
-    ALL_MODULES,
-    ENV_RUNNER_RESULTS,
-    ENV_RUNNER_SAMPLING_TIMER,
-    LAST_TARGET_UPDATE_TS,
-    LEARNER_RESULTS,
-    LEARNER_UPDATE_TIMER,
-    NUM_AGENT_STEPS_SAMPLED,
-    NUM_AGENT_STEPS_SAMPLED_LIFETIME,
-    NUM_ENV_STEPS_SAMPLED,
-    NUM_ENV_STEPS_SAMPLED_LIFETIME,
-    NUM_TARGET_UPDATES,
-    REPLAY_BUFFER_ADD_DATA_TIMER,
-    REPLAY_BUFFER_RESULTS,
-    REPLAY_BUFFER_SAMPLE_TIMER,
-    REPLAY_BUFFER_UPDATE_PRIOS_TIMER,
-    SAMPLE_TIMER,
-    SYNCH_WORKER_WEIGHTS_TIMER,
-    TD_ERROR_KEY,
-    TIMERS,
-)
-from ray.rllib.utils.deprecation import DEPRECATED_VALUE
-from ray.rllib.utils.replay_buffers.utils import sample_min_n_steps_from_buffer
-from ray.rllib.utils.typing import (
-    LearningRateOrSchedule,
-    RLModuleSpecType,
-    SampleBatchType,
-)
+from .segment_tree import MinSegmentTree, SumSegmentTree
 
-logger = logging.getLogger(__name__)
+class ReplayBuffer:
+    """A simple numpy replay buffer."""
 
+    def __init__(
+        self, 
+        obs_dim: int, 
+        size: int, 
+        batch_size: int = 32, 
+        n_step: int = 1, 
+        gamma: float = 0.99
+    ):
+        self.obs_buf = np.zeros([size, obs_dim], dtype=np.float32)
+        self.next_obs_buf = np.zeros([size, obs_dim], dtype=np.float32)
+        self.acts_buf = np.zeros([size], dtype=np.float32)
+        self.rews_buf = np.zeros([size], dtype=np.float32)
+        self.done_buf = np.zeros(size, dtype=np.float32)
+        self.max_size, self.batch_size = size, batch_size
+        self.ptr, self.size, = 0, 0
+        
+        # for N-step Learning
+        self.n_step_buffer = deque(maxlen=n_step)
+        self.n_step = n_step
+        self.gamma = gamma
 
+    def store(
+        self, 
+        obs: np.ndarray, 
+        act: np.ndarray, 
+        rew: float, 
+        next_obs: np.ndarray, 
+        done: bool,
+    ) -> Tuple[np.ndarray, np.ndarray, float, np.ndarray, bool]:
+        transition = (obs, act, rew, next_obs, done)
+        self.n_step_buffer.append(transition)
 
-class DQNConfig(AlgorithmConfig):
-    r"""Defines a configuration class from which a DQN Algorithm can be built.
-
-    .. testcode::
-
-        from ray.rllib.algorithms.dqn.dqn import DQNConfig
-
-        config = (
-            DQNConfig()
-            .environment("CartPole-v1")
-            .training(replay_buffer_config={
-                "type": "PrioritizedEpisodeReplayBuffer",
-                "capacity": 60000,
-                "alpha": 0.5,
-                "beta": 0.5,
-            })
-            .env_runners(num_env_runners=1)
+        # single step transition is not ready
+        if len(self.n_step_buffer) < self.n_step:
+            return ()
+        
+        # make a n-step transition
+        rew, next_obs, done = self._get_n_step_info(
+            self.n_step_buffer, self.gamma
         )
-        algo = config.build()
-        algo.train()
-        algo.stop()
+        obs, act = self.n_step_buffer[0][:2]
+        
+        self.obs_buf[self.ptr] = obs
+        self.next_obs_buf[self.ptr] = next_obs
+        self.acts_buf[self.ptr] = act
+        self.rews_buf[self.ptr] = rew
+        self.done_buf[self.ptr] = done
+        self.ptr = (self.ptr + 1) % self.max_size
+        self.size = min(self.size + 1, self.max_size)
+        
+        return self.n_step_buffer[0]
 
-    .. testcode::
+    def sample_batch(self) -> Dict[str, np.ndarray]:
+        idxs = np.random.choice(self.size, size=self.batch_size, replace=False)
 
-        from ray.rllib.algorithms.dqn.dqn import DQNConfig
-        from ray import tune
-
-        config = (
-            DQNConfig()
-            .environment("CartPole-v1")
-            .training(
-                num_atoms=tune.grid_search([1,])
-            )
+        return dict(
+            obs=self.obs_buf[idxs],
+            next_obs=self.next_obs_buf[idxs],
+            acts=self.acts_buf[idxs],
+            rews=self.rews_buf[idxs],
+            done=self.done_buf[idxs],
+            # for N-step Learning
+            indices=idxs,
         )
-        tune.Tuner(
-            "DQN",
-            run_config=tune.RunConfig(stop={"training_iteration":1}),
-            param_space=config,
-        ).fit()
+    
+    def sample_batch_from_idxs(
+        self, idxs: np.ndarray
+    ) -> Dict[str, np.ndarray]:
+        # for N-step Learning
+        return dict(
+            obs=self.obs_buf[idxs],
+            next_obs=self.next_obs_buf[idxs],
+            acts=self.acts_buf[idxs],
+            rews=self.rews_buf[idxs],
+            done=self.done_buf[idxs],
+        )
+    
+    def _get_n_step_info(
+        self, n_step_buffer: Deque, gamma: float
+    ) -> Tuple[np.int64, np.ndarray, bool]:
+        """Return n step rew, next_obs, and done."""
+        # info of the last transition
+        rew, next_obs, done = n_step_buffer[-1][-3:]
 
-    .. testoutput::
-        :hide:
+        for transition in reversed(list(n_step_buffer)[:-1]):
+            r, n_o, d = transition[-3:]
 
-        ...
+            rew = r + gamma * rew * (1 - d)
+            next_obs, done = (n_o, d) if d else (next_obs, done)
 
+        return rew, next_obs, done
 
+    def __len__(self) -> int:
+        return self.size
+
+class PrioritizedReplayBuffer(ReplayBuffer):
+    """Prioritized Replay buffer.
+    
+    Attributes:
+        max_priority (float): max priority
+        tree_ptr (int): next index of tree
+        alpha (float): alpha parameter for prioritized replay buffer
+        sum_tree (SumSegmentTree): sum tree for prior
+        min_tree (MinSegmentTree): min tree for min prior to get max weight
+        
+    """
+    
+    def __init__(
+        self, 
+        obs_dim: int, 
+        size: int, 
+        batch_size: int = 32, 
+        alpha: float = 0.6,
+        n_step: int = 1, 
+        gamma: float = 0.99,
+    ):
+        """Initialization."""
+        assert alpha >= 0
+        
+        super(PrioritizedReplayBuffer, self).__init__(
+            obs_dim, size, batch_size, n_step, gamma
+        )
+        self.max_priority, self.tree_ptr = 1.0, 0
+        self.alpha = alpha
+        
+        # capacity must be positive and a power of 2.
+        tree_capacity = 1
+        while tree_capacity < self.max_size:
+            tree_capacity *= 2
+
+        self.sum_tree = SumSegmentTree(tree_capacity)
+        self.min_tree = MinSegmentTree(tree_capacity)
+        
+    def store(
+        self, 
+        obs: np.ndarray, 
+        act: int, 
+        rew: float, 
+        next_obs: np.ndarray, 
+        done: bool,
+    ) -> Tuple[np.ndarray, np.ndarray, float, np.ndarray, bool]:
+        """Store experience and priority."""
+        transition = super().store(obs, act, rew, next_obs, done)
+        
+        if transition:
+            self.sum_tree[self.tree_ptr] = self.max_priority ** self.alpha
+            self.min_tree[self.tree_ptr] = self.max_priority ** self.alpha
+            self.tree_ptr = (self.tree_ptr + 1) % self.max_size
+        
+        return transition
+
+    def sample_batch(self, beta: float = 0.4) -> Dict[str, np.ndarray]:
+        """Sample a batch of experiences."""
+        assert len(self) >= self.batch_size
+        assert beta > 0
+        
+        indices = self._sample_proportional()
+        
+        obs = self.obs_buf[indices]
+        next_obs = self.next_obs_buf[indices]
+        acts = self.acts_buf[indices]
+        rews = self.rews_buf[indices]
+        done = self.done_buf[indices]
+        weights = np.array([self._calculate_weight(i, beta) for i in indices])
+        
+        return dict(
+            obs=obs,
+            next_obs=next_obs,
+            acts=acts,
+            rews=rews,
+            done=done,
+            weights=weights,
+            indices=indices,
+        )
+        
+    def update_priorities(self, indices: List[int], priorities: np.ndarray):
+        """Update priorities of sampled transitions."""
+        assert len(indices) == len(priorities)
+
+        for idx, priority in zip(indices, priorities):
+            assert priority > 0
+            assert 0 <= idx < len(self)
+
+            self.sum_tree[idx] = priority ** self.alpha
+            self.min_tree[idx] = priority ** self.alpha
+
+            self.max_priority = max(self.max_priority, priority)
+            
+    def _sample_proportional(self) -> List[int]:
+        """Sample indices based on proportions."""
+        indices = []
+        p_total = self.sum_tree.sum(0, len(self) - 1)
+        segment = p_total / self.batch_size
+        
+        for i in range(self.batch_size):
+            a = segment * i
+            b = segment * (i + 1)
+            upperbound = random.uniform(a, b)
+            idx = self.sum_tree.retrieve(upperbound)
+            indices.append(idx)
+            
+        return indices
+    
+    def _calculate_weight(self, idx: int, beta: float):
+        """Calculate the weight of the experience at idx."""
+        # get max weight
+        p_min = self.min_tree.min() / self.sum_tree.sum()
+        max_weight = (p_min * len(self)) ** (-beta)
+        
+        # calculate weights
+        p_sample = self.sum_tree[idx] / self.sum_tree.sum()
+        weight = (p_sample * len(self)) ** (-beta)
+        weight = weight / max_weight
+        
+        return weight
+    
+
+class NoisyLinear(nn.Module):
+    """Noisy linear module for NoisyNet.
+    
+    
+        
+    Attributes:
+        in_features (int): input size of linear module
+        out_features (int): output size of linear module
+        std_init (float): initial std value
+        weight_mu (nn.Parameter): mean value weight parameter
+        weight_sigma (nn.Parameter): std value weight parameter
+        bias_mu (nn.Parameter): mean value bias parameter
+        bias_sigma (nn.Parameter): std value bias parameter
+        
     """
 
-    def __init__(self, algo_class=None):
-        """Initializes a DQNConfig instance."""
-        self.exploration_config = {
-            "type": "EpsilonGreedy",
-            "initial_epsilon": 1.0,
-            "final_epsilon": 0.02,
-            "epsilon_timesteps": 10000,
-        }
+    def __init__(
+        self, 
+        in_features: int, 
+        out_features: int, 
+        std_init: float = 0.5,
+    ):
+        """Initialization."""
+        super(NoisyLinear, self).__init__()
+        
+        self.in_features = in_features
+        self.out_features = out_features
+        self.std_init = std_init
 
-        super().__init__(algo_class=algo_class or DQN)
-
-        # Overrides of AlgorithmConfig defaults
-        # `env_runners()`
-        # Set to `self.n_step`, if 'auto'.
-        self.rollout_fragment_length: Union[int, str] = "auto"
-        # New stack uses `epsilon` as either a constant value or a scheduler
-        # defined like this.
-        # TODO (simon): Ensure that users can understand how to provide epsilon.
-        #  (sven): Should we add this to `self.env_runners(epsilon=..)`?
-        self.epsilon = [(0, 1.0), (10000, 0.05)]
-
-        # `training()`
-        self.grad_clip = 40.0
-        # Note: Only when using enable_rl_module_and_learner=True can the clipping mode
-        # be configured by the user. On the old API stack, RLlib will always clip by
-        # global_norm, no matter the value of `grad_clip_by`.
-        self.grad_clip_by = "global_norm"
-        self.lr = 5e-4
-        self.train_batch_size = 32
-
-        # `evaluation()`
-        self.evaluation(evaluation_config=AlgorithmConfig.overrides(explore=False))
-
-        # `reporting()`
-        self.min_time_s_per_iteration = None
-        self.min_sample_timesteps_per_iteration = 1000
-
-        # DQN specific config settings.
-        # fmt: off
-        # __sphinx_doc_begin__
-        self.target_network_update_freq = 500
-        self.num_steps_sampled_before_learning_starts = 1000
-        self.store_buffer_in_checkpoints = False
-        self.adam_epsilon = 1e-8
-
-        self.tau = 1.0
-
-        self.num_atoms = 1
-        self.v_min = -10.0
-        self.v_max = 10.0
-        self.noisy = False
-        self.sigma0 = 0.5
-        self.dueling = True
-        self.hiddens = [256]
-        self.double_q = True
-        self.n_step = 1
-        self.before_learn_on_batch = None
-        self.training_intensity = None
-        self.td_error_loss_fn = "huber"
-        self.categorical_distribution_temperature = 1.0
-        # The burn-in for stateful `RLModule`s.
-        self.burn_in_len = 0
-
-        # Replay buffer configuration.
-        self.replay_buffer_config = {
-            "type": "PrioritizedEpisodeReplayBuffer",
-            # Size of the replay buffer. Note that if async_updates is set,
-            # then each worker will have a replay buffer of this size.
-            "capacity": 50000,
-            "alpha": 0.6,
-            # Beta parameter for sampling from prioritized replay buffer.
-            "beta": 0.4,
-        }
-        # fmt: on
-        # __sphinx_doc_end__
-
-        self.lr_schedule = None  # @OldAPIStack
-
-        # Deprecated
-        self.buffer_size = DEPRECATED_VALUE
-        self.prioritized_replay = DEPRECATED_VALUE
-        self.learning_starts = DEPRECATED_VALUE
-        self.replay_batch_size = DEPRECATED_VALUE
-        # Can not use DEPRECATED_VALUE here because -1 is a common config value
-        self.replay_sequence_length = None
-        self.prioritized_replay_alpha = DEPRECATED_VALUE
-        self.prioritized_replay_beta = DEPRECATED_VALUE
-        self.prioritized_replay_eps = DEPRECATED_VALUE
-
-
-    @override(AlgorithmConfig)
-    def training(
-        self,
-        *,
-        target_network_update_freq: Optional[int] = NotProvided,
-        replay_buffer_config: Optional[dict] = NotProvided,
-        store_buffer_in_checkpoints: Optional[bool] = NotProvided,
-        lr_schedule: Optional[List[List[Union[int, float]]]] = NotProvided,
-        epsilon: Optional[LearningRateOrSchedule] = NotProvided,
-        adam_epsilon: Optional[float] = NotProvided,
-        grad_clip: Optional[int] = NotProvided,
-        num_steps_sampled_before_learning_starts: Optional[int] = NotProvided,
-        tau: Optional[float] = NotProvided,
-        num_atoms: Optional[int] = NotProvided,
-        v_min: Optional[float] = NotProvided,
-        v_max: Optional[float] = NotProvided,
-        noisy: Optional[bool] = NotProvided,
-        sigma0: Optional[float] = NotProvided,
-        dueling: Optional[bool] = NotProvided,
-        hiddens: Optional[int] = NotProvided,
-        double_q: Optional[bool] = NotProvided,
-        n_step: Optional[Union[int, Tuple[int, int]]] = NotProvided,
-        before_learn_on_batch: Callable[
-            [Type[MultiAgentBatch], List[Type[Policy]], Type[int]],
-            Type[MultiAgentBatch],
-        ] = NotProvided,
-        training_intensity: Optional[float] = NotProvided,
-        td_error_loss_fn: Optional[str] = NotProvided,
-        categorical_distribution_temperature: Optional[float] = NotProvided,
-        burn_in_len: Optional[int] = NotProvided,
-        **kwargs,
-    ) -> "DQNConfig":
-        """Sets the training related configuration.
-
-        Args:
-            target_network_update_freq: Update the target network every
-                `target_network_update_freq` sample steps.
-            replay_buffer_config: Replay buffer config.
-                Examples:
-                {
-                "_enable_replay_buffer_api": True,
-                "type": "MultiAgentReplayBuffer",
-                "capacity": 50000,
-                "replay_sequence_length": 1,
-                }
-                - OR -
-                {
-                "_enable_replay_buffer_api": True,
-                "type": "MultiAgentPrioritizedReplayBuffer",
-                "capacity": 50000,
-                "prioritized_replay_alpha": 0.6,
-                "prioritized_replay_beta": 0.4,
-                "prioritized_replay_eps": 1e-6,
-                "replay_sequence_length": 1,
-                }
-                - Where -
-                prioritized_replay_alpha: Alpha parameter controls the degree of
-                prioritization in the buffer. In other words, when a buffer sample has
-                a higher temporal-difference error, with how much more probability
-                should it drawn to use to update the parametrized Q-network. 0.0
-                corresponds to uniform probability. Setting much above 1.0 may quickly
-                result as the sampling distribution could become heavily “pointy” with
-                low entropy.
-                prioritized_replay_beta: Beta parameter controls the degree of
-                importance sampling which suppresses the influence of gradient updates
-                from samples that have higher probability of being sampled via alpha
-                parameter and the temporal-difference error.
-                prioritized_replay_eps: Epsilon parameter sets the baseline probability
-                for sampling so that when the temporal-difference error of a sample is
-                zero, there is still a chance of drawing the sample.
-            store_buffer_in_checkpoints: Set this to True, if you want the contents of
-                your buffer(s) to be stored in any saved checkpoints as well.
-                Warnings will be created if:
-                - This is True AND restoring from a checkpoint that contains no buffer
-                data.
-                - This is False AND restoring from a checkpoint that does contain
-                buffer data.
-            epsilon: Epsilon exploration schedule. In the format of [[timestep, value],
-                [timestep, value], ...]. A schedule must start from
-                timestep 0.
-            adam_epsilon: Adam optimizer's epsilon hyper parameter.
-            grad_clip: If not None, clip gradients during optimization at this value.
-            num_steps_sampled_before_learning_starts: Number of timesteps to collect
-                from rollout workers before we start sampling from replay buffers for
-                learning. Whether we count this in agent steps or environment steps
-                depends on config.multi_agent(count_steps_by=..).
-            tau: Update the target by \tau * policy + (1-\tau) * target_policy.
-            num_atoms: Number of atoms for representing the distribution of return.
-                When this is greater than 1, distributional Q-learning is used.
-            v_min: Minimum value estimation
-            v_max: Maximum value estimation
-            noisy: Whether to use noisy network to aid exploration. This adds parametric
-                noise to the model weights.
-            sigma0: Control the initial parameter noise for noisy nets.
-            dueling: Whether to use dueling DQN.
-            hiddens: Dense-layer setup for each the advantage branch and the value
-                branch
-            double_q: Whether to use double DQN.
-            n_step: N-step target updates. If >1, sars' tuples in trajectories will be
-                postprocessed to become sa[discounted sum of R][s t+n] tuples. An
-                integer will be interpreted as a fixed n-step value. If a tuple of 2
-                ints is provided here, the n-step value will be drawn for each sample(!)
-                in the train batch from a uniform distribution over the closed interval
-                defined by `[n_step[0], n_step[1]]`.
-            before_learn_on_batch: Callback to run before learning on a multi-agent
-                batch of experiences.
-            training_intensity: The intensity with which to update the model (vs
-                collecting samples from the env).
-                If None, uses "natural" values of:
-                `train_batch_size` / (`rollout_fragment_length` x `num_env_runners` x
-                `num_envs_per_env_runner`).
-                If not None, will make sure that the ratio between timesteps inserted
-                into and sampled from the buffer matches the given values.
-                Example:
-                training_intensity=1000.0
-                train_batch_size=250
-                rollout_fragment_length=1
-                num_env_runners=1 (or 0)
-                num_envs_per_env_runner=1
-                -> natural value = 250 / 1 = 250.0
-                -> will make sure that replay+train op will be executed 4x asoften as
-                rollout+insert op (4 * 250 = 1000).
-                See: rllib/algorithms/dqn/dqn.py::calculate_rr_weights for further
-                details.
-            td_error_loss_fn: "huber" or "mse". loss function for calculating TD error
-                when num_atoms is 1. Note that if num_atoms is > 1, this parameter
-                is simply ignored, and softmax cross entropy loss will be used.
-            categorical_distribution_temperature: Set the temperature parameter used
-                by Categorical action distribution. A valid temperature is in the range
-                of [0, 1]. Note that this mostly affects evaluation since TD error uses
-                argmax for return calculation.
-            burn_in_len: The burn-in period for a stateful RLModule. It allows the
-                Learner to utilize the initial `burn_in_len` steps in a replay sequence
-                solely for unrolling the network and establishing a typical starting
-                state. The network is then updated on the remaining steps of the
-                sequence. This process helps mitigate issues stemming from a poor
-                initial state - zero or an outdated recorded state. Consider setting
-                this parameter to a positive integer if your stateful RLModule faces
-                convergence challenges or exhibits signs of catastrophic forgetting.
-
-        Returns:
-            This updated AlgorithmConfig object.
-        """
-        # Pass kwargs onto super's `training()` method.
-        super().training(**kwargs)
-
-        if target_network_update_freq is not NotProvided:
-            self.target_network_update_freq = target_network_update_freq
-        if replay_buffer_config is not NotProvided:
-            # Override entire `replay_buffer_config` if `type` key changes.
-            # Update, if `type` key remains the same or is not specified.
-            new_replay_buffer_config = deep_update(
-                {"replay_buffer_config": self.replay_buffer_config},
-                {"replay_buffer_config": replay_buffer_config},
-                False,
-                ["replay_buffer_config"],
-                ["replay_buffer_config"],
-            )
-            self.replay_buffer_config = new_replay_buffer_config["replay_buffer_config"]
-        if store_buffer_in_checkpoints is not NotProvided:
-            self.store_buffer_in_checkpoints = store_buffer_in_checkpoints
-        if lr_schedule is not NotProvided:
-            self.lr_schedule = lr_schedule
-        if epsilon is not NotProvided:
-            self.epsilon = epsilon
-        if adam_epsilon is not NotProvided:
-            self.adam_epsilon = adam_epsilon
-        if grad_clip is not NotProvided:
-            self.grad_clip = grad_clip
-        if num_steps_sampled_before_learning_starts is not NotProvided:
-            self.num_steps_sampled_before_learning_starts = (
-                num_steps_sampled_before_learning_starts
-            )
-        if tau is not NotProvided:
-            self.tau = tau
-        if num_atoms is not NotProvided:
-            self.num_atoms = num_atoms
-        if v_min is not NotProvided:
-            self.v_min = v_min
-        if v_max is not NotProvided:
-            self.v_max = v_max
-        if noisy is not NotProvided:
-            self.noisy = noisy
-        if sigma0 is not NotProvided:
-            self.sigma0 = sigma0
-        if dueling is not NotProvided:
-            self.dueling = dueling
-        if hiddens is not NotProvided:
-            self.hiddens = hiddens
-        if double_q is not NotProvided:
-            self.double_q = double_q
-        if n_step is not NotProvided:
-            self.n_step = n_step
-        if before_learn_on_batch is not NotProvided:
-            self.before_learn_on_batch = before_learn_on_batch
-        if training_intensity is not NotProvided:
-            self.training_intensity = training_intensity
-        if td_error_loss_fn is not NotProvided:
-            self.td_error_loss_fn = td_error_loss_fn
-        if categorical_distribution_temperature is not NotProvided:
-            self.categorical_distribution_temperature = (
-                categorical_distribution_temperature
-            )
-        if burn_in_len is not NotProvided:
-            self.burn_in_len = burn_in_len
-
-        return self
-
-
-
-    @override(AlgorithmConfig)
-    def validate(self) -> None:
-        # Call super's validation method.
-        super().validate()
-
-        if self.enable_rl_module_and_learner:
-            # `lr_schedule` checking.
-            if self.lr_schedule is not None:
-                self._value_error(
-                    "`lr_schedule` is deprecated and must be None! Use the "
-                    "`lr` setting to setup a schedule."
-                )
-        else:
-            if not self.in_evaluation:
-                validate_buffer_config(self)
-
-            # TODO (simon): Find a clean solution to deal with configuration configs
-            #  when using the new API stack.
-            if self.exploration_config["type"] == "ParameterNoise":
-                if self.batch_mode != "complete_episodes":
-                    self._value_error(
-                        "ParameterNoise Exploration requires `batch_mode` to be "
-                        "'complete_episodes'. Try setting `config.env_runners("
-                        "batch_mode='complete_episodes')`."
-                    )
-                if self.noisy:
-                    self._value_error(
-                        "ParameterNoise Exploration and `noisy` network cannot be"
-                        " used at the same time!"
-                    )
-
-        if self.td_error_loss_fn not in ["huber", "mse"]:
-            self._value_error("`td_error_loss_fn` must be 'huber' or 'mse'!")
-
-        # Check rollout_fragment_length to be compatible with n_step.
-        if (
-            not self.in_evaluation
-            and self.rollout_fragment_length != "auto"
-            and self.rollout_fragment_length < self.n_step
-        ):
-            self._value_error(
-                f"Your `rollout_fragment_length` ({self.rollout_fragment_length}) is "
-                f"smaller than `n_step` ({self.n_step})! "
-                "Try setting config.env_runners(rollout_fragment_length="
-                f"{self.n_step})."
-            )
-
-        # Check, if the `max_seq_len` is longer then the burn-in.
-        if (
-            "max_seq_len" in self.model_config
-            and 0 < self.model_config["max_seq_len"] <= self.burn_in_len
-        ):
-            raise ValueError(
-                f"Your defined `burn_in_len`={self.burn_in_len} is larger or equal "
-                f"`max_seq_len`={self.model_config['max_seq_len']}! Either decrease "
-                "the `burn_in_len` or increase your `max_seq_len`."
-            )
-
-        # Validate that we use the corresponding `EpisodeReplayBuffer` when using
-        # episodes.
-        # TODO (sven, simon): Implement the multi-agent case for replay buffers.
-        from ray.rllib.utils.replay_buffers.episode_replay_buffer import (
-            EpisodeReplayBuffer,
+        self.weight_mu = nn.Parameter(torch.Tensor(out_features, in_features))
+        self.weight_sigma = nn.Parameter(
+            torch.Tensor(out_features, in_features)
+        )
+        self.register_buffer(
+            "weight_epsilon", torch.Tensor(out_features, in_features)
         )
 
-        if (
-            self.enable_env_runner_and_connector_v2
-            and not isinstance(self.replay_buffer_config["type"], str)
-            and not issubclass(self.replay_buffer_config["type"], EpisodeReplayBuffer)
-        ):
-            self._value_error(
-                "When using the new `EnvRunner API` the replay buffer must be of type "
-                "`EpisodeReplayBuffer`."
-            )
-        elif not self.enable_env_runner_and_connector_v2 and (
-            (
-                isinstance(self.replay_buffer_config["type"], str)
-                and "Episode" in self.replay_buffer_config["type"]
-            )
-            or issubclass(self.replay_buffer_config["type"], EpisodeReplayBuffer)
-        ):
-            self._value_error(
-                "When using the old API stack the replay buffer must not be of type "
-                "`EpisodeReplayBuffer`! We suggest you use the following config to run "
-                "DQN on the old API stack: `config.training(replay_buffer_config={"
-                "'type': 'MultiAgentPrioritizedReplayBuffer', "
-                "'prioritized_replay_alpha': [alpha], "
-                "'prioritized_replay_beta': [beta], "
-                "'prioritized_replay_eps': [eps], "
-                "})`."
-            )
+        self.bias_mu = nn.Parameter(torch.Tensor(out_features))
+        self.bias_sigma = nn.Parameter(torch.Tensor(out_features))
+        self.register_buffer("bias_epsilon", torch.Tensor(out_features))
 
-    @override(AlgorithmConfig)
-    def get_rollout_fragment_length(self, worker_index: int = 0) -> int:
-        if self.rollout_fragment_length == "auto":
-            return (
-                self.n_step[1]
-                if isinstance(self.n_step, (tuple, list))
-                else self.n_step
-            )
+        self.reset_parameters()
+        self.reset_noise()
+
+    def reset_parameters(self):
+        """Reset trainable network parameters (factorized gaussian noise)."""
+        mu_range = 1 / math.sqrt(self.in_features)
+        self.weight_mu.data.uniform_(-mu_range, mu_range)
+        self.weight_sigma.data.fill_(
+            self.std_init / math.sqrt(self.in_features)
+        )
+        self.bias_mu.data.uniform_(-mu_range, mu_range)
+        self.bias_sigma.data.fill_(
+            self.std_init / math.sqrt(self.out_features)
+        )
+
+    def reset_noise(self):
+        """Make new noise."""
+        epsilon_in = self.scale_noise(self.in_features)
+        epsilon_out = self.scale_noise(self.out_features)
+
+        # outer product
+        self.weight_epsilon.copy_(epsilon_out.ger(epsilon_in))
+        self.bias_epsilon.copy_(epsilon_out)
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        """Forward method implementation.
+        
+        We don't use separate statements on train / eval mode.
+        It doesn't show remarkable difference of performance.
+        """
+        return F.linear(
+            x,
+            self.weight_mu + self.weight_sigma * self.weight_epsilon,
+            self.bias_mu + self.bias_sigma * self.bias_epsilon,
+        )
+    
+    @staticmethod
+    def scale_noise(size: int) -> torch.Tensor:
+        """Set scale to make noise (factorized gaussian noise)."""
+        x = torch.randn(size)
+
+        return x.sign().mul(x.abs().sqrt())
+    
+
+class Network(nn.Module):
+    def __init__(
+        self, 
+        in_dim: int, 
+        out_dim: int, 
+        atom_size: int, 
+        support: torch.Tensor
+    ):
+        """Initialization."""
+        super(Network, self).__init__()
+        
+        self.support = support
+        self.out_dim = out_dim
+        self.atom_size = atom_size
+
+        # set common feature layer
+        self.feature_layer = nn.Sequential(
+            nn.Linear(in_dim, 128), 
+            nn.ReLU(),
+        )
+        
+        # set advantage layer
+        self.advantage_hidden_layer = NoisyLinear(128, 128)
+        self.advantage_layer = NoisyLinear(128, out_dim * atom_size)
+
+        # set value layer
+        self.value_hidden_layer = NoisyLinear(128, 128)
+        self.value_layer = NoisyLinear(128, atom_size)
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        """Forward method implementation."""
+        dist = self.dist(x)
+        q = torch.sum(dist * self.support, dim=2)
+        
+        return q
+    
+    def dist(self, x: torch.Tensor) -> torch.Tensor:
+        """Get distribution for atoms."""
+        feature = self.feature_layer(x)
+        adv_hid = F.relu(self.advantage_hidden_layer(feature))
+        val_hid = F.relu(self.value_hidden_layer(feature))
+        
+        advantage = self.advantage_layer(adv_hid).view(
+            -1, self.out_dim, self.atom_size
+        )
+        value = self.value_layer(val_hid).view(-1, 1, self.atom_size)
+        q_atoms = value + advantage - advantage.mean(dim=1, keepdim=True)
+        
+        dist = F.softmax(q_atoms, dim=-1)
+        dist = dist.clamp(min=1e-3)  # for avoiding nans
+        
+        return dist
+    
+    def reset_noise(self):
+        """Reset all noisy layers."""
+        self.advantage_hidden_layer.reset_noise()
+        self.advantage_layer.reset_noise()
+        self.value_hidden_layer.reset_noise()
+        self.value_layer.reset_noise()
+
+class DQNAgent:
+    """DQN Agent interacting with environment.
+    
+    Attribute:
+        env (gym.Env): openAI Gym environment
+        memory (PrioritizedReplayBuffer): replay memory to store transitions
+        batch_size (int): batch size for sampling
+        target_update (int): period for target model's hard update
+        gamma (float): discount factor
+        dqn (Network): model to train and select actions
+        dqn_target (Network): target model to update
+        optimizer (torch.optim): optimizer for training dqn
+        transition (list): transition information including 
+                           state, action, reward, next_state, done
+        v_min (float): min value of support
+        v_max (float): max value of support
+        atom_size (int): the unit number of support
+        support (torch.Tensor): support for categorical dqn
+        use_n_step (bool): whether to use n_step memory
+        n_step (int): step number to calculate n-step td error
+        memory_n (ReplayBuffer): n-step replay buffer
+    """
+
+    def __init__(
+        self,
+        env: gym.Env,
+        memory_size: int,
+        batch_size: int,
+        target_update: int,
+        seed: int,
+        gamma: float = 0.99,
+        # PER parameters
+        alpha: float = 0.2,
+        beta: float = 0.6,
+        prior_eps: float = 1e-6,
+        # Categorical DQN parameters
+        v_min: float = 0.0,
+        v_max: float = 200.0,
+        atom_size: int = 51,
+        # N-step Learning
+        n_step: int = 3,
+    ):
+        """Initialization."""
+        # 환경의 observation_space에서 상태 벡터 크기를 가져옴
+        obs_dim = env.observation_space.shape[0]
+        # MultiDiscrete의 경우 nvec의 첫 번째 요소를 사용
+        if hasattr(env.action_space, 'nvec'):
+            action_dim = len(env.action_space.nvec)
         else:
-            return self.rollout_fragment_length
+            action_dim = env.action_space.n
+        
+        self.env = env
+        self.batch_size = batch_size
+        self.target_update = target_update
+        self.seed = seed
+        self.gamma = gamma
+        self.action_dim = action_dim
+        
+        # device: cpu / gpu
+        self.device = torch.device(
+            "cuda" if torch.cuda.is_available() else "cpu"
+        )
+        print(self.device)
 
-    @override(AlgorithmConfig)
-    def get_default_rl_module_spec(self) -> RLModuleSpecType:
-        if self.framework_str == "torch":
-            from ray.rllib.algorithms.dqn.torch.default_dqn_torch_rl_module import (
-                DefaultDQNTorchRLModule,
+        # PER
+        # memory for 1-step Learning
+        self.beta = beta
+        self.prior_eps = prior_eps
+        self.memory = PrioritizedReplayBuffer(
+            obs_dim, memory_size, batch_size, alpha=alpha, gamma=gamma
+        )
+        
+        # memory for N-step Learning
+        self.use_n_step = True if n_step > 1 else False
+        if self.use_n_step:
+            self.n_step = n_step
+            self.memory_n = ReplayBuffer(
+                obs_dim, memory_size, batch_size, n_step=n_step, gamma=gamma
             )
+        
+        # Categorical DQN parameters
+        self.v_min = v_min
+        self.v_max = v_max
+        self.atom_size = atom_size
+        self.support = torch.linspace(
+            self.v_min, self.v_max, self.atom_size
+        ).to(self.device)
 
-            return RLModuleSpec(
-                module_class=DefaultDQNTorchRLModule,
-                model_config=self.model_config,
-            )
-        else:
-            raise ValueError(
-                f"The framework {self.framework_str} is not supported! "
-                "Use `config.framework('torch')` instead."
-            )
+        # networks: dqn, dqn_target
+        self.dqn = Network(
+            obs_dim, self.action_dim, self.atom_size, self.support
+        ).to(self.device)
+        self.dqn_target = Network(
+            obs_dim, self.action_dim, self.atom_size, self.support
+        ).to(self.device)
+        self.dqn_target.load_state_dict(self.dqn.state_dict())
+        self.dqn_target.eval()
+        
+        # optimizer
+        self.optimizer = optim.Adam(self.dqn.parameters())
 
-    @property
-    @override(AlgorithmConfig)
-    def _model_config_auto_includes(self) -> Dict[str, Any]:
-        return super()._model_config_auto_includes | {
-            "double_q": self.double_q,
-            "dueling": self.dueling,
-            "epsilon": self.epsilon,
-            "num_atoms": self.num_atoms,
-            "std_init": self.sigma0,
-            "v_max": self.v_max,
-            "v_min": self.v_min,
-        }
+        # transition to store in memory
+        self.transition = list()
+        
+        # mode: train / test
+        self.is_test = False
 
-    @override(AlgorithmConfig)
-    def get_default_learner_class(self) -> Union[Type["Learner"], str]:
-        if self.framework_str == "torch":
-            from ray.rllib.algorithms.dqn.torch.dqn_torch_learner import (
-                DQNTorchLearner,
-            )
+    def _get_action_mask(self, store):
+        """현재 상태에서 가능한 행동들의 마스크를 반환합니다."""
+        mask = np.ones(6, dtype=np.int32)
+        
+        if store is None:
+            return mask
+            
+        current_index = store.get_active_index("my")
+        my_team = store.get_team("my")
+        current_pokemon = my_team[current_index]
+        
+        # 기술 사용(0-3)에 대한 마스킹
+        for i in range(4):
+            if current_pokemon.pp.get(current_pokemon.base.moves[i].name, 0) <= 0:
+                mask[i] = 0
+        
+        # 교체 행동(4-5)에 대한 마스킹
+        for i in range(2):  # 교체 행동 2개
+            switch_index = i
+            # 자기 자신으로 교체하는 경우
+            if switch_index == current_index:
+                mask[4 + i] = 0
+            # 교체하려는 포켓몬이 쓰러진 경우
+            elif my_team[switch_index].current_hp <= 0:
+                mask[4 + i] = 0
+        
+        return mask
 
-            return DQNTorchLearner
-        else:
-            raise ValueError(
-                f"The framework {self.framework_str} is not supported! "
-                "Use `config.framework('torch')` instead."
-            )
+    def select_action(self, state: np.ndarray) -> np.ndarray:
+        """Select an action from the input state."""
+        # Get action mask from store
+        action_mask = self._get_action_mask(self.env.battle_store)
+        
+        # Get valid actions
+        valid_actions = [i for i, mask in enumerate(action_mask) if mask == 1]
+        
+        if not valid_actions:
+            # 모든 액션이 불가능한 경우 (이론적으로는 발생하지 않아야 함)
+            return 0
+        
+        # Get Q-values for all actions
+        q_values = self.dqn(
+            torch.FloatTensor(state).to(self.device)
+        )
+        
+        # Apply mask to Q-values (set masked actions to -inf)
+        masked_q_values = q_values.clone()
+        for i in range(len(action_mask)):
+            if action_mask[i] == 0:
+                masked_q_values[0, i] = float('-inf')
+        
+        # Select action with highest Q-value among valid actions
+        selected_action = masked_q_values.argmax()
+        selected_action = selected_action.detach().cpu().numpy()
+        
+        if not self.is_test:
+            self.transition = [state, selected_action]
+        
+        return selected_action
 
-
-
-
-def calculate_rr_weights(config: AlgorithmConfig) -> List[float]:
-    """Calculate the round robin weights for the rollout and train steps"""
-    if not config.training_intensity:
-        return [1, 1]
-
-    # Calculate the "native ratio" as:
-    # [train-batch-size] / [size of env-rolled-out sampled data]
-    # This is to set freshly rollout-collected data in relation to
-    # the data we pull from the replay buffer (which also contains old
-    # samples).
-    native_ratio = config.total_train_batch_size / (
-        config.get_rollout_fragment_length()
-        * config.num_envs_per_env_runner
-        # Add one to workers because the local
-        # worker usually collects experiences as well, and we avoid division by zero.
-        * max(config.num_env_runners + 1, 1)
-    )
-
-    # Training intensity is specified in terms of
-    # (steps_replayed / steps_sampled), so adjust for the native ratio.
-    sample_and_train_weight = config.training_intensity / native_ratio
-    if sample_and_train_weight < 1:
-        return [int(np.round(1 / sample_and_train_weight)), 1]
-    else:
-        return [1, int(np.round(sample_and_train_weight))]
-
-
-class DQN(Algorithm):
-    @classmethod
-    @override(Algorithm)
-    def get_default_config(cls) -> AlgorithmConfig:
-        return DQNConfig()
-
-    @classmethod
-    @override(Algorithm)
-    def get_default_policy_class(
-        cls, config: AlgorithmConfig
-    ) -> Optional[Type[Policy]]:
-        if config["framework"] == "torch":
-            return DQNTorchPolicy
-        else:
-            return DQNTFPolicy
-
-    @override(Algorithm)
-    def setup(self, config: AlgorithmConfig) -> None:
-        super().setup(config)
-
-        if self.config.enable_env_runner_and_connector_v2 and self.env_runner_group:
-            if self.env_runner is None:
-                self._module_is_stateful = self.env_runner_group.foreach_env_runner(
-                    lambda er: er.module.is_stateful(),
-                    remote_worker_ids=[1],
-                    local_env_runner=False,
-                )[0]
+    async def step(self, action: np.ndarray) -> Tuple[np.ndarray, np.float64, bool]:
+        """Take an action and return the response of the env."""
+        next_state, reward, done, _ = await self.env.step(action)
+        
+        if not self.is_test:
+            # action_mask를 제외한 상태 벡터만 저장
+            state_without_mask = next_state[:-6]  # 마지막 6개 차원(action mask) 제외
+            self.transition += [reward, state_without_mask, done]
+            
+            # N-step transition
+            if self.use_n_step:
+                one_step_transition = self.memory_n.store(*self.transition)
+            # 1-step transition
             else:
-                self._module_is_stateful = self.env_runner.module.is_stateful()
+                one_step_transition = self.transition
 
-    @override(Algorithm)
-    def training_step(self) -> None:
-        """DQN training iteration function.
+            # add a single step transition
+            if one_step_transition:
+                self.memory.store(*one_step_transition)
+    
+        return next_state, reward, done
 
-        Each training iteration, we:
-        - Sample (MultiAgentBatch) from workers.
-        - Store new samples in replay buffer.
-        - Sample training batch (MultiAgentBatch) from replay buffer.
-        - Learn on training batch.
-        - Update remote workers' new policy weights.
-        - Update target network every `target_network_update_freq` sample steps.
-        - Return all collected metrics for the iteration.
+    def update_model(self) -> torch.Tensor:
+        """Update the model by gradient descent."""
+        # PER needs beta to calculate weights
+        samples = self.memory.sample_batch(self.beta)
+        weights = torch.FloatTensor(
+            samples["weights"].reshape(-1, 1)
+        ).to(self.device)
+        indices = samples["indices"]
+        
+        # 1-step Learning loss
+        elementwise_loss = self._compute_dqn_loss(samples, self.gamma)
+        
+        # PER: importance sampling before average
+        loss = torch.mean(elementwise_loss * weights)
+        
+        # N-step Learning loss
+        # we are gonna combine 1-step loss and n-step loss so as to
+        # prevent high-variance. The original rainbow employs n-step loss only.
+        if self.use_n_step:
+            gamma = self.gamma ** self.n_step
+            samples = self.memory_n.sample_batch_from_idxs(indices)
+            elementwise_loss_n_loss = self._compute_dqn_loss(samples, gamma)
+            elementwise_loss += elementwise_loss_n_loss
+            
+            # PER: importance sampling before average
+            loss = torch.mean(elementwise_loss * weights)
 
-        Returns:
-            The results dict from executing the training iteration.
-        """
-        # Old API stack (Policy, RolloutWorker, Connector).
-        if not self.config.enable_env_runner_and_connector_v2:
-            return self._training_step_old_api_stack()
+        self.optimizer.zero_grad()
+        loss.backward()
+        clip_grad_norm_(self.dqn.parameters(), 10.0)
+        self.optimizer.step()
+        
+        # PER: update priorities
+        loss_for_prior = elementwise_loss.detach().cpu().numpy()
+        new_priorities = loss_for_prior + self.prior_eps
+        self.memory.update_priorities(indices, new_priorities)
+        
+        # NoisyNet: reset noise
+        self.dqn.reset_noise()
+        self.dqn_target.reset_noise()
 
-        # New API stack (RLModule, Learner, EnvRunner, ConnectorV2).
-        return self._training_step_new_api_stack()
+        return loss.item()
+        
+    async def train(self, num_frames: int, plotting_interval: int = 200):
+        """Train the agent."""
+        self.is_test = False
+        
+        state, _ = self.env.reset(seed=self.seed)
+        update_cnt = 0
+        losses = []
+        scores = []
+        score = 0
 
-    def _training_step_new_api_stack(self):
-        # Alternate between storing and sampling and training.
-        store_weight, sample_and_train_weight = calculate_rr_weights(self.config)
+        for frame_idx in range(1, num_frames + 1):
+            action = self.select_action(state)
+            next_state, reward, done = await self.step(action)
 
-        # Run multiple sampling + storing to buffer iterations.
-        for _ in range(store_weight):
-            with self.metrics.log_time((TIMERS, ENV_RUNNER_SAMPLING_TIMER)):
-                # Sample in parallel from workers.
-                episodes, env_runner_results = synchronous_parallel_sample(
-                    worker_set=self.env_runner_group,
-                    concat=True,
-                    sample_timeout_s=self.config.sample_timeout_s,
-                    _uses_new_env_runners=True,
-                    _return_metrics=True,
-                )
-            # Reduce EnvRunner metrics over the n EnvRunners.
-            self.metrics.merge_and_log_n_dicts(
-                env_runner_results, key=ENV_RUNNER_RESULTS
+            state = next_state
+            score += reward
+            
+            # NoisyNet: removed decrease of epsilon
+            
+            # PER: increase beta
+            fraction = min(frame_idx / num_frames, 1.0)
+            self.beta = self.beta + fraction * (1.0 - self.beta)
+
+            # if episode ends
+            if done:
+                state, _ = self.env.reset(seed=self.seed)
+                scores.append(score)
+                score = 0
+
+            # if training is ready
+            if len(self.memory) >= self.batch_size:
+                loss = self.update_model()
+                losses.append(loss)
+                update_cnt += 1
+                
+                # if hard update is needed
+                if update_cnt % self.target_update == 0:
+                    self._target_hard_update()
+
+            # plotting
+            if frame_idx % plotting_interval == 0:
+                self._plot(frame_idx, scores, losses)
+                
+        self.env.close()
+                
+    async def test(self, video_folder: str) -> None:
+        """Test the agent."""
+        self.is_test = True
+        
+        # for recording a video
+        naive_env = self.env
+        self.env = gym.wrappers.RecordVideo(self.env, video_folder=video_folder)
+        
+        state, _ = self.env.reset(seed=self.seed)
+        done = False
+        score = 0
+        
+        while not done:
+            action = self.select_action(state)
+            next_state, reward, done = await self.step(action)
+
+            state = next_state
+            score += reward
+        
+        print("score: ", score)
+        self.env.close()
+        
+        # reset
+        self.env = naive_env
+
+    def _compute_dqn_loss(self, samples: Dict[str, np.ndarray], gamma: float) -> torch.Tensor:
+        """Return categorical dqn loss."""
+        device = self.device  # for shortening the following lines
+        state = torch.FloatTensor(samples["obs"]).to(device)
+        next_state = torch.FloatTensor(samples["next_obs"]).to(device)
+        action = torch.LongTensor(samples["acts"]).to(device)
+        reward = torch.FloatTensor(samples["rews"].reshape(-1, 1)).to(device)
+        done = torch.FloatTensor(samples["done"].reshape(-1, 1)).to(device)
+        
+        # Categorical DQN algorithm
+        delta_z = float(self.v_max - self.v_min) / (self.atom_size - 1)
+
+        with torch.no_grad():
+            # Double DQN
+            next_action = self.dqn(next_state).argmax(1)
+            next_dist = self.dqn_target.dist(next_state)
+            next_dist = next_dist[range(self.batch_size), next_action]
+
+            t_z = reward + (1 - done) * gamma * self.support
+            t_z = t_z.clamp(min=self.v_min, max=self.v_max)
+            b = (t_z - self.v_min) / delta_z
+            l = b.floor().long()
+            u = b.floor().long() + 1
+
+            offset = (
+                torch.linspace(
+                    0, (self.batch_size - 1) * self.atom_size, self.batch_size
+                ).long()
+                .unsqueeze(1)
+                .expand(self.batch_size, self.atom_size)
+                .to(self.device)
             )
 
-            # Add the sampled experiences to the replay buffer.
-            with self.metrics.log_time((TIMERS, REPLAY_BUFFER_ADD_DATA_TIMER)):
-                self.local_replay_buffer.add(episodes)
-
-        if self.config.count_steps_by == "agent_steps":
-            current_ts = sum(
-                self.metrics.peek(
-                    (ENV_RUNNER_RESULTS, NUM_AGENT_STEPS_SAMPLED_LIFETIME), default={}
-                ).values()
+            proj_dist = torch.zeros(next_dist.size(), device=self.device)
+            proj_dist.view(-1).index_add_(
+                0, (l + offset).view(-1), (next_dist * (u.float() - b)).view(-1)
             )
-        else:
-            current_ts = self.metrics.peek(
-                (ENV_RUNNER_RESULTS, NUM_ENV_STEPS_SAMPLED_LIFETIME), default=0
+            proj_dist.view(-1).index_add_(
+                0, (u.clamp(max=self.atom_size - 1) + offset).view(-1), (next_dist * (b - l.float())).view(-1)
             )
 
-        # If enough experiences have been sampled start training.
-        if current_ts >= self.config.num_steps_sampled_before_learning_starts:
-            # Run multiple sample-from-buffer and update iterations.
-            for _ in range(sample_and_train_weight):
-                # Sample a list of episodes used for learning from the replay buffer.
-                with self.metrics.log_time((TIMERS, REPLAY_BUFFER_SAMPLE_TIMER)):
+        dist = self.dqn.dist(state)
+        log_p = torch.log(dist[range(self.batch_size), action])
+        elementwise_loss = -(proj_dist * log_p).sum(1)
 
-                    episodes = self.local_replay_buffer.sample(
-                        num_items=self.config.total_train_batch_size,
-                        n_step=self.config.n_step,
-                        # In case an `EpisodeReplayBuffer` is used we need to provide
-                        # the sequence length.
-                        batch_length_T=(
-                            self._module_is_stateful
-                            * self.config.model_config.get("max_seq_len", 0)
-                        ),
-                        lookback=int(self._module_is_stateful),
-                        # TODO (simon): Implement `burn_in_len` in SAC and remove this
-                        # if-else clause.
-                        min_batch_length_T=self.config.burn_in_len
-                        if hasattr(self.config, "burn_in_len")
-                        else 0,
-                        gamma=self.config.gamma,
-                        beta=self.config.replay_buffer_config.get("beta"),
-                        sample_episodes=True,
-                    )
+        return elementwise_loss
 
-                    # Get the replay buffer metrics.
-                    replay_buffer_results = self.local_replay_buffer.get_metrics()
-                    self.metrics.merge_and_log_n_dicts(
-                        [replay_buffer_results], key=REPLAY_BUFFER_RESULTS
-                    )
-
-                # Perform an update on the buffer-sampled train batch.
-                with self.metrics.log_time((TIMERS, LEARNER_UPDATE_TIMER)):
-                    learner_results = self.learner_group.update(
-                        episodes=episodes,
-                        timesteps={
-                            NUM_ENV_STEPS_SAMPLED_LIFETIME: (
-                                self.metrics.peek(
-                                    (ENV_RUNNER_RESULTS, NUM_ENV_STEPS_SAMPLED_LIFETIME)
-                                )
-                            ),
-                            NUM_AGENT_STEPS_SAMPLED_LIFETIME: (
-                                self.metrics.peek(
-                                    (
-                                        ENV_RUNNER_RESULTS,
-                                        NUM_AGENT_STEPS_SAMPLED_LIFETIME,
-                                    )
-                                )
-                            ),
-                        },
-                    )
-                    # Isolate TD-errors from result dicts (we should not log these to
-                    # disk or WandB, they might be very large).
-                    td_errors = defaultdict(list)
-                    for res in learner_results:
-                        for module_id, module_results in res.items():
-                            if TD_ERROR_KEY in module_results:
-                                td_errors[module_id].extend(
-                                    convert_to_numpy(
-                                        module_results.pop(TD_ERROR_KEY).peek()
-                                    )
-                                )
-                    td_errors = {
-                        module_id: {TD_ERROR_KEY: np.concatenate(s, axis=0)}
-                        for module_id, s in td_errors.items()
-                    }
-                    self.metrics.merge_and_log_n_dicts(
-                        learner_results, key=LEARNER_RESULTS
-                    )
-
-                # Update replay buffer priorities.
-                with self.metrics.log_time((TIMERS, REPLAY_BUFFER_UPDATE_PRIOS_TIMER)):
-                    update_priorities_in_episode_replay_buffer(
-                        replay_buffer=self.local_replay_buffer,
-                        td_errors=td_errors,
-                    )
-
-            # Update weights and global_vars - after learning on the local worker -
-            # on all remote workers.
-            with self.metrics.log_time((TIMERS, SYNCH_WORKER_WEIGHTS_TIMER)):
-                modules_to_update = set(learner_results[0].keys()) - {ALL_MODULES}
-                # NOTE: the new API stack does not use global vars.
-                self.env_runner_group.sync_weights(
-                    from_worker_or_learner_group=self.learner_group,
-                    policies=modules_to_update,
-                    global_vars=None,
-                    inference_only=True,
-                )
-
-    def _training_step_old_api_stack(self) -> ResultDict:
-        """Training step for the old API stack.
-
-        More specifically this training step relies on `RolloutWorker`.
-        """
-        train_results = {}
-
-        # We alternate between storing new samples and sampling and training
-        store_weight, sample_and_train_weight = calculate_rr_weights(self.config)
-
-        for _ in range(store_weight):
-            # Sample (MultiAgentBatch) from workers.
-            with self._timers[SAMPLE_TIMER]:
-                new_sample_batch: SampleBatchType = synchronous_parallel_sample(
-                    worker_set=self.env_runner_group,
-                    concat=True,
-                    sample_timeout_s=self.config.sample_timeout_s,
-                )
-
-            # Return early if all our workers failed.
-            if not new_sample_batch:
-                return {}
-
-            # Update counters
-            self._counters[NUM_AGENT_STEPS_SAMPLED] += new_sample_batch.agent_steps()
-            self._counters[NUM_ENV_STEPS_SAMPLED] += new_sample_batch.env_steps()
-
-            # Store new samples in replay buffer.
-            self.local_replay_buffer.add(new_sample_batch)
-
-        global_vars = {
-            "timestep": self._counters[NUM_ENV_STEPS_SAMPLED],
-        }
-
-        # Update target network every `target_network_update_freq` sample steps.
-        cur_ts = self._counters[
-            (
-                NUM_AGENT_STEPS_SAMPLED
-                if self.config.count_steps_by == "agent_steps"
-                else NUM_ENV_STEPS_SAMPLED
-            )
-        ]
-
-        if cur_ts > self.config.num_steps_sampled_before_learning_starts:
-            for _ in range(sample_and_train_weight):
-                # Sample training batch (MultiAgentBatch) from replay buffer.
-                train_batch = sample_min_n_steps_from_buffer(
-                    self.local_replay_buffer,
-                    self.config.total_train_batch_size,
-                    count_by_agent_steps=self.config.count_steps_by == "agent_steps",
-                )
-
-                # Postprocess batch before we learn on it
-                post_fn = self.config.get("before_learn_on_batch") or (lambda b, *a: b)
-                train_batch = post_fn(train_batch, self.env_runner_group, self.config)
-
-                # Learn on training batch.
-                # Use simple optimizer (only for multi-agent or tf-eager; all other
-                # cases should use the multi-GPU optimizer, even if only using 1 GPU)
-                if self.config.get("simple_optimizer") is True:
-                    train_results = train_one_step(self, train_batch)
-                else:
-                    train_results = multi_gpu_train_one_step(self, train_batch)
-
-                # Update replay buffer priorities.
-                update_priorities_in_replay_buffer(
-                    self.local_replay_buffer,
-                    self.config,
-                    train_batch,
-                    train_results,
-                )
-
-                last_update = self._counters[LAST_TARGET_UPDATE_TS]
-                if cur_ts - last_update >= self.config.target_network_update_freq:
-                    to_update = self.env_runner.get_policies_to_train()
-                    self.env_runner.foreach_policy_to_train(
-                        lambda p, pid, to_update=to_update: (
-                            pid in to_update and p.update_target()
-                        )
-                    )
-                    self._counters[NUM_TARGET_UPDATES] += 1
-                    self._counters[LAST_TARGET_UPDATE_TS] = cur_ts
-
-                # Update weights and global_vars - after learning on the local worker -
-                # on all remote workers.
-                with self._timers[SYNCH_WORKER_WEIGHTS_TIMER]:
-                    self.env_runner_group.sync_weights(global_vars=global_vars)
-
-        # Return all collected metrics for the iteration.
-        return train_results
+    def _target_hard_update(self):
+        """Hard update: target <- local."""
+        self.dqn_target.load_state_dict(self.dqn.state_dict())
+                
+    def _plot(
+        self, 
+        frame_idx: int, 
+        scores: List[float], 
+        losses: List[float],
+    ):
+        """Plot the training progresses."""
+        clear_output(True)
+        plt.figure(figsize=(20, 5))
+        plt.subplot(131)
+        plt.title('frame %s. score: %s' % (frame_idx, np.mean(scores[-10:])))
+        plt.plot(scores)
+        plt.subplot(132)
+        plt.title('loss')
+        plt.plot(losses)
+        plt.show()

@@ -12,9 +12,6 @@ import matplotlib.pyplot as plt
 from datetime import datetime
 import json
 import random
-import ray
-from ray.rllib.algorithms.dqn import DQNConfig
-from ray.tune.logger import pretty_print
 import torch
 import logging
 
@@ -37,66 +34,38 @@ from p_data.mock_pokemon import create_mock_pokemon_list
 from context.battle_store import store
 from context.duration_store import duration_store
 
+# agent 관련 import
+from agent.rainbow_agent import DQNAgent
+
 # 전역 변수 초기화
 battle_store = store
 duration_store = duration_store
 
-# GPU 가용성 확인
-num_gpus = torch.cuda.device_count() if torch.cuda.is_available() else 0
-print(f"Available GPUs: {num_gpus}")
-
-# Ray 초기화
-ray.init()
-
-# GPU 가용성 확인
-num_gpus = torch.cuda.device_count() if torch.cuda.is_available() else 0
-print(f"Available GPUs: {num_gpus}")
-
-# Rainbow DQN 설정
-config = (
-    DQNConfig()
-    .environment(
-        YakemonEnv,
-        env_config={}
-    )
-    .training(
-        # Rainbow DQN 핵심 기능들
-        double_q=True,  # Double DQN
-        dueling=True,   # Dueling DQN
-        n_step=3,       # N-step learning
-        num_atoms=51,   # Distributional DQN
-        v_min=-10.0,    # Distributional DQN value range
-        v_max=10.0,     # Distributional DQN value range
-        noisy=True,     # Noisy Networks
-        sigma0=0.5,     # Noisy Networks 초기 파라미터
-        
-        # Replay Buffer 설정
-        replay_buffer_config={
-            "type": "PrioritizedEpisodeReplayBuffer",
-            "capacity": 100000,
-            "alpha": 0.6,  # Prioritized Experience Replay
-            "beta": 0.4,   # Importance Sampling
-        },
-        
-        # 학습 관련 설정
-        lr=0.00025,
-        train_batch_size=32,
-        gamma=0.99,
-        target_network_update_freq=1000,
-        num_steps_sampled_before_learning_starts=1000,
-        td_error_loss_fn="huber",  # Huber loss for stability
-    )
-    .framework("torch")
-    .rollouts(num_rollout_workers=0)
-    .debugging(log_level="ERROR")
-    .resources(num_gpus=num_gpus)
-)
+# 하이퍼파라미터 설정
+HYPERPARAMS = {
+    "memory_size": 100000,
+    "batch_size": 32,
+    "target_update": 1000,
+    "gamma": 0.99,
+    "alpha": 0.6,  # PER alpha
+    "beta": 0.4,   # PER beta
+    "prior_eps": 1e-6,
+    "v_min": -10.0,
+    "v_max": 10.0,
+    "atom_size": 51,
+    "n_step": 3,
+    "num_episodes": 1000,
+    "save_interval": 100,
+    "test_episodes": 100,
+    "state_dim": 126,  # get_state_vector의 출력 차원
+    "action_dim": 6,   # 4개의 기술 + 2개의 교체
+}
 
 #%% [markdown]
 # 학습 함수 정의
 async def train_agent(
     env: YakemonEnv,
-    algo,
+    agent: DQNAgent,
     num_episodes: int,
     save_path: str = 'models',
     agent_name: str = 'rainbow'
@@ -105,10 +74,15 @@ async def train_agent(
     Rainbow DQN 에이전트 학습 함수
     """
     rewards_history = []
+    losses_history = []
     best_reward = float('-inf')
     
     # 모델 저장 디렉토리 생성
     os.makedirs(save_path, exist_ok=True)
+    
+    # 하이퍼파라미터 저장
+    with open(os.path.join(save_path, f'{agent_name}_hyperparams.json'), 'w') as f:
+        json.dump(HYPERPARAMS, f, indent=4)
     
     for episode in range(num_episodes):
         # 1. 팀 생성 단계
@@ -153,12 +127,13 @@ async def train_agent(
         
         # 2. 배틀 환경 초기화
         state = env.reset(my_team=my_team, enemy_team=enemy_team)
-        my_team = env.my_team  # BattlePokemon 객체 리스트로 업데이트
-        enemy_team = env.enemy_team  # BattlePokemon 객체 리스트로 업데이트
+        my_team = env.my_team
+        enemy_team = env.enemy_team
         store = env.battle_store
         store.set_active_my(0)
         store.set_active_enemy(0)
         total_reward = 0
+        total_loss = 0
         steps = 0
         
         # 3. 배틀 루프
@@ -183,10 +158,26 @@ async def train_agent(
             state_vector = [state_dict[key] for key in state_keys]
             
             # 행동 선택
-            action = algo.compute_single_action(state_vector)
+            action = agent.select_action(state_vector)
             
             # 행동 실행
             next_state, reward, done, _ = await env.step(action)
+            
+            # 다음 상태 벡터 생성
+            next_state_dict = get_state(
+                store=env.battle_store,
+                my_team=my_team,
+                enemy_team=enemy_team,
+                active_my=env.battle_store.get_active_index("my"),
+                active_enemy=env.battle_store.get_active_index("enemy"),
+                public_env=env.public_env.__dict__,
+                my_env=env.my_env.__dict__,
+                enemy_env=env.enemy_env.__dict__,
+                turn=env.turn,
+                my_effects=env.duration_store.my_effects,
+                enemy_effects=env.duration_store.enemy_effects
+            )
+            next_state_vector = [next_state_dict[key] for key in state_keys]
             
             # 보상 계산
             reward = calculate_reward(
@@ -206,9 +197,13 @@ async def train_agent(
                 duration_store=env.duration_store
             )
             
-            # 알고리즘 업데이트
-            result = algo.train()
+            # 경험 저장 및 학습
+            await agent.step(action)
+            if len(agent.memory) > agent.batch_size:
+                loss = agent.update_model()
+                total_loss += loss
             
+            state_vector = next_state_vector
             total_reward += reward
             steps += 1
             
@@ -217,24 +212,27 @@ async def train_agent(
         
         # 에피소드 결과 저장
         avg_reward = total_reward / steps
+        avg_loss = total_loss / steps if total_loss > 0 else 0
         rewards_history.append(avg_reward)
+        losses_history.append(avg_loss)
         
         # 최고 성능 모델 저장
         if avg_reward > best_reward:
             best_reward = avg_reward
-            algo.save(os.path.join(save_path, f'{agent_name}_best'))
+            torch.save(agent.dqn.state_dict(), os.path.join(save_path, f'{agent_name}_best.pth'))
         
         # 주기적으로 모델 저장
-        if (episode + 1) % 100 == 0:
-            algo.save(os.path.join(save_path, f'{agent_name}_episode_{episode+1}'))
+        if (episode + 1) % HYPERPARAMS["save_interval"] == 0:
+            torch.save(agent.dqn.state_dict(), os.path.join(save_path, f'{agent_name}_episode_{episode+1}.pth'))
         
         # 학습 진행 상황 출력
         print(f'Episode {episode+1}/{num_episodes}')
         print(f'Average Reward: {avg_reward:.2f}')
+        print(f'Average Loss: {avg_loss:.4f}')
         print(f'Steps: {steps}')
         print('-' * 50)
     
-    return rewards_history
+    return rewards_history, losses_history
 
 #%% [markdown]
 # 시각화 함수 정의
@@ -338,8 +336,8 @@ def plot_training_results(
 #%% [markdown]
 # 테스트 함수 정의
 async def test_agent(
-    env,
-    algo,
+    env: YakemonEnv,
+    agent: DQNAgent,
     num_episodes: int = 10
 ) -> tuple:
     """
@@ -347,7 +345,7 @@ async def test_agent(
     """
     rewards = []
     steps_list = []
-    victories = 0  # 승리 횟수 추적
+    victories = 0
     
     for episode in range(num_episodes):
         # 1. 팀 생성 단계
@@ -376,24 +374,10 @@ async def test_agent(
         my_team = [create_battle_pokemon(poke) for poke in my_team]
         enemy_team = [create_battle_pokemon(poke) for poke in enemy_team]
         
-        # 팀 정보 출력 (딕셔너리 형식)
-        print(f"[Test Episode {episode+1}] My Team (BattlePokemon):")
-        for p in my_team:
-            print(vars(p))
-        print(f"[Test Episode {episode+1}] My Team (PokemonInfo):")
-        for p in my_team:
-            print(vars(p.base))
-        print(f"[Test Episode {episode+1}] Enemy Team (BattlePokemon):")
-        for p in enemy_team:
-            print(vars(p))
-        print(f"[Test Episode {episode+1}] Enemy Team (PokemonInfo):")
-        for p in enemy_team:
-            print(vars(p.base))
-        
         # 2. 배틀 환경 초기화
         state = env.reset(my_team=my_team, enemy_team=enemy_team)
-        my_team = env.my_team  # BattlePokemon 객체 리스트로 업데이트
-        enemy_team = env.enemy_team  # BattlePokemon 객체 리스트로 업데이트
+        my_team = env.my_team
+        enemy_team = env.enemy_team
         
         total_reward = 0
         steps = 0
@@ -420,10 +404,26 @@ async def test_agent(
             state_vector = [state_dict[key] for key in state_keys]
             
             # 행동 선택
-            action = algo.compute_single_action(state_vector, explore=False)
+            action = agent.select_action(state_vector)
             
             # 행동 실행
             next_state, reward, done, _ = await env.step(action)
+            
+            # 다음 상태 벡터 생성
+            next_state_dict = get_state(
+                store=env.battle_store,
+                my_team=my_team,
+                enemy_team=enemy_team,
+                active_my=env.battle_store.get_active_index("my"),
+                active_enemy=env.battle_store.get_active_index("enemy"),
+                public_env=env.public_env.__dict__,
+                my_env=env.my_env.__dict__,
+                enemy_env=env.enemy_env.__dict__,
+                turn=env.turn,
+                my_effects=env.duration_store.my_effects,
+                enemy_effects=env.duration_store.enemy_effects
+            )
+            next_state_vector = [next_state_dict[key] for key in state_keys]
             
             # 보상 계산
             reward = calculate_reward(
@@ -443,10 +443,10 @@ async def test_agent(
                 duration_store=env.duration_store
             )
             
+            state_vector = next_state_vector
             total_reward += reward
             steps += 1
             
-            # 배틀이 끝났는지 확인
             if done:
                 # 승리 여부 확인
                 my_team_alive = any(pokemon.current_hp > 0 for pokemon in my_team)
@@ -489,35 +489,47 @@ if __name__ == "__main__":
     # 환경 초기화
     env = YakemonEnv()
     
-    # Rainbow DQN 알고리즘 생성
-    algo = config.build()
+    # Rainbow DQN 에이전트 생성
+    rainbow_agent = DQNAgent(
+        env=env,
+        memory_size=HYPERPARAMS["memory_size"],
+        batch_size=HYPERPARAMS["batch_size"],
+        target_update=HYPERPARAMS["target_update"],
+        seed=42,
+        gamma=HYPERPARAMS["gamma"],
+        alpha=HYPERPARAMS["alpha"],
+        beta=HYPERPARAMS["beta"],
+        prior_eps=HYPERPARAMS["prior_eps"],
+        v_min=HYPERPARAMS["v_min"],
+        v_max=HYPERPARAMS["v_max"],
+        atom_size=HYPERPARAMS["atom_size"],
+        n_step=HYPERPARAMS["n_step"]
+    )
     
     print("Starting Rainbow DQN training...")
     print(f"Results will be saved in: {results_dir}")
     print(f"Models will be saved in: {models_dir}")
-    print("\nConfiguration:")
-    print(pretty_print(config.to_dict()))
+    print("\nHyperparameters:")
+    for key, value in HYPERPARAMS.items():
+        print(f"  {key}: {value}")
     print("\n" + "="*50 + "\n")
     
     # Rainbow DQN 에이전트 학습
-    rainbow_rewards = asyncio.run(train_agent(
+    rainbow_rewards, rainbow_losses = asyncio.run(train_agent(
         env=env,
-        algo=algo,
-        num_episodes=1000,
+        agent=rainbow_agent,
+        num_episodes=HYPERPARAMS["num_episodes"],
         save_path=models_dir,
         agent_name='rainbow'
     ))
     
     # 학습 결과 시각화
-    plt.figure(figsize=(12, 6))
-    plt.plot(rainbow_rewards, label='Average Reward', color='blue', alpha=0.6)
-    plt.title('Rainbow DQN Training Rewards')
-    plt.xlabel('Episode')
-    plt.ylabel('Average Reward')
-    plt.legend()
-    plt.grid(True, alpha=0.3)
-    plt.savefig(os.path.join(results_dir, 'rainbow_rewards.png'), dpi=300, bbox_inches='tight')
-    plt.close()
+    plot_training_results(
+        rewards_history=rainbow_rewards,
+        losses_history=rainbow_losses,
+        agent_name='Rainbow DQN',
+        save_path=results_dir
+    )
     
     print("\nTraining completed!")
     print(f"Results saved in: {results_dir}")
@@ -527,8 +539,8 @@ if __name__ == "__main__":
     print("\nStarting test phase...")
     test_results = asyncio.run(test_agent(
         env=env,
-        algo=algo,
-        num_episodes=100
+        agent=rainbow_agent,
+        num_episodes=HYPERPARAMS["test_episodes"]
     ))
     
     # 테스트 결과 저장
@@ -548,11 +560,8 @@ if __name__ == "__main__":
         f.write("=" * 50 + "\n\n")
         f.write(f"Average Reward: {test_stats['avg_reward']:.4f} ± {test_stats['std_reward']:.4f}\n")
         f.write(f"Average Steps: {test_stats['avg_steps']:.2f}\n")
-        f.write(f"Victories: {test_stats['victories']}/100 (Win Rate: {test_stats['win_rate']:.1f}%)\n")
+        f.write(f"Victories: {test_stats['victories']}/{HYPERPARAMS['test_episodes']} (Win Rate: {test_stats['win_rate']:.1f}%)\n")
     
     print("\nTest completed!")
     print(f"Test results saved in: {results_dir}")
-    
-    # Ray 종료
-    ray.shutdown()
 
