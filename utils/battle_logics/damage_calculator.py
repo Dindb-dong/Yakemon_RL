@@ -336,6 +336,7 @@ async def calculate_move_damage(
                                 lambda p: use_move_pp(p, move_name, defender.base.ability.name == "프레셔" if defender.base.ability else False, is_multi_hit))
             store.update_pokemon(side, active_my if side == "my" else active_enemy, lambda p: set_charging(p, False, None))
             store.update_pokemon(side, active_my if side == "my" else active_enemy, lambda p: change_position(p, None))
+            return {"success": True}
         
         # 무릎차기, 점프킥 등 빗나가면 반동
             if move_info.demerit_effects:

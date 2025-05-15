@@ -248,6 +248,11 @@ async def handle_move(
         result = await calculate_move_damage(move_name=move.name, side=side, current_index=current_index, was_late=was_late)
         print("1번째 타격!")
         if result and result["success"]:
+            if result.get("was_null"):
+                store.add_log(f"🚫 {attacker.base.name}의 공격은 효과가 없었다...")
+                print(f"{attacker.base.name}의 공격은 효과가 없었다...")
+                return
+                
             state: BattleStoreState = store.get_state()
             opponent_pokemon: list[BattlePokemon] = state[f"{opponent_side}_team"]
             current_defender: BattlePokemon = opponent_pokemon[
@@ -276,12 +281,17 @@ async def handle_move(
                 )
 
                 if result and result["success"]:
+                    if result.get("was_null"):
+                        break  # 효과가 없는 경우 후속 타격 중단
+                        
                     current_defender = store.get_state()[f"{opponent_side}_team"][
                         active_enemy if side == "my" else active_my
                     ]
                     if "damage" in result:
                         await apply_after_damage(side, attacker, current_defender, move, result["damage"], watch_mode, True)
                     await apply_defensive_ability_effect_after_multi_damage(side, attacker, defender, move, result["damage"] if "damage" in result else 0, watch_mode)
+                else:
+                    break
 
             current_defender1 = store.get_state()[f"{opponent_side}_team"][
                 active_enemy if side == "my" else active_my
@@ -303,6 +313,11 @@ async def handle_move(
 
         result = await calculate_move_damage(move_name=move.name, side=side, current_index=current_index, was_late=was_late)
         if result and result["success"]:
+            if result.get("was_null"):
+                store.add_log(f"🚫 {attacker.base.name}의 공격은 효과가 없었다...")
+                print(f"{attacker.base.name}의 공격은 효과가 없었다...")
+                return
+
             if defender and defender.base.ability and defender.base.ability.name == "매직가드" and move.category == "변화":
                 store.add_log(f"{defender.base.name}은 매직가드로 피해를 입지 않았다!")
                 print(f"{defender.base.name}은 매직가드로 피해를 입지 않았다!")

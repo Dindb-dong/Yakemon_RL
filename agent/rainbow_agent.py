@@ -473,7 +473,7 @@ class DQNAgent:
         self.beta = beta
         self.prior_eps = prior_eps
         self.memory = PrioritizedReplayBuffer(
-            obs_dim, memory_size, batch_size, alpha=alpha, gamma=gamma, prior_eps=prior_eps
+            obs_dim, memory_size, batch_size, alpha=alpha, gamma=gamma, prior_eps=prior_eps, n_step=n_step
         )
         
         # memory for N-step Learning
