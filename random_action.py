@@ -1,6 +1,6 @@
 #%% [markdown]
-# Yakemon 강화학습 에이전트 학습
-# 각 알고리즘을 독립적으로 테스트하기 위한 스크립트
+# Yakemon 랜덤 에이전트 테스트
+# 랜덤 액션 선택을 통한 테스트 스크립트
 
 #%% [markdown]
 # 필요한 라이브러리 임포트
@@ -16,13 +16,8 @@ import random
 # 환경 관련 import
 from env.battle_env import YakemonEnv
 
-# 모델 관련 import
-
 # 유틸리티 관련 import
 from utils.battle_logics.create_battle_pokemon import create_battle_pokemon
-
-# 에이전트 관련 import
-from agent.dddqn_agent import DDDQNAgent
 
 # RL 관련 import
 from RL.reward_calculator import calculate_reward
@@ -45,14 +40,6 @@ duration_store = duration_store
 
 # 하이퍼파라미터 설정
 HYPERPARAMS = {
-    "learning_rate": 0.001,
-    "gamma": 0.99,
-    "epsilon_start": 1.0,
-    "epsilon_end": 0.01,
-    "epsilon_decay": 0.995,
-    "batch_size": 64,
-    "memory_size": 10000,
-    "target_update": 10,
     "num_episodes": 1000,
     "save_interval": 100,
     "test_episodes": 100,
@@ -61,22 +48,19 @@ HYPERPARAMS = {
 }
 
 #%% [markdown]
-# 학습 함수 정의
-async def train_agent(
+# 랜덤 에이전트 실행 함수 정의
+async def run_random_agent(
     env: YakemonEnv,
-    agent: DDDQNAgent,
     num_episodes: int,
-    save_path: str = 'models',
-    agent_name: str = 'ddqn'
+    save_path: str = 'results',
+    agent_name: str = 'random'
 ) -> tuple:
     """
-    에이전트 학습 함수
+    랜덤 에이전트 실행 함수
     """
     rewards_history = []
-    losses_history = []
-    best_reward = float('-inf')
     
-    # 모델 저장 디렉토리 생성
+    # 결과 저장 디렉토리 생성
     os.makedirs(save_path, exist_ok=True)
     
     # 하이퍼파라미터 저장
@@ -132,7 +116,6 @@ async def train_agent(
         store.set_active_my(0)
         store.set_active_enemy(0)
         total_reward = 0
-        total_loss = 0
         steps = 0
         
         # 3. 배틀 루프
@@ -156,8 +139,8 @@ async def train_agent(
             state_keys = sorted(state_dict.keys())
             state_vector = [state_dict[key] for key in state_keys]
             
-            # 행동 선택 (기술 4개 + 교체 가능한 포켓몬 수)
-            action = agent.select_action(state_vector, env.battle_store, env.duration_store)
+            # 랜덤 액션 선택
+            action = random.randint(0, HYPERPARAMS["action_dim"] - 1)
             
             # 행동 실행
             next_state, reward, done, _ = await env.step(action)
@@ -196,18 +179,9 @@ async def train_agent(
                 duration_store=env.duration_store
             )
             
-            # 경험 저장
-            agent.store_transition(state_vector, action, reward, next_state_vector, done)
-            
-            # 학습
-            if len(agent.memory) > agent.batch_size:
-                loss = agent.update()
-                total_loss += loss
-            
             state_vector = next_state_vector
             total_reward += reward
             steps += 1
-        
             
             # 배틀이 끝났는지 확인
             if done:
@@ -215,43 +189,28 @@ async def train_agent(
         
         # 에피소드 결과 저장
         avg_reward = total_reward / steps
-        avg_loss = total_loss / steps if total_loss > 0 else 0
         rewards_history.append(avg_reward)
-        losses_history.append(avg_loss)
-        
-        # 최고 성능 모델 저장
-        if avg_reward > best_reward:
-            best_reward = avg_reward
-            agent.save(os.path.join(save_path, f'{agent_name}_best.pth'))
-        
-        # 주기적으로 모델 저장
-        if (episode + 1) % HYPERPARAMS["save_interval"] == 0:
-            agent.save(os.path.join(save_path, f'{agent_name}_episode_{episode+1}.pth'))
         
         # 학습 진행 상황 출력
         print(f'Episode {episode+1}/{num_episodes}')
         print(f'Average Reward: {avg_reward:.2f}')
-        print(f'Average Loss: {avg_loss:.4f}')
-        print(f'Epsilon: {agent.epsilon:.4f}')
         print(f'Steps: {steps}')
         print('-' * 50)
     
-    return rewards_history, losses_history
+    return rewards_history
 
 #%% [markdown]
 # 시각화 함수 정의
-def plot_training_results(
+def plot_results(
     rewards_history: list,
-    losses_history: list,
     agent_name: str,
     save_path: str = 'results'
 ) -> None:
     """
-    학습 결과 시각화
+    결과 시각화
     
     Args:
         rewards_history: 에피소드별 평균 보상 기록
-        losses_history: 에피소드별 평균 손실 기록
         agent_name: 에이전트 이름
         save_path: 결과 저장 경로
     """
@@ -268,7 +227,7 @@ def plot_training_results(
         plt.plot(range(window_size-1, len(rewards_history)), moving_avg, 
                 label=f'{window_size}-Episode Moving Average', color='red', linewidth=2)
     
-    plt.title(f'{agent_name} Training Rewards')
+    plt.title(f'{agent_name} Rewards')
     plt.xlabel('Episode')
     plt.ylabel('Average Reward')
     plt.legend()
@@ -276,25 +235,7 @@ def plot_training_results(
     plt.savefig(os.path.join(save_path, f'{agent_name}_rewards.png'), dpi=300, bbox_inches='tight')
     plt.close()
     
-    # 2. 손실 그래프
-    plt.figure(figsize=(12, 6))
-    plt.plot(losses_history, label='Average Loss', color='green', alpha=0.6)
-    
-    # 이동 평균 추가 (100 에피소드)
-    if window_size > 0:
-        moving_avg = np.convolve(losses_history, np.ones(window_size)/window_size, mode='valid')
-        plt.plot(range(window_size-1, len(losses_history)), moving_avg, 
-                label=f'{window_size}-Episode Moving Average', color='red', linewidth=2)
-    
-    plt.title(f'{agent_name} Training Losses')
-    plt.xlabel('Episode')
-    plt.ylabel('Average Loss')
-    plt.legend()
-    plt.grid(True, alpha=0.3)
-    plt.savefig(os.path.join(save_path, f'{agent_name}_losses.png'), dpi=300, bbox_inches='tight')
-    plt.close()
-    
-    # 3. 보상 분포 히스토그램
+    # 2. 보상 분포 히스토그램
     plt.figure(figsize=(12, 6))
     plt.hist(rewards_history, bins=50, alpha=0.7, color='blue')
     plt.title(f'{agent_name} Reward Distribution')
@@ -304,16 +245,12 @@ def plot_training_results(
     plt.savefig(os.path.join(save_path, f'{agent_name}_reward_distribution.png'), dpi=300, bbox_inches='tight')
     plt.close()
     
-    # 4. 학습 통계 저장
+    # 3. 학습 통계 저장
     stats = {
         'mean_reward': np.mean(rewards_history),
         'std_reward': np.std(rewards_history),
         'max_reward': np.max(rewards_history),
         'min_reward': np.min(rewards_history),
-        'mean_loss': np.mean(losses_history),
-        'std_loss': np.std(losses_history),
-        'max_loss': np.max(losses_history),
-        'min_loss': np.min(losses_history),
         'total_episodes': len(rewards_history)
     }
     
@@ -323,29 +260,23 @@ def plot_training_results(
     
     # 통계를 텍스트 파일로도 저장
     with open(os.path.join(save_path, f'{agent_name}_stats.txt'), 'w') as f:
-        f.write(f"{agent_name} Training Statistics\n")
+        f.write(f"{agent_name} Statistics\n")
         f.write("=" * 50 + "\n\n")
         f.write(f"Total Episodes: {stats['total_episodes']}\n\n")
         f.write("Reward Statistics:\n")
         f.write(f"  Mean: {stats['mean_reward']:.4f}\n")
         f.write(f"  Std:  {stats['std_reward']:.4f}\n")
         f.write(f"  Max:  {stats['max_reward']:.4f}\n")
-        f.write(f"  Min:  {stats['min_reward']:.4f}\n\n")
-        f.write("Loss Statistics:\n")
-        f.write(f"  Mean: {stats['mean_loss']:.4f}\n")
-        f.write(f"  Std:  {stats['std_loss']:.4f}\n")
-        f.write(f"  Max:  {stats['max_loss']:.4f}\n")
-        f.write(f"  Min:  {stats['min_loss']:.4f}\n")
+        f.write(f"  Min:  {stats['min_reward']:.4f}\n")
 
 #%% [markdown]
 # 테스트 함수 정의
 async def test_agent(
     env,
-    agent: DDDQNAgent,
     num_episodes: int = 10
 ) -> tuple:
     """
-    학습된 에이전트 테스트
+    랜덤 에이전트 테스트
     """
     rewards = []
     steps_list = []
@@ -407,8 +338,8 @@ async def test_agent(
             state_keys = sorted(state_dict.keys())
             state_vector = [state_dict[key] for key in state_keys]
             
-            # 행동 선택 (기술 4개 + 교체 가능한 포켓몬 수)
-            action = agent.select_action(state_vector, env.battle_store, env.duration_store)
+            # 랜덤 액션 선택
+            action = random.randint(0, HYPERPARAMS["action_dim"] - 1)
             
             # 행동 실행
             next_state, reward, done, _ = await env.step(action)
@@ -488,60 +419,40 @@ if __name__ == "__main__":
     
     # 결과 저장 디렉토리 설정
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    results_dir = os.path.join('results', f'training_{timestamp}')
-    models_dir = os.path.join('models', f'training_{timestamp}')
+    results_dir = os.path.join('results', f'random_{timestamp}')
     
     # 환경 초기화
     env = YakemonEnv()  # 실제 게임 환경
-    state_dim = HYPERPARAMS["state_dim"]
-    action_dim = HYPERPARAMS["action_dim"]
     
-    # DDDQN 에이전트 생성
-    ddqn_agent = DDDQNAgent(
-        state_dim=state_dim,
-        action_dim=action_dim,
-        learning_rate=HYPERPARAMS["learning_rate"],
-        gamma=HYPERPARAMS["gamma"],
-        epsilon_start=HYPERPARAMS["epsilon_start"],
-        epsilon_end=HYPERPARAMS["epsilon_end"],
-        epsilon_decay=HYPERPARAMS["epsilon_decay"],
-        target_update=HYPERPARAMS["target_update"]
-    )
-    
-    print("Starting DDDQN training...")
+    print("Starting Random Agent...")
     print(f"Results will be saved in: {results_dir}")
-    print(f"Models will be saved in: {models_dir}")
     print("\nHyperparameters:")
     for key, value in HYPERPARAMS.items():
         print(f"  {key}: {value}")
     print("\n" + "="*50 + "\n")
     
-    # DDDQN 에이전트 학습
-    ddqn_rewards, ddqn_losses = asyncio.run(train_agent(
+    # 랜덤 에이전트 실행
+    rewards = asyncio.run(run_random_agent(
         env=env,
-        agent=ddqn_agent,
         num_episodes=HYPERPARAMS["num_episodes"],
-        save_path=models_dir,
-        agent_name='ddqn'
+        save_path=results_dir,
+        agent_name='random'
     ))
     
-    # 학습 결과 시각화
-    plot_training_results(
-        rewards_history=ddqn_rewards,
-        losses_history=ddqn_losses,
-        agent_name='DDDQN',
+    # 결과 시각화
+    plot_results(
+        rewards_history=rewards,
+        agent_name='Random',
         save_path=results_dir
     )
     
-    print("\nTraining completed!")
+    print("\nRandom agent execution completed!")
     print(f"Results saved in: {results_dir}")
-    print(f"Models saved in: {models_dir}")
     
-    # 학습된 에이전트 테스트
+    # 랜덤 에이전트 테스트
     print("\nStarting test phase...")
     test_results = asyncio.run(test_agent(
         env=env,
-        agent=ddqn_agent,
         num_episodes=HYPERPARAMS["test_episodes"]
     ))
     
