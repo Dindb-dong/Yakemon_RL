@@ -44,11 +44,11 @@ duration_store = duration_store
 # 하이퍼파라미터 설정
 HYPERPARAMS = {
     "memory_size": 100000,
-    "batch_size": 32,
-    "target_update": 1000,
+    "batch_size": 64,
+    "target_update": 10,
     "gamma": 0.99,
-    "alpha": 0.6,  # PER alpha
-    "beta": 0.4,   # PER beta
+    "alpha": 0.4,
+    "beta": 0.4,
     "prior_eps": 1e-6,
     "v_min": -10.0,
     "v_max": 10.0,

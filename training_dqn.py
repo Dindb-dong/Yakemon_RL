@@ -42,22 +42,23 @@ from context.duration_store import duration_store
 battle_store = store
 duration_store = duration_store
 
-
 # 하이퍼파라미터 설정
 HYPERPARAMS = {
-    "learning_rate": 0.001,
-    "gamma": 0.99,
+    "learning_rate": 0.0005,
+    "gamma": 0.95,
     "epsilon_start": 1.0,
     "epsilon_end": 0.01,
-    "epsilon_decay": 0.995,
-    "batch_size": 64,
-    "memory_size": 10000,
-    "target_update": 10,
+    "epsilon_decay": 0.997,
+    "batch_size": 128,
+    "memory_size": 50000,
+    "target_update": 20,
     "num_episodes": 1000,
-    "save_interval": 100,
-    "test_episodes": 100,
+    "save_interval": 50,
+    "test_episodes": 50,
     "state_dim": 126,  # get_state_vector의 출력 차원
     "action_dim": 6,   # 4개의 기술 + 2개의 교체
+    "memory_size": 50000,  # 리플레이 버퍼 크기
+    "batch_size": 128,     # 배치 크기
 }
 
 #%% [markdown]
@@ -505,7 +506,9 @@ if __name__ == "__main__":
         epsilon_start=HYPERPARAMS["epsilon_start"],
         epsilon_end=HYPERPARAMS["epsilon_end"],
         epsilon_decay=HYPERPARAMS["epsilon_decay"],
-        target_update=HYPERPARAMS["target_update"]
+        target_update=HYPERPARAMS["target_update"],
+        memory_size=HYPERPARAMS["memory_size"],
+        batch_size=HYPERPARAMS["batch_size"]
     )
     
     print("Starting DDDQN training...")

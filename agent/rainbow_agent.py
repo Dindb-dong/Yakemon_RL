@@ -354,17 +354,21 @@ class Network(nn.Module):
 
         # set common feature layer
         self.feature_layer = nn.Sequential(
-            nn.Linear(in_dim, 128), 
+            nn.Linear(in_dim, 512), 
             nn.ReLU(),
+            nn.Linear(512, 256),
+            nn.ReLU(),
+            nn.Linear(256, 128),
+            nn.ReLU()
         )
         
         # set advantage layer
-        self.advantage_hidden_layer = NoisyLinear(128, 128)
-        self.advantage_layer = NoisyLinear(128, out_dim * atom_size)
+        self.advantage_hidden_layer = NoisyLinear(128, 256)
+        self.advantage_layer = NoisyLinear(256, out_dim * atom_size)
 
         # set value layer
-        self.value_hidden_layer = NoisyLinear(128, 128)
-        self.value_layer = NoisyLinear(128, atom_size)
+        self.value_hidden_layer = NoisyLinear(128, 256)
+        self.value_layer = NoisyLinear(256, atom_size)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         """Forward method implementation."""
@@ -427,17 +431,17 @@ class DQNAgent:
         batch_size: int,
         target_update: int,
         seed: int,
-        gamma: float = 0.99,
+        gamma: float,
         # PER parameters
-        alpha: float = 0.2,
-        beta: float = 0.6,
-        prior_eps: float = 1e-6,
+        alpha: float,
+        beta: float,
+        prior_eps: float,
         # Categorical DQN parameters
-        v_min: float = 0.0,
-        v_max: float = 200.0,
-        atom_size: int = 51,
+        v_min: float,
+        v_max: float,
+        atom_size: int,
         # N-step Learning
-        n_step: int = 3,
+        n_step: int,
     ):
         """Initialization."""
         # 환경의 observation_space에서 상태 벡터 크기를 가져옴
@@ -503,6 +507,9 @@ class DQNAgent:
         
         # mode: train / test
         self.is_test = False
+        
+        # 타겟 네트워크 업데이트 관련
+        self.steps = 0
 
     def _get_action_mask(self, store):
         """현재 상태에서 가능한 행동들의 마스크를 반환합니다."""
@@ -628,6 +635,12 @@ class DQNAgent:
         # NoisyNet: reset noise
         self.dqn.reset_noise()
         self.dqn_target.reset_noise()
+        
+        # 타겟 네트워크 업데이트
+        self.steps += 1
+        if self.steps % self.target_update == 0:
+            self._target_hard_update()
+            print(f"Target network updated at step {self.steps}")
 
         return loss.item()
         

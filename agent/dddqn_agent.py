@@ -18,7 +18,9 @@ class DuelingDQN(nn.Module):
         
         # 공통 특성 추출기
         self.feature_layer = nn.Sequential(
-            nn.Linear(input_dim, 256),
+            nn.Linear(input_dim, 512),
+            nn.ReLU(),
+            nn.Linear(512, 256),
             nn.ReLU(),
             nn.Linear(256, 128),
             nn.ReLU()
@@ -26,6 +28,8 @@ class DuelingDQN(nn.Module):
         
         # Value 스트림
         self.value_stream = nn.Sequential(
+            nn.Linear(128, 128),
+            nn.ReLU(),
             nn.Linear(128, 64),
             nn.ReLU(),
             nn.Linear(64, 1)
@@ -33,6 +37,8 @@ class DuelingDQN(nn.Module):
         
         # Advantage 스트림
         self.advantage_stream = nn.Sequential(
+            nn.Linear(128, 128),
+            nn.ReLU(),
             nn.Linear(128, 64),
             nn.ReLU(),
             nn.Linear(64, output_dim)
@@ -48,7 +54,7 @@ class DuelingDQN(nn.Module):
         return qvals
 
 class DDDQNAgent:
-    def __init__(self, state_dim, action_dim, learning_rate, gamma, epsilon_start, epsilon_end, epsilon_decay, target_update):
+    def __init__(self, state_dim, action_dim, learning_rate, gamma, epsilon_start, epsilon_end, epsilon_decay, target_update, memory_size, batch_size):
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.state_dim = state_dim
         self.action_dim = action_dim
@@ -67,8 +73,8 @@ class DDDQNAgent:
         self.optimizer = optim.Adam(self.policy_net.parameters(), lr=learning_rate)
         
         # 경험 리플레이 버퍼
-        self.memory = ReplayBuffer(10000)
-        self.batch_size = 64
+        self.memory = ReplayBuffer(memory_size)
+        self.batch_size = batch_size
         
         # 타겟 네트워크 업데이트 관련
         self.steps = 0
