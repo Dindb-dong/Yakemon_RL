@@ -189,13 +189,6 @@ class DDDQNAgent:
         """네트워크를 학습하고 탐험률을 업데이트합니다."""
         loss = self.train()
         self.update_epsilon()
-        
-        # 타겟 네트워크 업데이트
-        self.steps += 1
-        if self.steps % self.update_frequency == 0:
-            self.update_target_network()
-            print(f"Target network updated at step {self.steps}")
-        
         return loss
 
     def save(self, path):
