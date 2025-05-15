@@ -59,6 +59,7 @@ HYPERPARAMS = {
     "test_episodes": 100,
     "state_dim": 126,  # get_state_vector의 출력 차원
     "action_dim": 6,   # 4개의 기술 + 2개의 교체
+    "learning_rate": 0.0003,  # 학습률 추가
 }
 
 #%% [markdown]
@@ -503,7 +504,8 @@ if __name__ == "__main__":
         v_min=HYPERPARAMS["v_min"],
         v_max=HYPERPARAMS["v_max"],
         atom_size=HYPERPARAMS["atom_size"],
-        n_step=HYPERPARAMS["n_step"]
+        n_step=HYPERPARAMS["n_step"],
+        learning_rate=HYPERPARAMS["learning_rate"]
     )
     
     print("Starting Rainbow DQN training...")

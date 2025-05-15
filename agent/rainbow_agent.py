@@ -442,6 +442,8 @@ class DQNAgent:
         atom_size: int,
         # N-step Learning
         n_step: int,
+        # Learning rate
+        learning_rate: float,
     ):
         """Initialization."""
         # 환경의 observation_space에서 상태 벡터 크기를 가져옴
@@ -458,6 +460,7 @@ class DQNAgent:
         self.seed = seed
         self.gamma = gamma
         self.action_dim = action_dim
+        self.learning_rate = learning_rate
         
         # device: cpu / gpu
         self.device = torch.device(
@@ -500,7 +503,7 @@ class DQNAgent:
         self.dqn_target.eval()
         
         # optimizer
-        self.optimizer = optim.Adam(self.dqn.parameters())
+        self.optimizer = optim.Adam(self.dqn.parameters(), lr=self.learning_rate)
 
         # transition to store in memory
         self.transition = list()
