@@ -48,7 +48,7 @@ class DuelingDQN(nn.Module):
         return qvals
 
 class DDDQNAgent:
-    def __init__(self, state_dim, action_dim, learning_rate=0.001, gamma=0.99, epsilon_start=1.0, epsilon_end=0.01, epsilon_decay=0.995, target_update=10):
+    def __init__(self, state_dim, action_dim, learning_rate, gamma, epsilon_start, epsilon_end, epsilon_decay, target_update):
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.state_dim = state_dim
         self.action_dim = action_dim
@@ -56,7 +56,7 @@ class DDDQNAgent:
         self.epsilon = epsilon_start
         self.epsilon_end = epsilon_end
         self.epsilon_decay = epsilon_decay
-        self.update_frequency = target_update  # target_update 파라미터를 update_frequency로 사용
+        self.update_frequency = target_update
         
         # 메인 네트워크와 타겟 네트워크
         self.policy_net = DuelingDQN(state_dim, action_dim).to(self.device)
@@ -189,6 +189,13 @@ class DDDQNAgent:
         """네트워크를 학습하고 탐험률을 업데이트합니다."""
         loss = self.train()
         self.update_epsilon()
+        
+        # 타겟 네트워크 업데이트
+        self.steps += 1
+        if self.steps % self.update_frequency == 0:
+            self.update_target_network()
+            print(f"Target network updated at step {self.steps}")
+        
         return loss
 
     def save(self, path):

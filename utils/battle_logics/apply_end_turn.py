@@ -80,11 +80,11 @@ async def apply_end_turn_effects():
         set_field(None)
         store.add_log(f"필드({public_env.field})의 효과가 사라졌다!")
 
-    if my_env.screen and my_env.screen in expired["myEnv"]:
+    if my_env.screen and my_env.screen in expired.get("myEnv", []):
         set_screen("my", None)
         store.add_log(f"내 필드의 {my_env.screen}이/가 사라졌다!")
 
-    if enemy_env.screen and enemy_env.screen in expired["enemyEnv"]:
+    if enemy_env.screen and enemy_env.screen in expired.get("enemyEnv", []):
         set_screen("enemy", None)
         store.add_log(f"상대 필드의 {enemy_env.screen}이/가 사라졌다!")
 

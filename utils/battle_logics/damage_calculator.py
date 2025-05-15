@@ -170,12 +170,10 @@ async def calculate_move_damage(
     if not (move_info.name == "솔라빔" and public_env.weather == "쾌청"):
         if move_info.charge_turn and not attacker.is_charging:
             store.update_pokemon(side, active_my if side == "my" else active_enemy,
-                                lambda p: {
-                                    **p,
-                                    "is_charging": True,
-                                    "charging_move": move_info,
-                                    "position": move_info.position or None
-                                })
+                                lambda p: setattr(p, 'is_charging', True) or 
+                                        setattr(p, 'charging_move', move_info) or
+                                        setattr(p, 'position', move_info.position or None) or
+                                        p)
             store.add_log(f"{attacker.base.name}은(는) 힘을 모으기 시작했다!")
             return {"success": True}
     
@@ -712,7 +710,7 @@ def apply_change_effect(
                 set_room(move_info.room)
             
             if move_info.screen:
-                set_screen(move_info.screen)
+                set_screen(side, move_info.screen)
     
     store.add_log(f"{side}는 {move_info.name}을/를 사용했다!")
     store.update_pokemon(side, active_mine, lambda p: set_used_move(p, move_info))

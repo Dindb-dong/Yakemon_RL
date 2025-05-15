@@ -21,11 +21,11 @@ async def calculate_order(player_move: Optional[MoveInfo], ai_move: Optional[Mov
     def boost_priority(pokemon: BattlePokemon, move: Optional[MoveInfo]):
         if pokemon.base.ability and move:
             if pokemon.base.ability.name == '힐링시프트' and any(e.heal for e in move.effects):
-                move["priority"] = move.priority + 3
+                move.priority = move.priority + 3
             elif pokemon.base.ability.name == '짓궂은마음' and move.category == "변화":
-                move["priority"] = move.priority + 1
+                move.priority = move.priority + 1
             elif pokemon.base.ability.name == '질풍날개' and move.type == "비행" and pokemon.current_hp == pokemon.base.hp:
-                move["priority"] = 1
+                move.priority = 1
 
     boost_priority(my_pokemon, player_move)
     boost_priority(opponent_pokemon, ai_move)

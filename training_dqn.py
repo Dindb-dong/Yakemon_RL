@@ -219,11 +219,6 @@ async def train_agent(
         rewards_history.append(avg_reward)
         losses_history.append(avg_loss)
         
-        # 타겟 네트워크 업데이트 (10 에피소드마다)
-        if (episode + 1) % 10 == 0:
-            agent.update_target_network()
-            print(f"Target network updated at episode {episode + 1}")
-        
         # 최고 성능 모델 저장
         if avg_reward > best_reward:
             best_reward = avg_reward
