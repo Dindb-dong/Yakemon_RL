@@ -129,7 +129,18 @@ class DDDQNAgent:
     
     def update_target_network(self):
         """타겟 네트워크를 메인 네트워크의 가중치로 업데이트합니다."""
+        # 업데이트 전 타겟 네트워크의 첫 번째 레이어 가중치
+        before_update = self.target_net.feature_layer[0].weight.data.clone()
+        
+        # 타겟 네트워크 업데이트
         self.target_net.load_state_dict(self.policy_net.state_dict())
+        
+        # 업데이트 후 타겟 네트워크의 첫 번째 레이어 가중치
+        after_update = self.target_net.feature_layer[0].weight.data.clone()
+        
+        # 가중치 변화 확인
+        weight_diff = torch.abs(before_update - after_update).mean().item()
+        print(f"Target network weights updated. Mean weight difference: {weight_diff:.6f}")
     
     def update_epsilon(self):
         """탐험률을 감소시킵니다."""
