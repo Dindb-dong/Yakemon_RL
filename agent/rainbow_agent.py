@@ -24,9 +24,9 @@ class ReplayBuffer:
         self, 
         obs_dim: int, 
         size: int, 
-        batch_size: int = 32, 
-        n_step: int = 1, 
-        gamma: float = 0.99
+        batch_size: int,
+        n_step: int,
+        gamma: float
     ):
         self.obs_buf = np.zeros([size, obs_dim], dtype=np.float32)
         self.next_obs_buf = np.zeros([size, obs_dim], dtype=np.float32)
@@ -131,11 +131,11 @@ class PrioritizedReplayBuffer(ReplayBuffer):
         self, 
         obs_dim: int, 
         size: int, 
-        batch_size: int = 32, 
-        alpha: float = 0.6,
-        n_step: int = 1, 
-        gamma: float = 0.99,
-        prior_eps: float = 1e-6,
+        batch_size: int,
+        alpha: float,
+        n_step: int,
+        gamma: float,
+        prior_eps: float
     ):
         """Initialization."""
         assert alpha >= 0
