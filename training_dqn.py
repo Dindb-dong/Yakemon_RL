@@ -56,9 +56,7 @@ HYPERPARAMS = {
     "save_interval": 50,
     "test_episodes": 50,
     "state_dim": 126,  # get_state_vector의 출력 차원
-    "action_dim": 6,   # 4개의 기술 + 2개의 교체
-    "memory_size": 50000,  # 리플레이 버퍼 크기
-    "batch_size": 128,     # 배치 크기
+    "action_dim": 6   # 4개의 기술 + 2개의 교체
 }
 
 #%% [markdown]
@@ -307,15 +305,15 @@ def plot_training_results(
     
     # 4. 학습 통계 저장
     stats = {
-        'mean_reward': np.mean(rewards_history),
-        'std_reward': np.std(rewards_history),
-        'max_reward': np.max(rewards_history),
-        'min_reward': np.min(rewards_history),
-        'mean_loss': np.mean(losses_history),
-        'std_loss': np.std(losses_history),
-        'max_loss': np.max(losses_history),
-        'min_loss': np.min(losses_history),
-        'total_episodes': len(rewards_history)
+        'mean_reward': float(np.mean(rewards_history)),
+        'std_reward': float(np.std(rewards_history)),
+        'max_reward': float(np.max(rewards_history)),
+        'min_reward': float(np.min(rewards_history)),
+        'mean_loss': float(np.mean(losses_history)),
+        'std_loss': float(np.std(losses_history)),
+        'max_loss': float(np.max(losses_history)),
+        'min_loss': float(np.min(losses_history)),
+        'total_episodes': int(len(rewards_history))
     }
     
     # 통계를 JSON 파일로 저장
