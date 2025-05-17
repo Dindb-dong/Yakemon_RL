@@ -79,7 +79,7 @@ class DDDQNAgent:
         # 타겟 네트워크 업데이트 관련
         self.steps = 0
     
-    def select_action(self, state, store=None, duration_store=None):
+    def select_action(self, state, store=None, duration_store=None, use_target=False):
         """ε-greedy 정책에 따라 행동을 선택합니다."""
         if random.random() < self.epsilon:
             # 마스크를 고려한 랜덤 행동 선택
@@ -91,7 +91,9 @@ class DDDQNAgent:
         
         with torch.no_grad():
             state = torch.FloatTensor(state).unsqueeze(0).to(self.device)
-            q_values = self.policy_net(state)
+            # use_target이 True면 target network를 사용
+            network = self.target_net if use_target else self.policy_net
+            q_values = network(state)
             
             # 마스크 적용
             action_mask = self._get_action_mask(store)
