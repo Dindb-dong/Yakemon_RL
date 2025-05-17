@@ -20,6 +20,7 @@ from env.battle_env import YakemonEnv
 
 # 유틸리티 관련 import
 from utils.battle_logics.create_battle_pokemon import create_battle_pokemon
+from utils.visualization import plot_training_results
 
 # 에이전트 관련 import
 from agent.dddqn_agent import DDDQNAgent
@@ -238,105 +239,6 @@ async def train_agent(
         print('-' * 50)
     
     return rewards_history, losses_history
-
-#%% [markdown]
-# 시각화 함수 정의
-def plot_training_results(
-    rewards_history: list,
-    losses_history: list,
-    agent_name: str,
-    save_path: str = 'results'
-) -> None:
-    """
-    학습 결과 시각화
-    
-    Args:
-        rewards_history: 에피소드별 평균 보상 기록
-        losses_history: 에피소드별 평균 손실 기록
-        agent_name: 에이전트 이름
-        save_path: 결과 저장 경로
-    """
-    os.makedirs(save_path, exist_ok=True)
-    
-    # 1. 보상 그래프
-    plt.figure(figsize=(12, 6))
-    plt.plot(rewards_history, label='Average Reward', color='blue', alpha=0.6)
-    
-    # 이동 평균 추가 (100 에피소드)
-    window_size = min(100, len(rewards_history))
-    if window_size > 0:
-        moving_avg = np.convolve(rewards_history, np.ones(window_size)/window_size, mode='valid')
-        plt.plot(range(window_size-1, len(rewards_history)), moving_avg, 
-                label=f'{window_size}-Episode Moving Average', color='red', linewidth=2)
-    
-    plt.title(f'{agent_name} Training Rewards')
-    plt.xlabel('Episode')
-    plt.ylabel('Average Reward')
-    plt.legend()
-    plt.grid(True, alpha=0.3)
-    plt.savefig(os.path.join(save_path, f'{agent_name}_rewards.png'), dpi=300, bbox_inches='tight')
-    plt.close()
-    
-    # 2. 손실 그래프
-    plt.figure(figsize=(12, 6))
-    plt.plot(losses_history, label='Average Loss', color='green', alpha=0.6)
-    
-    # 이동 평균 추가 (100 에피소드)
-    if window_size > 0:
-        moving_avg = np.convolve(losses_history, np.ones(window_size)/window_size, mode='valid')
-        plt.plot(range(window_size-1, len(losses_history)), moving_avg, 
-                label=f'{window_size}-Episode Moving Average', color='red', linewidth=2)
-    
-    plt.title(f'{agent_name} Training Losses')
-    plt.xlabel('Episode')
-    plt.ylabel('Average Loss')
-    plt.legend()
-    plt.grid(True, alpha=0.3)
-    plt.savefig(os.path.join(save_path, f'{agent_name}_losses.png'), dpi=300, bbox_inches='tight')
-    plt.close()
-    
-    # 3. 보상 분포 히스토그램
-    plt.figure(figsize=(12, 6))
-    plt.hist(rewards_history, bins=50, alpha=0.7, color='blue')
-    plt.title(f'{agent_name} Reward Distribution')
-    plt.xlabel('Average Reward')
-    plt.ylabel('Frequency')
-    plt.grid(True, alpha=0.3)
-    plt.savefig(os.path.join(save_path, f'{agent_name}_reward_distribution.png'), dpi=300, bbox_inches='tight')
-    plt.close()
-    
-    # 4. 학습 통계 저장
-    stats = {
-        'mean_reward': float(np.mean(rewards_history)),
-        'std_reward': float(np.std(rewards_history)),
-        'max_reward': float(np.max(rewards_history)),
-        'min_reward': float(np.min(rewards_history)),
-        'mean_loss': float(np.mean(losses_history)),
-        'std_loss': float(np.std(losses_history)),
-        'max_loss': float(np.max(losses_history)),
-        'min_loss': float(np.min(losses_history)),
-        'total_episodes': int(len(rewards_history))
-    }
-    
-    # 통계를 JSON 파일로 저장
-    with open(os.path.join(save_path, f'{agent_name}_stats.json'), 'w') as f:
-        json.dump(stats, f, indent=4)
-    
-    # 통계를 텍스트 파일로도 저장
-    with open(os.path.join(save_path, f'{agent_name}_stats.txt'), 'w') as f:
-        f.write(f"{agent_name} Training Statistics\n")
-        f.write("=" * 50 + "\n\n")
-        f.write(f"Total Episodes: {stats['total_episodes']}\n\n")
-        f.write("Reward Statistics:\n")
-        f.write(f"  Mean: {stats['mean_reward']:.4f}\n")
-        f.write(f"  Std:  {stats['std_reward']:.4f}\n")
-        f.write(f"  Max:  {stats['max_reward']:.4f}\n")
-        f.write(f"  Min:  {stats['min_reward']:.4f}\n\n")
-        f.write("Loss Statistics:\n")
-        f.write(f"  Mean: {stats['mean_loss']:.4f}\n")
-        f.write(f"  Std:  {stats['std_loss']:.4f}\n")
-        f.write(f"  Max:  {stats['max_loss']:.4f}\n")
-        f.write(f"  Min:  {stats['min_loss']:.4f}\n")
 
 #%% [markdown]
 # 테스트 함수 정의
