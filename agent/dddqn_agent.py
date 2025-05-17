@@ -54,6 +54,21 @@ class DuelingDQN(nn.Module):
         return qvals
 
 class DDDQNAgent:
+    """
+    Dueling Double DQN 에이전트
+    
+    주요 하이퍼파라미터:
+    - learning_rate: 학습률 (기본값: 0.0005)
+    - gamma: 할인 계수 (기본값: 0.95)
+    - epsilon_start: 초기 탐험률 (기본값: 1.0)
+    - epsilon_end: 최소 탐험률 (기본값: 0.01)
+    - epsilon_decay: 탐험률 감소율 (기본값: 0.997)
+    - target_update: 타겟 네트워크 업데이트 주기 (기본값: 20)
+        - 매 20번의 학습 스텝마다 타겟 네트워크를 정책 네트워크의 가중치로 하드 업데이트
+        - 이는 학습의 안정성을 높이고 Q값의 과대 추정을 방지하는 역할
+    - memory_size: 리플레이 버퍼 크기 (기본값: 50000)
+    - batch_size: 배치 크기 (기본값: 128)
+    """
     def __init__(self, state_dim, action_dim, learning_rate, gamma, epsilon_start, epsilon_end, epsilon_decay, target_update, memory_size, batch_size):
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.state_dim = state_dim
@@ -63,7 +78,7 @@ class DDDQNAgent:
         self.epsilon = epsilon_start
         self.epsilon_end = epsilon_end
         self.epsilon_decay = epsilon_decay
-        self.update_frequency = target_update
+        self.update_frequency = target_update  # 타겟 네트워크 업데이트 주기 (학습 스텝 단위)
         
         # 메인 네트워크와 타겟 네트워크
         self.policy_net = DuelingDQN(state_dim, action_dim).to(self.device)
@@ -78,9 +93,10 @@ class DDDQNAgent:
         self.batch_size = batch_size
         
         # 타겟 네트워크 업데이트 관련
-        self.steps = 0
+        self.steps = 0  # 총 학습 스텝 수
+        self.updates = 0  # 실제로 수행된 네트워크 업데이트 수
     
-    def select_action(self, state, store=None, duration_store=None, use_target=False):
+    def select_action(self, state, store=None, duration_store=None):
         """ε-greedy 정책에 따라 행동을 선택합니다."""
         if random.random() < self.epsilon:
             # 마스크를 고려한 랜덤 행동 선택
@@ -92,9 +108,7 @@ class DDDQNAgent:
         
         with torch.no_grad():
             state = torch.FloatTensor(state).unsqueeze(0).to(self.device)
-            # use_target이 True면 target network를 사용
-            network = self.target_net if use_target else self.policy_net
-            q_values = network(state)
+            q_values = self.policy_net(state)
             
             # 마스크 적용
             action_mask = self._get_action_mask(store)
@@ -149,14 +163,21 @@ class DDDQNAgent:
         
         # 가중치 변화 확인
         weight_diff = torch.abs(before_update - after_update).mean().item()
-        print(f"Target network weights updated. Mean weight difference: {weight_diff:.6f}")
+        print(f"Target network updated at step {self.steps} (update #{self.updates}). Mean weight difference: {weight_diff:.6f}")
     
     def update_epsilon(self):
         """탐험률을 감소시킵니다."""
         self.epsilon = max(self.epsilon_end, self.epsilon * self.epsilon_decay)
     
     def train(self):
-        """네트워크를 학습합니다."""
+        """
+        네트워크를 학습합니다.
+        리플레이 버퍼에 최소 배치 크기(batch_size) 이상의 샘플이 있을 때만 학습을 수행합니다.
+        
+        Returns:
+            float: 학습 손실값. 학습이 수행되지 않은 경우 0.0을 반환합니다.
+        """
+        # 최소 배치 크기 이상의 샘플이 있는지 확인
         if len(self.memory) < self.batch_size:
             return 0.0
         
@@ -172,6 +193,7 @@ class DDDQNAgent:
         
         # 디버그 정보 출력
         print(f"\nDebug - Batch Info:")
+        print(f"Replay Buffer Size: {len(self.memory)}/{self.memory.max_size}")
         print(f"Rewards - Min: {reward_batch.min().item():.2f}, Max: {reward_batch.max().item():.2f}, Mean: {reward_batch.mean().item():.2f}")
         print(f"Dones - True count: {done_batch.sum().item()}")
         
@@ -188,10 +210,31 @@ class DDDQNAgent:
             next_q_values = self.target_net(next_state_batch).gather(1, next_actions)
             expected_q_values = reward_batch.unsqueeze(1) + (1 - done_batch.unsqueeze(1)) * self.gamma * next_q_values
         
-        print(f"Debug - Q-values - Current: {current_q_values.mean().item():.2f}, Expected: {expected_q_values.mean().item():.2f}")
+        # Q값 디버그 정보
+        print(f"Debug - Q-values:")
+        print(f"Current Q - Min: {current_q_values.min().item():.2f}, Max: {current_q_values.max().item():.2f}, Mean: {current_q_values.mean().item():.2f}")
+        print(f"Expected Q - Min: {expected_q_values.min().item():.2f}, Max: {expected_q_values.max().item():.2f}, Mean: {expected_q_values.mean().item():.2f}")
+        
+        # NaN/Inf 체크
+        if torch.isnan(current_q_values).any() or torch.isinf(current_q_values).any():
+            print("Warning: NaN or Inf detected in current_q_values")
+            return 0.0
+        if torch.isnan(expected_q_values).any() or torch.isinf(expected_q_values).any():
+            print("Warning: NaN or Inf detected in expected_q_values")
+            return 0.0
         
         # 손실 계산
         loss = F.smooth_l1_loss(current_q_values, expected_q_values)
+        
+        # 손실값 디버그
+        print(f"Debug - Loss: {loss.item():.4f}")
+        if loss.item() < 0:
+            print("Warning: Negative loss detected!")
+            print(f"Current Q shape: {current_q_values.shape}")
+            print(f"Expected Q shape: {expected_q_values.shape}")
+            print(f"Current Q dtype: {current_q_values.dtype}")
+            print(f"Expected Q dtype: {expected_q_values.dtype}")
+            return 0.0
         
         # 최적화
         self.optimizer.zero_grad()
@@ -199,18 +242,29 @@ class DDDQNAgent:
         torch.nn.utils.clip_grad_norm_(self.policy_net.parameters(), 1.0)
         self.optimizer.step()
         
-        return loss.item()
-    
-    def update(self):
-        """네트워크를 학습하고 탐험률을 업데이트합니다."""
-        loss = self.train()
-        self.update_epsilon()
+        # 학습 스텝 카운트 증가
+        self.steps += 1
+        self.updates += 1
         
         # 타겟 네트워크 업데이트
-        self.steps += 1
-        if self.steps % self.update_frequency == 0:
+        if self.updates % self.update_frequency == 0:
             self.update_target_network()
-            print(f"Target network updated at step {self.steps}")
+        
+        return loss.item()
+
+    def update(self):
+        """
+        네트워크를 학습하고 탐험률을 업데이트합니다.
+        리플레이 버퍼에 충분한 샘플이 있을 때만 학습을 수행합니다.
+        
+        Returns:
+            float: 학습 손실값. 학습이 수행되지 않은 경우 0.0을 반환합니다.
+        """
+        # 학습 수행
+        loss = self.train()
+        
+        # 탐험률 업데이트
+        self.update_epsilon()
         
         return loss
 

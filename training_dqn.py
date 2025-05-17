@@ -71,10 +71,20 @@ async def train_agent(
 ) -> tuple:
     """
     에이전트 학습 함수
+    
+    Args:
+        env: 학습 환경
+        agent: 학습할 에이전트
+        num_episodes: 학습할 에피소드 수
+        save_path: 모델 저장 경로
+        agent_name: 에이전트 이름
+    
+    Returns:
+        tuple: (rewards_history, losses_history, victories_history)
     """
     rewards_history = []
     losses_history = []
-    victories_history = []  # 승리 기록 추가
+    victories_history = []
     best_reward = float('-inf')
     
     # 모델 저장 디렉토리 생성
@@ -127,14 +137,17 @@ async def train_agent(
         
         # 2. 배틀 환경 초기화
         state = env.reset(my_team=my_team, enemy_team=enemy_team)
-        my_team = env.my_team  # BattlePokemon 객체 리스트로 업데이트
-        enemy_team = env.enemy_team  # BattlePokemon 객체 리스트로 업데이트
+        my_team = env.my_team
+        enemy_team = env.enemy_team
         store = env.battle_store
         store.set_active_my(0)
         store.set_active_enemy(0)
+        
+        # 에피소드 관련 변수 초기화
         total_reward = 0
         total_loss = 0
         steps = 0
+        episode_experiences = []  # 에피소드 동안의 경험을 저장
         
         # 3. 배틀 루프
         while True:
@@ -157,10 +170,8 @@ async def train_agent(
             state_keys = sorted(state_dict.keys())
             state_vector = [state_dict[key] for key in state_keys]
             
-            # 행동 선택 (기술 4개 + 교체 가능한 포켓몬 수)
-            # target network가 업데이트된 후에는 target network를 사용
-            use_target = agent.steps % agent.update_frequency == 0
-            action = agent.select_action(state_vector, env.battle_store, env.duration_store, use_target=use_target)
+            # 행동 선택
+            action = agent.select_action(state_vector, env.battle_store, env.duration_store)
             
             # 행동 실행
             next_state, reward, done, _ = await env.step(action)
@@ -181,38 +192,16 @@ async def train_agent(
             )
             next_state_vector = [next_state_dict[key] for key in state_keys]
             
-            # 보상 계산
-            reward = calculate_reward(
-                my_team=my_team,
-                enemy_team=enemy_team,
-                active_my=env.battle_store.get_active_index("my"),
-                active_enemy=env.battle_store.get_active_index("enemy"),
-                public_env=env.public_env.__dict__,
-                my_env=env.my_env.__dict__,
-                enemy_env=env.enemy_env.__dict__,
-                turn=env.turn,
-                my_effects=env.duration_store.my_effects,
-                enemy_effects=env.duration_store.enemy_effects,
-                action=action,
-                done=done,
-                battle_store=env.battle_store,
-                duration_store=env.duration_store
-            )
-            
-            # 경험 저장
+            # 경험 저장 (리플레이 버퍼에 추가)
             agent.store_transition(state_vector, action, reward, next_state_vector, done)
             
-            # 학습
-            if len(agent.memory) > agent.batch_size:
-                loss = agent.update()
-                total_loss += loss
+            # 에피소드 경험 저장
+            episode_experiences.append((state_vector, action, reward, next_state_vector, done))
             
             state_vector = next_state_vector
             total_reward += reward
             steps += 1
-        
             
-            # 배틀이 끝났는지 확인
             if done:
                 # 승리 여부 확인
                 my_team_alive = any(pokemon.current_hp > 0 for pokemon in my_team)
@@ -220,6 +209,14 @@ async def train_agent(
                 victory = 1 if my_team_alive and not enemy_team_alive else 0
                 victories_history.append(victory)
                 break
+        
+        # 4. 에피소드가 완전히 끝난 후 학습 수행
+        if len(agent.memory) >= agent.batch_size:
+            # 에피소드 동안의 경험을 사용하여 학습
+            for _ in range(len(episode_experiences)):
+                loss = agent.update()
+                if loss > 0:  # 학습이 실제로 수행된 경우에만
+                    total_loss += loss
         
         # 에피소드 결과 저장
         avg_reward = total_reward / steps

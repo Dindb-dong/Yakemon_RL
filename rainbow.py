@@ -181,24 +181,6 @@ async def train_agent(
             )
             next_state_vector = [next_state_dict[key] for key in state_keys]
             
-            # 보상 계산
-            reward = calculate_reward(
-                my_team=my_team,
-                enemy_team=enemy_team,
-                active_my=env.battle_store.get_active_index("my"),
-                active_enemy=env.battle_store.get_active_index("enemy"),
-                public_env=env.public_env.__dict__,
-                my_env=env.my_env.__dict__,
-                enemy_env=env.enemy_env.__dict__,
-                turn=env.turn,
-                my_effects=env.duration_store.my_effects,
-                enemy_effects=env.duration_store.enemy_effects,
-                action=action,
-                done=done,
-                battle_store=env.battle_store,
-                duration_store=env.duration_store
-            )
-            
             # 경험 저장 및 학습
             await agent.step(action)
             if len(agent.memory) > agent.batch_size:
