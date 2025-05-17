@@ -54,7 +54,7 @@ HYPERPARAMS = {
     "v_max": 10.0,
     "atom_size": 51,
     "n_step": 3,
-    "num_episodes": 1000,
+    "num_episodes": 50000,
     "save_interval": 100,
     "test_episodes": 100,
     "state_dim": 126,  # get_state_vector의 출력 차원

@@ -248,6 +248,11 @@ async def handle_move(
         result = await calculate_move_damage(move_name=move.name, side=side, current_index=current_index, was_late=was_late)
         print("1번째 타격!")
         if result and result["success"]:
+            if not result.get("is_hit", True):  # is_hit이 False면 빗나간 것
+                store.add_log(f"🚫 {attacker.base.name}의 공격은 빗나갔다!")
+                print(f"{attacker.base.name}의 공격은 빗나갔다!")
+                return
+                
             if result.get("was_null"):
                 store.add_log(f"🚫 {attacker.base.name}의 공격은 효과가 없었다...")
                 print(f"{attacker.base.name}의 공격은 효과가 없었다...")

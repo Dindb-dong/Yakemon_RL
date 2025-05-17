@@ -167,6 +167,10 @@ class DDDQNAgent:
         next_state_batch = torch.FloatTensor(next_states).to(self.device)
         done_batch = torch.FloatTensor(dones).to(self.device)
         
+        print(f"\nDebug - Batch Info:")
+        print(f"Rewards - Min: {reward_batch.min().item():.2f}, Max: {reward_batch.max().item():.2f}, Mean: {reward_batch.mean().item():.2f}")
+        print(f"Dones - True count: {done_batch.sum().item()}")
+        
         # 현재 Q 값 계산
         current_q_values = self.policy_net(state_batch).gather(1, action_batch.unsqueeze(1))
         
@@ -179,6 +183,8 @@ class DDDQNAgent:
             next_actions = next_q_values.max(1)[1].unsqueeze(1)
             next_q_values = self.target_net(next_state_batch).gather(1, next_actions)
             expected_q_values = reward_batch.unsqueeze(1) + (1 - done_batch.unsqueeze(1)) * self.gamma * next_q_values
+        
+        print(f"Debug - Q-values - Current: {current_q_values.mean().item():.2f}, Expected: {expected_q_values.mean().item():.2f}")
         
         # 손실 계산
         loss = F.smooth_l1_loss(current_q_values, expected_q_values)

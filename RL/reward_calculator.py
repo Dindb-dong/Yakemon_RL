@@ -50,9 +50,9 @@ def calculate_reward(
     hp_advantage = my_hp_ratio - enemy_hp_ratio
     reward += hp_advantage * 3.0  # HP 상대적 우위에 큰 가중치 부여
     
-    # HP 변화에 대한 추가 보상
-    hp_change = enemy_hp_ratio - my_hp_ratio
-    reward += hp_change * 0.1  # HP 변화에 대한 보상
+    # HP 변화에 대한 추가 보상/패널티
+    hp_change = my_hp_ratio - enemy_hp_ratio  # 내 HP 변화를 기준으로 계산
+    reward += hp_change * 0.2  # 내 HP가 증가하면 보상, 감소하면 패널티
     
     # 2. 전체 팀 HP 상태 평가
     my_team_hp_total = sum(p.current_hp for p in my_team if p.current_hp > 0)
@@ -304,8 +304,8 @@ def calculate_reward(
     # 10. 승리/패배에 따른 보상 (가장 중요한 요소)
     if done:
         if any(p.current_hp > 0 for p in my_team):  # 승리
-            reward += 100.0  # 승리 보상 (50.0 -> 100.0)
+            reward += 100.0
         else:  # 패배
-            reward -= 10.0  # 패배 패널티 (50.0 -> 100.0)
+            reward -= 5.0
     
     return reward

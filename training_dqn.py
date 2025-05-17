@@ -52,7 +52,7 @@ HYPERPARAMS = {
     "batch_size": 128,
     "memory_size": 50000,
     "target_update": 20,
-    "num_episodes": 1000,
+    "num_episodes": 50000,
     "save_interval": 50,
     "test_episodes": 50,
     "state_dim": 126,  # get_state_vector의 출력 차원

@@ -552,6 +552,8 @@ class DQNAgent:
         
         if not valid_actions:
             # 모든 액션이 불가능한 경우 (이론적으로는 발생하지 않아야 함)
+            print("Warning: No valid actions available!")
+            # 기본적으로 기술 1번을 시도
             return 0
         
         # Get Q-values for all actions

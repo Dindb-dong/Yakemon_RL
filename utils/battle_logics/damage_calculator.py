@@ -210,6 +210,7 @@ async def calculate_move_damage(
         if not hit_success:
             is_hit = False
             store.add_log(f"🚫 {attacker.base.name}의 공격은 빗나갔다!")
+            print(f"{attacker.base.name}의 공격은 빗나갔다!")
             store.update_pokemon(side, active_my if side == "my" else active_enemy, lambda p: set_had_missed(p, True))
             
             # Handle move demerit effects
@@ -228,7 +229,7 @@ async def calculate_move_damage(
                             lambda p: set_charging(p, False, None))
             store.update_pokemon(side, active_my if side == "my" else active_enemy,
                             lambda p: change_position(p, None))
-            return {"success": True}
+            return {"success": True, "is_hit": False}  # 빗나갔을 때 is_hit: False 반환
     
     # 5-1. Calculate type effectiveness
     if is_hit and move_info.target == "opponent":  # 상대를 대상으로 하는 기술일 경우
