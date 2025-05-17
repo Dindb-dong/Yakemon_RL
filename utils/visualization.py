@@ -7,7 +7,8 @@ def plot_training_results(
     rewards_history: list,
     losses_history: list,
     agent_name: str,
-    save_path: str = 'results'
+    save_path: str = 'results',
+    victories_history: list = None  # 승리 기록 추가
 ) -> None:
     """
     학습 결과 시각화
@@ -17,14 +18,15 @@ def plot_training_results(
         losses_history: 에피소드별 평균 손실 기록
         agent_name: 에이전트 이름
         save_path: 결과 저장 경로
+        victories_history: 에피소드별 승리 여부 기록 (1: 승리, 0: 패배)
     """
     os.makedirs(save_path, exist_ok=True)
     
-    # 1. 보상 및 승률 그래프
-    plt.figure(figsize=(15, 8))
+    # 1. 보상, 승리 횟수 및 손실 그래프
+    plt.figure(figsize=(15, 12))
     
     # 보상 그래프
-    plt.subplot(2, 1, 1)
+    plt.subplot(3, 1, 1)
     plt.plot(rewards_history, label='Average Reward', color='blue', alpha=0.6)
     
     # 이동 평균 추가 (100 에피소드)
@@ -39,8 +41,20 @@ def plot_training_results(
     plt.legend()
     plt.grid(True, alpha=0.3)
     
+    # 누적 승리 횟수 그래프 추가
+    if victories_history is not None:
+        plt.subplot(3, 1, 2)
+        # 누적 승리 횟수 계산
+        cumulative_victories = np.cumsum(victories_history)
+        episodes = np.arange(1, len(victories_history) + 1)
+        
+        plt.plot(episodes, cumulative_victories, label='Cumulative Victories', color='purple', alpha=0.6)
+        plt.ylabel('Number of Victories')
+        plt.legend()
+        plt.grid(True, alpha=0.3)
+    
     # 손실 그래프
-    plt.subplot(2, 1, 2)
+    plt.subplot(3, 1, 3)
     plt.plot(losses_history, label='Average Loss', color='green', alpha=0.6)
     
     if window_size > 0:

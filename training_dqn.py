@@ -74,6 +74,7 @@ async def train_agent(
     """
     rewards_history = []
     losses_history = []
+    victories_history = []  # 승리 기록 추가
     best_reward = float('-inf')
     
     # 모델 저장 디렉토리 생성
@@ -213,6 +214,11 @@ async def train_agent(
             
             # 배틀이 끝났는지 확인
             if done:
+                # 승리 여부 확인
+                my_team_alive = any(pokemon.current_hp > 0 for pokemon in my_team)
+                enemy_team_alive = any(pokemon.current_hp > 0 for pokemon in enemy_team)
+                victory = 1 if my_team_alive and not enemy_team_alive else 0
+                victories_history.append(victory)
                 break
         
         # 에피소드 결과 저장
@@ -236,9 +242,11 @@ async def train_agent(
         print(f'Average Loss: {avg_loss:.4f}')
         print(f'Epsilon: {agent.epsilon:.4f}')
         print(f'Steps: {steps}')
+        print(f'Victory: {"Yes" if victory else "No"}')
+        print(f'Cumulative Victories: {sum(victories_history)}/{len(victories_history)}')
         print('-' * 50)
     
-    return rewards_history, losses_history
+    return rewards_history, losses_history, victories_history
 
 #%% [markdown]
 # 테스트 함수 정의
@@ -423,7 +431,7 @@ if __name__ == "__main__":
     print("\n" + "="*50 + "\n")
     
     # DDDQN 에이전트 학습
-    ddqn_rewards, ddqn_losses = asyncio.run(train_agent(
+    ddqn_rewards, ddqn_losses, ddqn_victories = asyncio.run(train_agent(
         env=env,
         agent=ddqn_agent,
         num_episodes=HYPERPARAMS["num_episodes"],
@@ -436,7 +444,8 @@ if __name__ == "__main__":
         rewards_history=ddqn_rewards,
         losses_history=ddqn_losses,
         agent_name='DDDQN',
-        save_path=results_dir
+        save_path=results_dir,
+        victories_history=ddqn_victories  # 승리 기록 추가
     )
     
     print("\nTraining completed!")

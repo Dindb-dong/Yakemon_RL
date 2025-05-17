@@ -58,6 +58,7 @@ class DDDQNAgent:
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.state_dim = state_dim
         self.action_dim = action_dim
+        self.learning_rate = learning_rate
         self.gamma = gamma
         self.epsilon = epsilon_start
         self.epsilon_end = epsilon_end
@@ -169,6 +170,7 @@ class DDDQNAgent:
         next_state_batch = torch.FloatTensor(next_states).to(self.device)
         done_batch = torch.FloatTensor(dones).to(self.device)
         
+        # 디버그 정보 출력
         print(f"\nDebug - Batch Info:")
         print(f"Rewards - Min: {reward_batch.min().item():.2f}, Max: {reward_batch.max().item():.2f}, Mean: {reward_batch.mean().item():.2f}")
         print(f"Dones - True count: {done_batch.sum().item()}")
