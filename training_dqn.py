@@ -316,8 +316,7 @@ async def test_agent(
             state_vector = [state_dict[key] for key in state_keys]
             
             # 행동 선택 (기술 4개 + 교체 가능한 포켓몬 수)
-            # 테스트 시에는 target network를 사용
-            action = agent.select_action(state_vector, env.battle_store, env.duration_store, use_target=True)
+            action = agent.select_action(state_vector, env.battle_store, env.duration_store)
             
             # 행동 실행
             next_state, reward, done, _ = await env.step(action)
