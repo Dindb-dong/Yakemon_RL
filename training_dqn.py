@@ -56,7 +56,7 @@ HYPERPARAMS = {
     "num_episodes": 50000,
     "save_interval": 50,
     "test_episodes": 50,
-    "state_dim": 126,  # get_state_vector의 출력 차원
+    "state_dim": 1165,  # get_state_vector의 출력 차원
     "action_dim": 6   # 4개의 기술 + 2개의 교체
 }
 
@@ -151,23 +151,19 @@ async def train_agent(
         # 3. 배틀 루프: 환경 스텝마다 한 번씩 학습 호출
         while True:
             # 현재 상태 벡터 생성
-            state_dict = get_state(
+            state_vector = get_state(
                 store=env.battle_store,
                 my_team=my_team,
                 enemy_team=enemy_team,
                 active_my=env.battle_store.get_active_index("my"),
                 active_enemy=env.battle_store.get_active_index("enemy"),
-                public_env=env.public_env.__dict__,
-                my_env=env.my_env.__dict__,
-                enemy_env=env.enemy_env.__dict__,
+                public_env=env.public_env,
+                my_env=env.my_env,
+                enemy_env=env.enemy_env,
                 turn=env.turn,
                 my_effects=env.duration_store.my_effects,
                 enemy_effects=env.duration_store.enemy_effects
             )
-            
-            # 정해진 순서로 상태 벡터 생성
-            state_keys = sorted(state_dict.keys())
-            state_vector = [state_dict[key] for key in state_keys]
             
             # 행동 선택
             action = agent.select_action(state_vector, env.battle_store, env.duration_store)
@@ -176,20 +172,19 @@ async def train_agent(
             next_state, reward, done, _ = await env.step(action)
             
             # 다음 상태 벡터 생성
-            next_state_dict = get_state(
+            next_state_vector = get_state(
                 store=env.battle_store,
                 my_team=my_team,
                 enemy_team=enemy_team,
                 active_my=env.battle_store.get_active_index("my"),
                 active_enemy=env.battle_store.get_active_index("enemy"),
-                public_env=env.public_env.__dict__,
-                my_env=env.my_env.__dict__,
-                enemy_env=env.enemy_env.__dict__,
+                public_env=env.public_env,
+                my_env=env.my_env,
+                enemy_env=env.enemy_env,
                 turn=env.turn,
                 my_effects=env.duration_store.my_effects,
                 enemy_effects=env.duration_store.enemy_effects
             )
-            next_state_vector = [next_state_dict[key] for key in state_keys]
             
             # 경험 저장 (리플레이 버퍼에 추가)
             agent.store_transition(state_vector, action, reward, next_state_vector, done)
@@ -290,23 +285,19 @@ async def test_agent(
         # 3. 배틀 루프
         while True:
             # 현재 상태 벡터 생성
-            state_dict = get_state(
+            state_vector = get_state(
                 store=env.battle_store,
                 my_team=my_team,
                 enemy_team=enemy_team,
                 active_my=env.battle_store.get_active_index("my"),
                 active_enemy=env.battle_store.get_active_index("enemy"),
-                public_env=env.public_env.__dict__,
-                my_env=env.my_env.__dict__,
-                enemy_env=env.enemy_env.__dict__,
+                public_env=env.public_env,
+                my_env=env.my_env,
+                enemy_env=env.enemy_env,
                 turn=env.turn,
                 my_effects=env.duration_store.my_effects,
                 enemy_effects=env.duration_store.enemy_effects
             )
-            
-            # 정해진 순서로 상태 벡터 생성
-            state_keys = sorted(state_dict.keys())
-            state_vector = [state_dict[key] for key in state_keys]
             
             # 행동 선택 (기술 4개 + 교체 가능한 포켓몬 수)
             # 테스트 시에는 target network를 사용
@@ -316,20 +307,19 @@ async def test_agent(
             next_state, reward, done, _ = await env.step(action)
             
             # 다음 상태 벡터 생성
-            next_state_dict = get_state(
+            next_state_vector = get_state(
                 store=env.battle_store,
                 my_team=my_team,
                 enemy_team=enemy_team,
                 active_my=env.battle_store.get_active_index("my"),
                 active_enemy=env.battle_store.get_active_index("enemy"),
-                public_env=env.public_env.__dict__,
-                my_env=env.my_env.__dict__,
-                enemy_env=env.enemy_env.__dict__,
+                public_env=env.public_env,
+                my_env=env.my_env,
+                enemy_env=env.enemy_env,
                 turn=env.turn,
                 my_effects=env.duration_store.my_effects,
                 enemy_effects=env.duration_store.enemy_effects
             )
-            next_state_vector = [next_state_dict[key] for key in state_keys]
             
             state_vector = next_state_vector
             total_reward += reward

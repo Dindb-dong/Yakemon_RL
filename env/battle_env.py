@@ -19,7 +19,7 @@ if parent_dir not in sys.path:
 
 # 하이퍼파라미터 정의
 HYPERPARAMS = {
-    "state_dim": 126,  # 상태 공간의 차원
+    "state_dim": 1165,  # 상태 공간의 차원
     "action_dim": 6,   # 행동 공간의 차원 (4개 기술 + 2개 교체)
 }
 
@@ -51,11 +51,11 @@ class YakemonEnv(gym.Env):
         self._battle_sequence_lock = asyncio.Lock()
         self.pokemon_list = create_mock_pokemon_list()
         
-        # 상태 공간 정의 (126차원)
+        # 상태 공간 정의 (1165차원)
         self.observation_space = spaces.Box(
             low=0.0,
             high=1.0,
-            shape=(126,),
+            shape=(1165,),
             dtype=np.float32
         )
         
@@ -161,24 +161,19 @@ class YakemonEnv(gym.Env):
 
     def _get_state(self):
         """현재 상태 벡터 반환"""
-        state_dict = get_state(
+        state_vector = get_state(
             store=self.battle_store,
             my_team=self.my_team,
             enemy_team=self.enemy_team,
             active_my=self.battle_store.get_active_index("my"),
             active_enemy=self.battle_store.get_active_index("enemy"),
-            public_env=self.public_env.__dict__,
-            my_env=self.my_env.__dict__,
-            enemy_env=self.enemy_env.__dict__,
+            public_env=self.public_env,
+            my_env=self.my_env,
+            enemy_env=self.enemy_env,
             turn=self.turn,
             my_effects=self.duration_store.my_effects,
             enemy_effects=self.duration_store.enemy_effects
         )
-        
-        # 정해진 순서로 상태 벡터 생성
-        state_keys = sorted(state_dict.keys())
-        state_vector = np.array([state_dict[key] for key in state_keys], dtype=np.float32)
-        
         # 상태 벡터에 action mask 추가
         action_mask = self._get_action_mask()
         return np.concatenate([state_vector, action_mask])

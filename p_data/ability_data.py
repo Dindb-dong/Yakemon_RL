@@ -5,7 +5,7 @@ from p_models.ability_info import AbilityInfo
 
 # availableAbilities 리스트
 available_abilities: List[AbilityInfo] = [
-    AbilityInfo(0, '없음'),
+    AbilityInfo(0, '없음', util=['etc']),
     AbilityInfo(1, '엽록소', util=['rank_buff']),
     AbilityInfo(2, '선파워', offensive=['rank_buff']),
     AbilityInfo(3, '급류', offensive=['damage_buff']),

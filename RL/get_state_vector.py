@@ -1,24 +1,264 @@
+import numpy as np
 from typing import List, Dict
 
-from context.battle_store import BattleStore
+from context.battle_environment import IndividualBattleEnvironment, PublicBattleEnvironment
+from context.duration_store import duration_store
+from context.battle_store import BattleStore, BattleStoreState, store, SideType
 from p_models.battle_pokemon import BattlePokemon
 
-def get_type_index(type_name: str) -> int:
-    """타입 이름을 인덱스로 변환하는 함수"""
-    type_to_index = {
-        "노말": 1, "불": 2, "물": 3, "풀": 4, "전기": 5, "얼음": 6,
-        "격투": 7, "독": 8, "땅": 9, "비행": 10, "에스퍼": 11, "벌레": 12,
-        "바위": 13, "고스트": 14, "드래곤": 15, "악": 16, "강철": 17, "페어리": 18, "없음": 19
-    }
-    return type_to_index.get(type_name, 0)
+# =============================
+# State Vector Length Calculation (Total: 1153)
+#
+# Battle global state:
+#   turn: 1
+#   weather (4 types × 6 one-hot): 24
+#   field (4 types × 5 one-hot): 20
+#   room (6 one-hot): 6
+# => subtotal: 51
+#
+# Side field state (my, enemy):
+#   (stealth rock:1 + spikes:4 + toxic spikes:3 + reflect:6 + light screen:6 + aurora veil:6) × 2 = 52
+#  => subtotal: 51 + 52 = 103
+#
+# Pokemon state (my 3, enemy 3):
+#   For each Pokemon:
+#     species: 1
+#     ability: 1
+#     move: 4
+#     move_pp: 4×5=20
+#     type(s): 18
+#     current hp fraction: 7
+#     rank boost: 7×13=91
+#     volatile effects: 8
+#     status: 7
+#     sleep counter: 4
+#     first turn: 1
+#     must recharge: 1
+#     preparing: 1
+#     charging move id: 1
+#     active: 1
+#     position: 5
+#     locked move id: 1
+#     last used move: 1
+#     had missed: 1
+#     had rank up: 1
+#     received damage: 1
+#     unusable move: 1
+#   = 177 per Pokemon
+#   6 Pokemon × 177 = 1062
+#
+# Total: 1 + 24 + 20 + 6 + 52 + 1062 = 1165
+# =============================
 
-def get_position_index(position: str) -> int:
-    """포지션을 인덱스로 변환하는 함수"""
-    position_to_index = {
-        "땅": 1, "하늘": 2, "바다": 3, "공허": 4, "없음": 5
-    }
-    return position_to_index.get(position, 0)
+# --- Utility functions ---
+def one_hot(idx, length):
+    arr = np.zeros(length, dtype=np.float32)
+    if 0 <= idx < length:
+        arr[idx] = 1.0
+    return arr
 
+def bin_hp_ratio(hp_ratio):
+    # 7 bins: (0, 1/6, 2/6, ..., 6/6]
+    bins = np.linspace(0, 1, 8)
+    idx = np.digitize([hp_ratio], bins, right=True)[0] - 1
+    return one_hot(idx, 7)
+
+def bin_pp_ratio(pp, max_pp):
+    # 5 bins: 0, (0~1/4), (1/4~2/4), (2/4~3/4), (3/4~1]
+    if max_pp == 0:
+        return one_hot(0, 5)
+    ratio = pp / max_pp
+    if ratio < 0.25:
+        return one_hot(1, 5)
+    elif ratio < 0.5:
+        return one_hot(2, 5)
+    elif ratio < 0.75:
+        return one_hot(3, 5)
+    else:
+        return one_hot(4, 5)
+
+def rank_one_hot(rank):
+    # -6~+6 -> 13 one-hot
+    idx = int(rank) + 6
+    return one_hot(idx, 13)
+
+def spikes_one_hot(n): # 압정뿌리기 횟수
+    # 0~3중첩 -> 4 one-hot
+    return one_hot(n, 4)
+
+def toxic_spikes_one_hot(val):
+    # 0: 없음, 1: 독압정, 2: 맹독압정
+    return one_hot(val, 3)
+
+def sleep_counter_one_hot(val):
+    # 1~3턴, 0이면 [0,0,0,0]
+    if val == 0:
+        return np.zeros(4, dtype=np.float32)
+    return one_hot(val, 4)
+
+def position_one_hot(pos):
+    # 없음, 하늘, 바다, 땅, 공허
+    mapping = {"없음":0, "하늘":1, "바다":2, "땅":3, "공허":4}
+    idx = mapping.get(pos, 0)
+    return one_hot(idx, 5)
+
+def type_one_hot(types):
+    # 18개 타입 중 최대 2개 1
+    arr = np.zeros(18, dtype=np.float32)
+    type_map = {"노말":0, "불":1, "물":2, "풀":3, "전기":4, "얼음":5, "격투":6, "독":7, "땅":8, "비행":9, "에스퍼":10, "벌레":11, "바위":12, "고스트":13, "드래곤":14, "악":15, "강철":16, "페어리":17}
+    for t in types:
+        if t in type_map:
+            arr[type_map[t]] = 1.0
+    return arr
+
+def weather_one_hot(turns, length=6):
+    # 0: 없음, 1~5: 남은 턴
+    arr = np.zeros(length, dtype=np.float32)
+    if 1 <= turns <= 5:
+        arr[turns] = 1.0
+    else:
+        arr[0] = 1.0
+    return arr
+
+def field_one_hot(field):
+    # 그래스, 사이코, 미스트, 일렉트릭, 없음
+    mapping = {"그래스필드":0, "사이코필드":1, "미스트필드":2, "일렉트릭필드":3, "없음":4}
+    idx = mapping.get(field, 4)
+    return one_hot(idx, 5)
+
+def room_one_hot(turns, length=6): # 트릭룸
+    # 0: 없음, 1~5: 남은 턴
+    arr = np.zeros(length, dtype=np.float32)
+    if 1 <= turns <= 5:
+        arr[turns] = 1.0
+    else:
+        arr[0] = 1.0
+    return arr
+
+def reflect_one_hot(turns, length=6):
+    # 0: 없음, 1~5: 남은 턴
+    arr = np.zeros(length, dtype=np.float32)
+    if 1 <= turns <= 5:
+        arr[turns] = 1.0
+    else:
+        arr[0] = 1.0
+    return arr
+
+# --- Main state vector function ---
+def get_pokemon_vector(pokemon: BattlePokemon, side: SideType) -> np.ndarray:
+    vec = []
+    # species (정수)
+    vec.append(pokemon.base.id if hasattr(pokemon.base, 'id') else 0)
+    # ability (정수, 첫번째 ability만)
+    ab = pokemon.base.ability
+    ab_id = ab.id if ab and hasattr(ab, 'id') else 0
+    vec.append(ab_id)
+    # move (정수 4개)
+    for i in range(4):
+        if i < len(pokemon.base.moves):
+            vec.append(pokemon.base.moves[i].id)
+        else:
+            vec.append(0)
+    # move_pp (4x5 one-hot)
+    for i in range(4):
+        if i < len(pokemon.base.moves):
+            move = pokemon.base.moves[i]
+            pp = pokemon.pp.get(move.name, 0)
+            vec.extend(bin_pp_ratio(pp, move.pp))
+        else:
+            vec.extend(one_hot(0, 5))
+    # type(s) (18 one-hot)
+    vec.extend(type_one_hot(pokemon.base.types))
+    # current hp fraction (7 one-hot)
+    hp_ratio = pokemon.current_hp / pokemon.base.hp if pokemon.base.hp > 0 else 0
+    vec.extend(bin_hp_ratio(hp_ratio))
+    # rank boost (7x13 one-hot)
+    for stat in ['attack','defense','sp_attack','sp_defense','speed','accuracy','dodge']:
+        rank = pokemon.rank.get(stat, 0)
+        vec.extend(rank_one_hot(rank))
+    # volatile effects (8)
+    vfx = ['혼란','풀죽음','사슬묶기','소리기술사용불가','하품','교체불가','조이기','멸망의노래']
+    for eff in vfx:
+        vec.append(1.0 if eff in pokemon.status else 0.0)
+    # status (7)
+    sfx = ['독','맹독','마비','화상','잠듦','얼음','기절']
+    for eff in sfx:
+        if eff == '기절':
+            vec.append(1.0 if pokemon.current_hp == 0 else 0.0)
+        else:
+            vec.append(1.0 if eff in pokemon.status else 0.0)
+    # sleep counter (4 one-hot)
+    sleep_list = duration_store.get_effects(side)
+    sleep_effect = next((e for e in sleep_list if e.name == "잠듦"), None)
+    vec.extend(sleep_counter_one_hot(sleep_effect.remaining_turn if sleep_effect else 0))
+    # first turn (1)
+    vec.append(1.0 if pokemon.is_first_turn else 0.0)
+    # must recharge (1)
+    vec.append(1.0 if pokemon.cannot_move else 0.0)
+    # preparing (1)
+    vec.append(1.0 if pokemon.is_charging else 0.0)
+    # charging move id (1)
+    charging_move = pokemon.charging_move.id if pokemon.charging_move else 254
+    vec.append(charging_move)
+    # active (1)
+    vec.append(1.0 if pokemon.is_active else 0.0)
+    # position (5 one-hot)
+    pos = pokemon.position if pokemon.position else '없음'
+    vec.extend(position_one_hot(pos))
+    # locked move id (1)
+    locked_move = pokemon.locked_move.id if pokemon.locked_move else 254
+    vec.append(locked_move)
+    # last used move (1)
+    used_move = pokemon.used_move.id if pokemon.used_move else 254
+    vec.append(used_move)
+    # had missed (1)
+    vec.append(1.0 if pokemon.had_missed else 0.0)
+    # had rank up (1)
+    vec.append(1.0 if pokemon.had_rank_up else 0.0)
+    # received damage (1)
+    damage = pokemon.received_damage if pokemon.received_damage is not None else 0
+    vec.append(1.0 if damage > 0 else 0.0)
+    # unusable move (1)
+    unusable_move = pokemon.un_usable_move.id if pokemon.un_usable_move else 254
+    vec.append(unusable_move)
+    # get_pokemon_vector 마지막에
+    #print(f"Pokemon vector length: {len(vec)}")
+    return np.array(vec, dtype=np.float32)
+
+def get_side_field_vector(side: SideType) -> np.ndarray:
+    vec = []
+    state: BattleStoreState = store.get_state()
+    side_env: IndividualBattleEnvironment = state["my_env"] if side == "my" else state["enemy_env"]
+    # stealth rock (1)
+    vec.append(1.0 if "스텔스록" in side_env.trap else 0.0)
+    # spikes (4 one-hot)
+    spikes = 0
+    if "압정뿌리기" in side_env.trap:
+        spikes = 1
+    elif "압정뿌리기2" in side_env.trap:
+        spikes = 2
+    elif "압정뿌리기3" in side_env.trap:
+        spikes = 3
+    vec.extend(spikes_one_hot(spikes))
+    # toxic spikes (3 one-hot)
+    toxic_spikes = 0
+    if "독압정" in side_env.trap:
+        toxic_spikes = 1
+    elif "맹독압정" in side_env.trap:
+        toxic_spikes = 2
+    vec.extend(toxic_spikes_one_hot(toxic_spikes))
+    sc_list = duration_store.get_effects(side)
+    reflect_effect = next((e for e in sc_list if e.name == "리플렉터"), None)
+    screen_effect = next((e for e in sc_list if e.name == "빛의장막"), None)
+    veil_effect = next((e for e in sc_list if e.name == "오로라베일"), None)
+    # reflect (6 one-hot)
+    vec.extend(reflect_one_hot(reflect_effect.remaining_turn if reflect_effect else 0))
+    # light screen (6 one-hot)
+    vec.extend(reflect_one_hot(screen_effect.remaining_turn if screen_effect else 0))
+    # aurora veil (6 one-hot)
+    vec.extend(reflect_one_hot(veil_effect.remaining_turn if veil_effect else 0))
+    #print(f"Side field vector length: {len(vec)}")
+    return np.array(vec, dtype=np.float32)
 
 def get_state(
     store: BattleStore,
@@ -26,244 +266,51 @@ def get_state(
     enemy_team: List[BattlePokemon],
     active_my: int,
     active_enemy: int,
-    public_env: Dict,
-    my_env: Dict,
-    enemy_env: Dict,
+    public_env: PublicBattleEnvironment,
+    my_env: IndividualBattleEnvironment,
+    enemy_env: IndividualBattleEnvironment,
     turn: int,
     my_effects: List[Dict],
     enemy_effects: List[Dict],
-    for_opponent: bool = False # 왼쪽 플레이어가 쓸 때에는 False, 오른쪽 플레이어가 쓸 때에는 True
-) -> Dict[str, float]:
-    """상태 벡터를 딕셔너리로 생성하는 함수"""
-    state = {}
-    player_team = my_team if not for_opponent else enemy_team
-    opponent_team = enemy_team if not for_opponent else my_team
-    player: BattlePokemon = my_team[active_my] if not for_opponent else enemy_team[active_enemy]
-    opponent: BattlePokemon = enemy_team[active_enemy] if not for_opponent else my_team[active_my]
-
-    # 1. 내 포켓몬의 HP 비율 (1차원)
-    state['current_hp'] = player.current_hp / player.base.hp
-    # 누적 차원: 1
-
-    # 2. 타입 (2차원)
-    type1 = get_type_index(player.base.types[0]) if player.base.types else 0
-    type2 = get_type_index(player.base.types[1]) if len(player.base.types) > 1 else 0
-    state['type1'] = type1 / 19.0  # 정규화
-    state['type2'] = type2 / 19.0  # 정규화
-    # 누적 차원: 3
-
-    # 3. 종족값 (hp 제외) - 5개
-    state['attack'] = player.base.attack / 255.0
-    state['defense'] = player.base.defense / 255.0
-    state['sp_attack'] = player.base.sp_attack / 255.0
-    state['sp_defense'] = player.base.sp_defense / 255.0
-    state['speed'] = player.base.speed / 255.0
-    # 누적 차원: 8
-
-    # 4. 상태이상 (14개)
-    status_list = [
-        '독', '맹독', '마비', '화상', '잠듦', '얼음', '혼란', 
-        '풀죽음', '사슬묶기', '소리기술사용불가', '하품', 
-        '교체불가', '조이기', '멸망의노래'
-    ]
-    for status in status_list:
-        state[f'status_{status}'] = 1.0 if status in player.status else 0.0
-    # 누적 차원: 22
-
-    # 5. 랭크 변화 (7개, -6 ~ +6 정규화)
-    ranks = ['attack', 'defense', 'spAttack', 'spDefense', 'speed', 'accuracy', 'dodge']
-    for stat in ranks:
-        rank = player.rank.get(stat, 0)
-        state[f'rank_{stat}'] = (rank + 6) / 12.0
-    # 누적 차원: 29
-
-    # 6. 기술 PP 비율 (최대 4개 기술)
-    for i in range(4):
-        if i < len(player.base.moves):
-            move = player.base.moves[i]
-            pp = player.pp.get(move.name, 0)
-            state[f'move_{i}_pp'] = pp / move.pp if move.pp > 0 else 0.0
+    for_opponent: bool = False
+) -> np.ndarray:
+    vec = []
+    # --- Battle global state ---
+    # turn (1)
+    vec.append(min(turn, 30) / 30.0)
+    # weather (4종 × 6 one-hot)
+    for w in ['쾌청','비','모래바람','싸라기눈']:
+        if getattr(public_env, 'weather', None) == w:
+            turns = 0
+            for effect in duration_store.get_effects('public'):
+                if getattr(effect, 'name', None) == w:
+                    turns = getattr(effect, 'remaining_turn', 0)
+                    break
+            vec.extend(weather_one_hot(turns))
         else:
-            state[f'move_{i}_pp'] = 0.0
-    # 누적 차원: 33
-
-    # 7. 추가 상태 정보 (내 포켓몬)
-    # 7-1. 포지션 (1차원)
-    state['position'] = get_position_index(player.position if hasattr(player, 'position') else '없음') / 5.0
-    # 누적 차원: 34
-
-    # 7-2. 기타 상태 (13개)
-    state['is_active'] = 1.0 if getattr(player, 'is_active', False) else 0.0
-    # locked_move 관련 정보
-    state['locked_move_id'] = getattr(getattr(player, 'locked_move', None), 'id', 0) / 1000.0
-    state['locked_move_turn'] = (getattr(player, 'locked_move_turn', 0) or 0) / 5.0
-    state['is_protecting'] = 1.0 if getattr(player, 'is_protecting', False) else 0.0
-    # used_move 정보
-    state['used_move_id'] = getattr(getattr(player, 'used_move', None), 'id', 0) / 1000.0
-    state['had_missed'] = 1.0 if getattr(player, 'had_missed', False) else 0.0
-    state['had_rank_up'] = 1.0 if getattr(player, 'had_rank_up', False) else 0.0
-    state['is_charging'] = 1.0 if getattr(player, 'is_charging', False) else 0.0
-    # charging_move 정보
-    state['charging_move_id'] = getattr(getattr(player, 'charging_move', None), 'id', 0) / 1000.0
-    state['received_damage_ratio'] = (getattr(player, 'received_damage', 0) or 0) / player.base.hp if hasattr(player, 'received_damage') else 0
-    state['is_first_turn'] = 1.0 if getattr(player, 'is_first_turn', False) else 0.0
-    state['cannot_move'] = 1.0 if getattr(player, 'cannot_move', False) else 0.0
-    # unusable_move 정보
-    state['unusable_move_id'] = getattr(getattr(player, 'un_usable_move', None), 'id', 0) / 1000.0
-    # 누적 차원: 47
-
-    # 7-3. 임시 타입 (2차원)
-    temp_type = getattr(player, 'temp_type', []) or []
-    temp_type1 = get_type_index(temp_type[0]) if temp_type else 0
-    temp_type2 = get_type_index(temp_type[1]) if len(temp_type) > 1 else 0
-    state['temp_type1'] = temp_type1 / 19.0  # 정규화
-    state['temp_type2'] = temp_type2 / 19.0  # 정규화
-    # 누적 차원: 49
-
-    # 8. 상대 포켓몬 정보
-    # 8-1. HP와 타입 (3차원)
-    state['enemy_hp'] = opponent.current_hp / opponent.base.hp
-    enemy_type1 = get_type_index(opponent.base.types[0]) if opponent.base.types else 0
-    enemy_type2 = get_type_index(opponent.base.types[1]) if len(opponent.base.types) > 1 else 0
-    state['enemy_type1'] = enemy_type1 / 19.0
-    state['enemy_type2'] = enemy_type2 / 19.0
-    # 누적 차원: 52
-
-    # 8-2. 종족값 (5차원)
-    state['enemy_attack'] = opponent.base.attack / 255
-    state['enemy_defense'] = opponent.base.defense / 255
-    state['enemy_sp_attack'] = opponent.base.sp_attack / 255
-    state['enemy_sp_defense'] = opponent.base.sp_defense / 255
-    state['enemy_speed'] = opponent.base.speed / 255
-    # 누적 차원: 57
-
-    # 8-3. 상태이상 (14차원)
-    for status in status_list:
-        state[f'enemy_status_{status}'] = 1.0 if status in opponent.status else 0.0
-    # 누적 차원: 71
-
-    # 8-4. 랭크 (7차원)
-    for stat in ranks:
-        rank = opponent.rank.get(stat, 0)
-        state[f'enemy_rank_{stat}'] = (rank + 6) / 12.0
-    # 누적 차원: 78
-
-    # 8-5. 상대 포켓몬 추가 상태 정보
-    # 8-5-1. 포지션 (1차원)
-    state['enemy_position'] = get_position_index(opponent.position if hasattr(opponent, 'position') else '없음') / 5.0
-    # 누적 차원: 79
-
-    # 8-5-2. 기타 상태 (13개)
-    state['enemy_is_active'] = 1.0 if getattr(opponent, 'is_active', False) else 0.0
-    # locked_move 관련 정보
-    state['enemy_locked_move_id'] = getattr(getattr(opponent, 'locked_move', None), 'id', 0) / 1000.0
-    state['enemy_locked_move_turn'] = (getattr(opponent, 'locked_move_turn', 0) or 0) / 5.0
-    state['enemy_is_protecting'] = 1.0 if getattr(opponent, 'is_protecting', False) else 0.0
-    # used_move 정보
-    state['enemy_used_move_id'] = getattr(getattr(opponent, 'used_move', None), 'id', 0) / 1000.0
-    state['enemy_had_missed'] = 1.0 if getattr(opponent, 'had_missed', False) else 0.0
-    state['enemy_had_rank_up'] = 1.0 if getattr(opponent, 'had_rank_up', False) else 0.0
-    state['enemy_is_charging'] = 1.0 if getattr(opponent, 'is_charging', False) else 0.0
-    # charging_move 정보
-    state['enemy_charging_move_id'] = getattr(getattr(opponent, 'charging_move', None), 'id', 0) / 1000.0
-    state['enemy_received_damage_ratio'] = (getattr(opponent, 'received_damage', 0) or 0) / opponent.base.hp if hasattr(opponent, 'received_damage') else 0
-    state['enemy_is_first_turn'] = 1.0 if getattr(opponent, 'is_first_turn', False) else 0.0
-    state['enemy_cannot_move'] = 1.0 if getattr(opponent, 'cannot_move', False) else 0.0
-    # unusable_move 정보
-    state['enemy_unusable_move_id'] = getattr(getattr(opponent, 'un_usable_move', None), 'id', 0) / 1000.0
-    # 누적 차원: 92
-
-    # 8-5-3. 임시 타입 (2차원)
-    temp_type = getattr(opponent, 'temp_type', []) or []
-    temp_type1 = get_type_index(temp_type[0]) if temp_type else 0
-    temp_type2 = get_type_index(temp_type[1]) if len(temp_type) > 1 else 0
-    state['enemy_temp_type1'] = temp_type1 / 19.0  # 정규화
-    state['enemy_temp_type2'] = temp_type2 / 19.0  # 정규화
-    # 누적 차원: 94
-
-    # 9. 팀 구성 정보 (HP 비율 + 상태이상 여부, 3마리 기준)
-    # 9-1. 내 팀 정보 (6차원, 체력과 상태이상 여부때문에 6차원)
-    for i in range(3):  # 3마리
-        if i < len(player_team):
-            poke = player_team[i]
-            state[f'my_team_{i}_hp'] = poke.current_hp / poke.base.hp
-            state[f'my_team_{i}_has_status'] = 1.0 if len(poke.status) > 0 else 0.0
+            vec.extend(weather_one_hot(0))
+    # field (4종 × 5 one-hot)
+    for f in ['그래스필드','사이코필드','미스트필드','일렉트릭필드']:
+        if getattr(public_env, 'field', None) == f:
+            vec.extend(field_one_hot(f))
         else:
-            state[f'my_team_{i}_hp'] = 0.0
-            state[f'my_team_{i}_has_status'] = 0.0
-    # 누적 차원: 100
-
-    # 9-2. 상대 팀 정보 (6차원, 체력과 상태이상 여부때문에 6차원)
-    for i in range(3):  # 3마리
-        if i < len(opponent_team):
-            poke = opponent_team[i]
-            state[f'enemy_team_{i}_hp'] = poke.current_hp / poke.base.hp
-            state[f'enemy_team_{i}_has_status'] = 1.0 if len(poke.status) > 0 else 0.0
-        else:
-            state[f'enemy_team_{i}_hp'] = 0.0
-            state[f'enemy_team_{i}_has_status'] = 0.0
-    # 누적 차원: 106
-
-    # 10. 턴 수 (1차원)
-    state['turn'] = min(1.0, turn / 30)
-    # 누적 차원: 107
-
-    # 11. 공용 환경 정보 
-    # 11-1. 날씨 (1차원)
-    weathers = ['쾌청', '비', '모래바람', '싸라기눈']
-    for weather in weathers:
-        if public_env['weather'] == weather:
-            state['weather'] = weathers.index(weather) / len(weathers)
-            break
-        else:
-            state['weather'] = 0.0
-    # 누적 차원: 108
-
-    # 11-2. 필드 (1차원)
-    fields = ['그래스필드', '사이코필드', '미스트필드', '일렉트릭필드']
-    for field in fields:
-        if public_env['field'] == field:
-            state['field'] = fields.index(field) / len(fields)
-            break
-        else:
-            state['field'] = 0.0
-    # 누적 차원: 109
-
-    # 11-3. 룸 (1차원)
-    rooms = ['트릭룸', '매직룸', '원더룸']
-    for room in rooms:
-        if public_env['room'] == room:
-            state['room'] = rooms.index(room) / len(rooms)
-            break
-        else:
-            state['room'] = 0.0
-    # 누적 차원: 110
-
-    # 12. 함정 정보 (14차원)
-    # 12-1. 내 필드 함정 (7차원)
-    traps = ['독압정', '맹독압정', '스텔스록', '압정뿌리기1', '압정뿌리기2', '압정뿌리기3', '끈적끈적네트']
-    my_traps = my_env.get('traps', [])
-    for trap in traps:
-        state[f'my_trap_{trap}'] = 1.0 if trap in my_traps else 0.0
-    # 누적 차원: 117
-
-    # 12-2. 상대 필드 함정 (7차원)
-    enemy_traps = enemy_env.get('traps', [])
-    for trap in traps:
-        state[f'enemy_trap_{trap}'] = 1.0 if trap in enemy_traps else 0.0
-    # 누적 차원: 124
-
-    # 13. 스크린 효과 정보 (2차원)
-    # 13-1. 내 스크린 효과 (1차원)
-    screens = ['빛의장막', '리플렉터', '오로라베일']
-    my_screen_effect = next((e for e in my_effects if e['name'] in screens), None)
-    state['my_screen_effect'] = my_screen_effect['remainingTurn'] / 5 if my_screen_effect else 0.0
-    # 누적 차원: 125
-
-    # 13-2. 상대 스크린 효과 (1차원)
-    enemy_screen_effect = next((e for e in enemy_effects if e['name'] in screens), None)
-    state['enemy_screen_effect'] = enemy_screen_effect['remainingTurn'] / 5 if enemy_screen_effect else 0.0
-    # 누적 차원: 126
-
-    # print("✅ 상태 벡터 길이:", len(state))
-    return state 
+            vec.extend(field_one_hot('없음'))
+    # room (6 one-hot)
+    room_turns = 0
+    if getattr(public_env, 'room', None) == '트릭룸':
+        for effect in duration_store.get_effects('public'):
+            if getattr(effect, 'name', None) == '트릭룸':
+                room_turns = getattr(effect, 'remaining_turn', 0)
+                break
+    vec.extend(room_one_hot(room_turns))
+    # --- Side field state (my, enemy) ---
+    vec.extend(get_side_field_vector('my'))
+    vec.extend(get_side_field_vector('enemy'))
+    # --- Pokemon state (my 3, enemy 3) ---
+    for i in range(3):
+        vec.extend(get_pokemon_vector(my_team[i], "my") if i < len(my_team) else np.zeros_like(get_pokemon_vector(BattlePokemon(), "my")))
+    for i in range(3):
+        vec.extend(get_pokemon_vector(enemy_team[i], "enemy") if i < len(enemy_team) else np.zeros_like(get_pokemon_vector(BattlePokemon(), "enemy")))
+    # get_state 마지막에
+    #print(f"Total state vector length: {len(vec)}")
+    return np.array(vec, dtype=np.float32) 

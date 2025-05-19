@@ -1,4 +1,5 @@
 from typing import List, Union, Optional, Literal
+from p_models.ability_info import AbilityInfo
 from p_models.move_info import MoveInfo
 from p_models.battle_pokemon import BattlePokemon
 from context.battle_store import BattleStoreState, store
@@ -192,7 +193,7 @@ async def handle_move(
         # 리베로, 변환자재
         if attacker and attacker.base.ability and has_ability(attacker.base.ability, ["리베로", "변환자재"]):
             store.update_pokemon(side, active_index, lambda p: set_types(p, [move.type]))
-            store.update_pokemon(side, active_index, lambda p: set_ability(p, None))
+            store.update_pokemon(side, active_index, lambda p: set_ability(p, AbilityInfo(0, '없음')))
             store.add_log(f"🔃 {attacker.base.name}의 타입은 {move.type}타입으로 변했다!")
             print(f"{attacker.base.name}의 타입은 {move.type}타입으로 변했다!")
 
