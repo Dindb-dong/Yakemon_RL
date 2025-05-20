@@ -230,8 +230,7 @@ async def handle_move(
                 current_defender1: BattlePokemon = opponent_pokemon[
                     active_enemy if side == "my" else active_my
                 ]
-                if "damage" in result:
-                    await apply_after_damage(side, attacker, current_defender1, move, result["damage"], watch_mode, True)
+                await apply_after_damage(side, attacker, current_defender1, move, result["damage"] if "damage" in result else 0, watch_mode, True)
                 await apply_defensive_ability_effect_after_multi_damage(side, attacker, defender, move, result["damage"] if "damage" in result else 0, watch_mode)
             else:
                 break
@@ -263,9 +262,8 @@ async def handle_move(
             opponent_pokemon: list[BattlePokemon] = state[f"{opponent_side}_team"]
             current_defender: BattlePokemon = opponent_pokemon[
                 active_enemy if side == "my" else active_my
-            ]
-            if "damage" in result:
-                await apply_after_damage(side, attacker, current_defender, move, result["damage"], watch_mode, True)
+            ]   
+            await apply_after_damage(side, attacker, current_defender, move, result["damage"] if "damage" in result else 0, watch_mode, True)
             hit_count = get_hit_count(move)
             print(hit_count)
             for i in range(hit_count - 1):
@@ -293,8 +291,7 @@ async def handle_move(
                     current_defender = store.get_state()[f"{opponent_side}_team"][
                         active_enemy if side == "my" else active_my
                     ]
-                    if "damage" in result:
-                        await apply_after_damage(side, attacker, current_defender, move, result["damage"], watch_mode, True)
+                    await apply_after_damage(side, attacker, current_defender, move, result["damage"] if "damage" in result else 0, watch_mode, True)
                     await apply_defensive_ability_effect_after_multi_damage(side, attacker, defender, move, result["damage"] if "damage" in result else 0, watch_mode)
                 else:
                     break
@@ -302,8 +299,7 @@ async def handle_move(
             current_defender1 = store.get_state()[f"{opponent_side}_team"][
                 active_enemy if side == "my" else active_my
             ]
-            if "damage" in result:
-                await apply_move_effect_after_multi_damage(side, attacker, current_defender1, move, result["damage"]) #, watch_mode
+            await apply_move_effect_after_multi_damage(side, attacker, current_defender1, move, result["damage"] if "damage" in result else 0) #, watch_mode
             store.add_log(f"📊 총 {hit_count}번 맞았다!")
             print(f"총 {hit_count}번 맞았다!")
 
@@ -332,9 +328,8 @@ async def handle_move(
 
             current_defender = store.get_state()[f"{opponent_side}_team"][
                 active_enemy if side == "my" else active_my
-            ]
-            if "damage" in result:
-                await apply_after_damage(side, attacker, current_defender, move, result["damage"], watch_mode)
+            ]   
+            await apply_after_damage(side, attacker, current_defender, move, result["damage"] if "damage" in result else 0, watch_mode)
 
         return
 

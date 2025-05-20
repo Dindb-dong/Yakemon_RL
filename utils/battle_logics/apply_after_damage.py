@@ -162,7 +162,7 @@ async def apply_move_effect_after_multi_damage(
         for demerit in demerit_effects:
             if demerit and random.random() < demerit.chance:
                 if demerit.recoil and applied_damage:
-                    result = await apply_recoil_damage(attacker, demerit.recoil, applied_damage)
+                    result = apply_recoil_damage(attacker, demerit.recoil, applied_damage)
                     store.update_pokemon(side, active_mine, lambda _: result)
                     recoil_damage = int(applied_damage * demerit.recoil)
                     store.add_log(f"🤕 {attacker.base.name}이(가) 반동 데미지 {recoil_damage}를 입었다!")
@@ -176,10 +176,11 @@ async def apply_move_effect_after_multi_damage(
                     print(f"디메리트 효과 적용: {attacker.base.name}의 {sc.stat}이(가) {sc.change}랭크 변했다!")
 
     # 부가효과
-    if used_move.target == "opponent" and (attacker.base.ability is None or attacker.base.ability.name != "우격다짐"):
+    if used_move.target == "opponent" and (attacker.base.ability is not None and attacker.base.ability.name != "우격다짐"):
         roll = random.random() * 2 if (attacker.base.ability and attacker.base.ability.name == "하늘의은총") else random.random()
         for eff in effect or []:
             if roll < (eff.chance if eff.chance is not None else 0):
+                print(f"연속 기술 부가효과 적용: {used_move.name}의 효과 발동!")
                 if eff.heal and not applied_damage:
                     heal = attacker.base.hp * eff.heal if eff.heal < 1 else calculate_rank_effect(defender.rank['attack']) * defender.base.attack
                     store.update_pokemon(side, active_mine, lambda p: change_hp(p, heal))
@@ -282,10 +283,11 @@ async def apply_move_effect_after_damage(
 
     # 디메리트 효과
     if used_move.demerit_effects:
+        print(f"디메리트 효과 적용: {used_move.name}의 효과 발동!")
         for demerit in used_move.demerit_effects:
             if demerit and random.random() < demerit.chance:
                 if demerit.recoil and applied_damage:
-                    result = await apply_recoil_damage(attacker, demerit.recoil, applied_damage)
+                    result = apply_recoil_damage(attacker, demerit.recoil, applied_damage)
                     store.update_pokemon(side, active_mine, lambda _: result)
                     recoil_damage = int(applied_damage * demerit.recoil)
                     store.add_log(f"🤕 {attacker.base.name}이(가) 반동 데미지 {recoil_damage}를 입었다!")
@@ -316,6 +318,7 @@ async def apply_move_effect_after_damage(
                 continue
             
             if roll < (effect.chance if effect.chance else 0):
+                print(f"부가효과 적용: {used_move.name}의 효과 발동!")
                 if effect.type_change:
                     store.update_pokemon(opponent_side, active_opp, lambda p: set_types(p, [effect.type_change]))
                 if effect.heal and applied_damage is None:

@@ -100,14 +100,14 @@ def calculate_reward(
             # 상태이상 부여 능력 있는 변화 기술에 보너스
             if hasattr(move, 'status_effect') and move.status_effect:
                 if enemy_hp_ratio > 0.5:  # 상대 HP가 높을 때 상태이상 부여는 더 가치있음
-                    reward += 2.5
+                    reward += 2.0
                 else:
                     reward += 1.0
             
             # 자신 강화 기술에 보너스
             if hasattr(move, 'boost_self') and move.boost_self:
                 if my_hp_ratio > 0.7:  # HP가 높을 때 강화는 더 가치있음
-                    reward += 2.0
+                    reward += 1.5
                 else:
                     reward += 0.5
         
@@ -203,10 +203,6 @@ def calculate_reward(
         if 0 <= switch_index < len(my_team):
             next_pokemon = my_team[switch_index]
             
-            # 불리한 상황에서 교체하는 경우 보상
-            if my_hp_ratio < 0.3:
-                reward += 3.0  # 낮은 HP에서 교체는 좋은 전략
-            
             # 타입 상성 고려한 교체 보상
             next_pokemon_types = next_pokemon.base.types
             enemy_types = target_pokemon.base.types
@@ -220,67 +216,25 @@ def calculate_reward(
             
             # 타입 우위에 따른 보상
             if type_advantage > 0:
-                reward += type_advantage * 2.5  # 타입 우위에 높은 보상
-            
-            # 상태이상 회피를 위한 교체 보상
-            if current_pokemon.status and not next_pokemon.status:
-                reward += 3.5  # 상태이상 포켓몬에서 정상 포켓몬으로 교체
+                reward += type_advantage * 1.5  # 타입 우위에 높은 보상
     
     # 7. 환경 효과 활용에 따른 보상
-    if public_env.get('weather'):
-        # 날씨 효과와 포켓몬 타입/특성 시너지
-        weather = public_env['weather']
-        
-        # 날씨별 이점이 있는 타입/특성 정의
-        weather_synergies = {
-            'Sun': ['불', '풀'],  # 맑음: 불/풀 타입 강화
-            'Rain': ['물', '전기'],  # 비: 물/전기 타입 강화
-            'Sand': ['바위', '땅', '강철'],  # 모래: 바위/땅/강철 타입 강화
-            'Hail': ['얼음']  # 눈/우박: 얼음 타입 강화
-        }
-        
-        # 날씨 시너지 확인
-        for w_type, boosted_types in weather_synergies.items():
-            if weather == w_type and any(t in current_pokemon.base.types for t in boosted_types):
-                reward += 1.5  # 날씨 시너지 보상
-                
-                # 날씨 활용 기술 사용 시 추가 보상
-                if action < 4 and move.type in boosted_types:
-                    reward += 2.0  # 날씨 활용 기술 사용 보너스
-    
-    if public_env.get('field'):
-        # 필드 효과와 포켓몬 타입 시너지
-        field = public_env['field']
-        
-        # 필드별 이점이 있는 타입 정의
-        field_synergies = {
-            'Electric': ['전기'],  # 일렉트릭필드: 전기 타입 강화
-            'Grassy': ['풀'],  # 그래스필드: 풀 타입 강화
-            'Misty': ['페어리'],  # 미스트필드: 페어리 타입 강화
-            'Psychic': ['에스퍼']  # 사이코필드: 에스퍼 타입 강화
-        }
-        
-        # 필드 시너지 확인
-        for f_type, boosted_types in field_synergies.items():
-            if field == f_type and any(t in current_pokemon.base.types for t in boosted_types):
-                reward += 1.5  # 필드 시너지 보상
-                
-                # 필드 활용 기술 사용 시 추가 보상
-                if action < 4 and move.type in boosted_types:
-                    reward += 2.0  # 필드 활용 기술 사용 보너스
     
     # 8. 필드 위험 요소(스텔스록, 스파이크 등) 설치/제거에 따른 보상
-    hazard_moves = ["스텔스록", "맹독", "스파이크", "끈끈그물"]
-    if action < 4 and move.name in hazard_moves and not any(h in enemy_effects for h in hazard_moves):
-        reward += 4.0  # 필드 위험 요소 설치 보상
     
     # 9. 상태이상 관리에 따른 보상
     current_status = current_pokemon.status
     target_status = target_pokemon.status
     
     # 상대방에게 상태이상 부여 시 보상
-    if action < 4 and not target_status and hasattr(move, 'status_effect') and move.status_effect:
-        reward += 3.0  # 상태이상 부여 성공 보상
+    if action < 4 and hasattr(move, 'status_effect') and move.status_effect:
+        # 상태이상 부여 성공 보상
+        if not target_status:
+            reward += 2.0
+        else:
+            # 이미 상태이상인데 또 같은 상태이상 기술 사용 시 패널티
+            if move.status_effect in target_status:
+                reward -= 4.0  # 중복 상태이상 시도 패널티
     
     # 자신의 상태이상 제거 시 보상
     if current_status and (action >= 4 or (action < 4 and hasattr(move, 'heal_status') and move.heal_status)):
@@ -298,13 +252,13 @@ def calculate_reward(
             reward += 3.0 * (1 - turn_factor)  # 초반 세팅 가치 높음
     else:
         # 후반 공격적 플레이 보상
-        if action < 4 and move.category != '변화' and move.power > 70:
+        if action < 4 and move.category != '변화' and move.power > 10:
             reward += 2.0 * turn_factor  # 후반 강력한 공격 가치 높음
     
     # 10. 승리/패배에 따른 보상 (가장 중요한 요소)
     if done:
         if any(p.current_hp > 0 for p in my_team):  # 승리
-            reward += 100.0
+            reward += 50.0
         else:  # 패배
             reward -= 5.0
     

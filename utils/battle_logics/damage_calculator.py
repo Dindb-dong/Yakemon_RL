@@ -130,8 +130,7 @@ async def calculate_move_damage(
         print(f"{defender.base.name}는 방어중이여서 {attacker.base.name}의 공격은 실패했다!")
         
         if defender.used_move and defender.used_move.name == "니들가드" and move_info.is_touch:
-            updated_pokemon = await apply_thorn_damage(attacker)
-            store.update_pokemon(side, active_my if side == "my" else active_enemy, lambda p: updated_pokemon)
+            store.update_pokemon(side, active_my if side == "my" else active_enemy, lambda p: apply_thorn_damage(p))
             print(f"공격 포켓몬의 남은 체력: {defender.current_hp}")
             store.add_log(f"{attacker.base.name}는 가시에 상처를 입었다!")
             
@@ -214,6 +213,7 @@ async def calculate_move_damage(
             store.update_pokemon(side, active_my if side == "my" else active_enemy, lambda p: set_had_missed(p, True))
             
             # Handle move demerit effects
+            # 무릎차기, 점프킥 등 빗나가면 반동
             if move_info.demerit_effects:
                 for effect in move_info.demerit_effects:
                     if effect.fail:
@@ -338,16 +338,6 @@ async def calculate_move_damage(
             store.update_pokemon(side, active_my if side == "my" else active_enemy, lambda p: set_charging(p, False, None))
             store.update_pokemon(side, active_my if side == "my" else active_enemy, lambda p: change_position(p, None))
             return {"success": True}
-        
-        # 무릎차기, 점프킥 등 빗나가면 반동
-            if move_info.demerit_effects:
-                for d_effect in move_info.demerit_effects:
-                    if d_effect.fail:
-                        dmg = d_effect.fail
-                        store.update_pokemon(side, active_my if side == "my" else active_enemy, 
-                                        lambda p: change_hp(p, -(p.base.hp * dmg)))
-                        store.add_log(f"🤕 {attacker.base.name}은 반동으로 데미지를 입었다...")
-            return
     
     # 5-2. Handle one-hit KO moves
     if move_info.one_hit_ko:

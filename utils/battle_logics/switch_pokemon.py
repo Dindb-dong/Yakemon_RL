@@ -95,7 +95,7 @@ async def switch_pokemon(side: SideType, new_index: int, baton_touch: bool = Fal
         store.set_active_enemy(new_index)
     print(f"교체 후 포켓몬: {next_pokemon.base.name}")
     if env.trap:
-        damage, trap_log, trap_condition = await apply_trap_damage(next_pokemon, env.trap)
+        damage, trap_log, trap_condition = apply_trap_damage(next_pokemon, env.trap)
 
         store.update_pokemon(side, new_index, lambda p: p.copy_with(current_hp=max(0, p.current_hp - damage)))
 

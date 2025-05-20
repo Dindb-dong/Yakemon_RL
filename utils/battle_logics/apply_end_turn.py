@@ -10,6 +10,7 @@ import random
 
 
 async def apply_end_turn_effects():
+    print("apply_end_turn_effects 호출 시작")
     state: BattleStoreState = store.get_state()
     my_team = state["my_team"]
     enemy_team = state["enemy_team"]
@@ -42,8 +43,10 @@ async def apply_end_turn_effects():
 
         for status in ["화상", "맹독", "독", "조이기"]:
             if pokemon and pokemon.current_hp > 0 and status in pokemon.status:
-                updated = await apply_status_condition_damage(pokemon, status)
-                store.update_pokemon(side, active_index, lambda p: updated)
+                def updated(p):
+                    updated = apply_status_condition_damage(p, status)
+                    return updated
+                store.update_pokemon(side, active_index, lambda p: updated(p))
 
         if pokemon and pokemon.current_hp > 0 and "씨뿌리기" in pokemon.status and (not (pokemon.base.ability and pokemon.base.ability.name == "매직가드")):
             damage = pokemon.base.hp // 8
@@ -139,3 +142,4 @@ async def apply_end_turn_effects():
             store.update_pokemon(side, active, lambda p: set_locked_move(p, None))
             store.add_log(f"{team[active].base.name}은 지쳐서 혼란에 빠졌다..!")
             store.update_pokemon(side, active, lambda p: add_status(p, "혼란", side))
+    print("apply_end_turn_effects 호출 종료")

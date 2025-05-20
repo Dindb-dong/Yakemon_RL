@@ -146,7 +146,7 @@ move_datas = [
         affiliation=None,
         accuracy=100,
         critical_rate=0,
-        effects=[MoveEffect(id=10, chance=0.3, status='마비')],
+        effects=[MoveEffect(id=10, chance=0.3, status='풀죽음')],
         target='opponent'
     ),
     MoveInfo(
@@ -340,7 +340,7 @@ move_datas = [
         affiliation='파동',
         accuracy=100,
         critical_rate=0,
-        effects=[MoveEffect(id=22, chance=0.3, status='마비')],
+        effects=[MoveEffect(id=22, chance=0.3, status='풀죽음')],
         target='opponent'
     ),
     MoveInfo(
@@ -538,7 +538,7 @@ move_datas = [
         affiliation=None,
         accuracy=90,
         critical_rate=0,
-        effects=[MoveEffect(id=34, chance=0.3, status='마비')],
+        effects=[MoveEffect(id=34, chance=0.3, status='풀죽음')],
         target='opponent'
     ),
     MoveInfo(
@@ -864,7 +864,7 @@ move_datas = [
         affiliation=None,
         accuracy=100,
         critical_rate=0,
-        effects=[MoveEffect(id=55, chance=0.3, status='마비')],
+        effects=[MoveEffect(id=55, chance=0.3, status='풀죽음')],
         target='opponent'
     ),
     MoveInfo(
@@ -1843,7 +1843,7 @@ move_datas = [
         affiliation=None,
         accuracy=100,
         critical_rate=0,
-        effects=[MoveEffect(id=120, chance=0.2, status='마비')],
+        effects=[MoveEffect(id=120, chance=0.2, status='풀죽음')],
         target='opponent'
     ),
     MoveInfo(
