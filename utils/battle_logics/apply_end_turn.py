@@ -31,6 +31,7 @@ async def apply_end_turn_effects():
                 heal = pokemon.base.hp // 16
                 store.update_pokemon(side, active_my if i == 0 else active_enemy, lambda p: change_hp(p, heal))
                 store.add_log(f"➕ {pokemon.base.name}은/는 그래스필드로 회복했다!")
+                print(f"➕ {pokemon.base.name}은/는 그래스필드로 회복했다!")
 
     # === 상태이상 및 날씨 효과 ===
     for i, pokemon in enumerate([my_active, enemy_active]):
@@ -54,8 +55,9 @@ async def apply_end_turn_effects():
             if opponent_team[active_opponent].current_hp > 0:
                 store.update_pokemon(opponent_side, active_opponent, lambda p: change_hp(p, damage))
             store.add_log(f"🌱 {opponent_team[active_opponent].base.name}은 씨뿌리기로 회복했다!")
+            print(f"🌱 {opponent_team[active_opponent].base.name}은 씨뿌리기로 회복했다!")
             store.add_log(f"🌱 {pokemon.base.name}은 씨뿌리기의 피해를 입었다!")
-
+            print(f"🌱 {pokemon.base.name}은 씨뿌리기의 피해를 입었다!")
         if public_env.weather == "모래바람":
             immune_abilities = ["모래숨기", "모래의힘"]
             immune_types = ["바위", "땅", "강철"]
@@ -78,19 +80,19 @@ async def apply_end_turn_effects():
     if public_env.weather and public_env.weather in expired["public"]:
         set_weather(None)
         store.add_log(f"날씨({public_env.weather})의 효과가 사라졌다!")
-
+        print(f"날씨({public_env.weather})의 효과가 사라졌다!")
     if public_env.field and public_env.field in expired["public"]:
         set_field(None)
         store.add_log(f"필드({public_env.field})의 효과가 사라졌다!")
-
+        print(f"필드({public_env.field})의 효과가 사라졌다!")
     if my_env.screen and my_env.screen in expired.get("myEnv", []):
         set_screen("my", None)
         store.add_log(f"내 필드의 {my_env.screen}이/가 사라졌다!")
-
+        print(f"내 필드의 {my_env.screen}이/가 사라졌다!")
     if enemy_env.screen and enemy_env.screen in expired.get("enemyEnv", []):
         set_screen("enemy", None)
         store.add_log(f"상대 필드의 {enemy_env.screen}이/가 사라졌다!")
-
+        print(f"상대 필드의 {enemy_env.screen}이/가 사라졌다!")
     # === 특성 효과 처리 ===
     for i, pokemon in enumerate([my_active, enemy_active]):
         side = "my" if i == 0 else "enemy"

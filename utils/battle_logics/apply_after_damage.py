@@ -132,8 +132,8 @@ async def apply_move_effect_after_multi_damage(
     mirrored_team = enemy_team if side == "my" else my_team
     baton_touch = used_move.name == "배턴터치"
     nullification = attacker.base.ability and attacker.base.ability.name == "부식"
-    effect = getattr(used_move, "effects", None)
-    demerit_effects = getattr(used_move, "demerit_effects", None)
+    effect = used_move.effects
+    demerit_effects = used_move.demerit_effects
 
     if used_move.cannot_move:
         store.update_pokemon(side, active_mine, lambda p: p.deepcopy(cannot_move=True))
@@ -191,10 +191,11 @@ async def apply_move_effect_after_multi_damage(
                         side if sc.target == "self"
                         else opponent_side
                     )
+                    target_team = mine_team if target_side == side else mirrored_team
                     index = active_mine if target_side == side else active_opponent
                     store.update_pokemon(target_side, index, lambda p: change_rank(p, sc.stat, sc.change))
-                    store.add_log(f"🔃 {defender.base.name}의 {sc.stat}이(가) {sc.change}랭크 변했다!")
-                    print(f"부가효과 적용: {defender.base.name}의 {sc.stat}이(가) {sc.change}랭크 변했다!")
+                    store.add_log(f"🔃 {target_team[index].base.name}의 {sc.stat}이(가) {sc.change}랭크 변했다!")
+                    print(f"부가효과 적용: {target_team[index].base.name}의 {sc.stat}이(가) {sc.change}랭크 변했다!")
                 if eff.status:
                     store.update_pokemon(opponent_side, active_opponent, lambda p: add_status(p, eff.status, opponent_side, nullification))
                     store.add_log(f"{defender.base.name}은 {eff.status} 상태가 되었다!")
@@ -340,7 +341,7 @@ async def apply_move_effect_after_damage(
 
                         store.update_pokemon(target_side, active_idx, lambda p: change_rank(p, sc.stat, sc.change))
                         store.add_log(f"🔃 {target_team[active_idx].base.name}의 {sc.stat}이/가 {sc.change}랭크 변했다!")
-                        print(f"부가효과 적용: {defender.base.name}의 {sc.stat}이(가) {sc.change}랭크 변했다!")
+                        print(f"부가효과 적용: {target_team[active_idx].base.name}의 {sc.stat}이(가) {sc.change}랭크 변했다!")
                 if effect.status:
                     skip = False
                     status = effect.status
