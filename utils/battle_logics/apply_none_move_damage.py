@@ -21,7 +21,7 @@ def apply_trap_damage(pokemon: BattlePokemon, trap: List[str]) -> Tuple[Optional
                 multiplier = calculate_type_effectiveness("바위", types)
                 damage += int(pokemon.base.hp * 0.125 * multiplier)
                 if damage:
-                    log = f"{pokemon.base.name} 은 {item}의 피해를 입었다!"
+                    log = f"{pokemon.base.name} 은 {item}의 피해를 입었다! {pokemon.current_hp}에서 {pokemon.current_hp - damage}로 변경"
 
             elif item == "끈적끈적네트":
                 if "비행" in types or ability_name == "부유":
@@ -58,7 +58,7 @@ def apply_trap_damage(pokemon: BattlePokemon, trap: List[str]) -> Tuple[Optional
                     spike_damage = int(pokemon.base.hp * ratio)
                     if spike_damage > 0:
                         damage += spike_damage
-                        log = f"{pokemon.base.name}은(는) {item}의 피해를 입었다!"
+                        log = f"{pokemon.base.name}은(는) {item}의 피해를 입었다! {pokemon.current_hp}에서 {pokemon.current_hp - damage}로 변경"
 
     return damage, log, status_condition
 
@@ -107,6 +107,7 @@ def apply_thorn_damage(pokemon: BattlePokemon) -> BattlePokemon:
     if ability_name != "매직가드":
         damage = int(pokemon.base.hp * 0.125)
         add_log(f"{pokemon.base.name}은 가시에 의해 피해를 입었다!")
+        print(f"{pokemon.base.name}은 가시에 의해 피해를 입었다!\n {pokemon.current_hp}에서 {pokemon.current_hp - damage}로 변경")
 
     return pokemon.copy_with(current_hp=max(0, pokemon.current_hp - damage))
 
@@ -123,17 +124,17 @@ def apply_status_condition_damage(pokemon: BattlePokemon, status: str) -> Battle
         if status == "화상":
             damage = int(pokemon.base.hp * 0.0625)
             add_log(f"🔥 {pokemon.base.name}은 화상으로 피해를 입었다!")
-            print(f"🔥 {pokemon.base.name}은 화상으로 피해를 입었다!")
+            print(f"🔥 {pokemon.base.name}은 화상으로 피해를 입었다!\n {pokemon.current_hp}에서 {pokemon.current_hp - damage}로 변경")
         elif status == "독":
             damage = int(pokemon.base.hp * 0.125)
             add_log(f"🍄 {pokemon.base.name}은 독으로 피해를 입었다!")
-            print(f"🍄 {pokemon.base.name}은 독으로 피해를 입었다!")
+            print(f"🍄 {pokemon.base.name}은 독으로 피해를 입었다!\n {pokemon.current_hp}에서 {pokemon.current_hp - damage}로 변경")
         elif status == "조이기":
             damage = int(pokemon.base.hp * 0.125)
             add_log(f"🪢 {pokemon.base.name}은 조임 피해를 입었다!")
-            print(f"🪢 {pokemon.base.name}은 조임 피해를 입었다!")
+            print(f"🪢 {pokemon.base.name}은 조임 피해를 입었다!\n {pokemon.current_hp}에서 {pokemon.current_hp - damage}로 변경")
         elif status == "맹독":
             damage = int(pokemon.base.hp * (1 / 6))
             add_log(f"🍄 {pokemon.base.name}은 맹독으로 피해를 입었다!")
-            print(f"🍄 {pokemon.base.name}은 맹독으로 피해를 입었다!")
+            print(f"🍄 {pokemon.base.name}은 맹독으로 피해를 입었다!\n {pokemon.current_hp}에서 {pokemon.current_hp - damage}로 변경")
     return pokemon.copy_with(current_hp=max(0, pokemon.current_hp - damage))

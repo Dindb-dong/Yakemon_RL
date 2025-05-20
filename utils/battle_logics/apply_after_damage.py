@@ -1,5 +1,5 @@
 from p_models.battle_pokemon import BattlePokemon
-from context.battle_store import store
+from context.battle_store import BattleStoreState, store
 from p_models.move_info import MoveInfo
 from utils.battle_logics.update_battle_pokemon import add_status, change_hp, change_rank, set_types
 from p_models.rank_state import RankState
@@ -193,8 +193,8 @@ async def apply_move_effect_after_multi_damage(
                     )
                     index = active_mine if target_side == side else active_opponent
                     store.update_pokemon(target_side, index, lambda p: change_rank(p, sc.stat, sc.change))
-                    store.add_log(f"🔃 {attacker.base.name}의 {sc.stat}이(가) {sc.change}랭크 변했다!")
-                    print(f"부가효과 적용: {attacker.base.name}의 {sc.stat}이(가) {sc.change}랭크 변했다!")
+                    store.add_log(f"🔃 {defender.base.name}의 {sc.stat}이(가) {sc.change}랭크 변했다!")
+                    print(f"부가효과 적용: {defender.base.name}의 {sc.stat}이(가) {sc.change}랭크 변했다!")
                 if eff.status:
                     store.update_pokemon(opponent_side, active_opponent, lambda p: add_status(p, eff.status, opponent_side, nullification))
                     store.add_log(f"{defender.base.name}은 {eff.status} 상태가 되었다!")
@@ -245,7 +245,7 @@ async def apply_move_effect_after_damage(
     multi_hit: bool = False,
 ):
     opponent_side = "enemy" if side == "my" else "my"
-    state = store.get_state()
+    state: BattleStoreState = store.get_state()
     active_opp = state["active_enemy"] if side == "my" else state["active_my"]
     active_mine = state["active_my"] if side == "my" else state["active_enemy"]
     my_team = state["my_team"]
@@ -340,7 +340,7 @@ async def apply_move_effect_after_damage(
 
                         store.update_pokemon(target_side, active_idx, lambda p: change_rank(p, sc.stat, sc.change))
                         store.add_log(f"🔃 {target_team[active_idx].base.name}의 {sc.stat}이/가 {sc.change}랭크 변했다!")
-                        print(f"부가효과 적용: {attacker.base.name}의 {sc.stat}이(가) {sc.change}랭크 변했다!")
+                        print(f"부가효과 적용: {defender.base.name}의 {sc.stat}이(가) {sc.change}랭크 변했다!")
                 if effect.status:
                     skip = False
                     status = effect.status

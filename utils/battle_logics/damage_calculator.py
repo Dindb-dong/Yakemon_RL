@@ -131,8 +131,6 @@ async def calculate_move_damage(
         
         if defender.used_move and defender.used_move.name == "니들가드" and move_info.is_touch:
             store.update_pokemon(side, active_my if side == "my" else active_enemy, lambda p: apply_thorn_damage(p))
-            print(f"공격 포켓몬의 남은 체력: {defender.current_hp}")
-            store.add_log(f"{attacker.base.name}는 가시에 상처를 입었다!")
             
         elif defender.used_move and defender.used_move.name == "토치카" and move_info.is_touch:
             store.update_pokemon(side, active_my if side == "my" else active_enemy, lambda p: add_status(p, "독", opponent_side))

@@ -111,6 +111,7 @@ async def switch_pokemon(side: SideType, new_index: int, baton_touch: bool = Fal
 
         if trap_log:
             store.add_log(trap_log)
+            print(trap_log)
 
     if team[new_index].current_hp <= 0 and side == "enemy":
         switch_index = get_best_switch_index(side)
