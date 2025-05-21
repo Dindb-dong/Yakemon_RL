@@ -335,7 +335,7 @@ def base_ai_choose_action(
                 add_log(f"🛡️ {side}는 방어용 스크린을 설치한다!")
                 return screen_moves
 
-            if roll < 0.4 and is_ai_low_hp and has_switch_option:
+            if roll < 0.2 and is_ai_low_hp and has_switch_option:
                 if switch_index != -1:
                     add_log(f"🐢 {side}는 느리고 상성은 유리하지만 체력이 낮아 교체를 시도한다!")
                     return {"type": "switch", "index": switch_index}
@@ -464,7 +464,7 @@ def base_ai_choose_action(
             add_log(f"🤸‍♀️ {side}는 변화 기술을 사용")
             return support_move
 
-        if roll < 0.55 and (has_switch_option or is_ai_low_hp):
+        if roll < 0.25 and (has_switch_option or is_ai_low_hp):
             if switch_index != -1:
                 add_log(f"🛼 {side}는 빠르지만 상성상 유리한 포켓몬이 있으므로 교체")
                 return {"type": "switch", "index": switch_index}
@@ -514,7 +514,7 @@ def base_ai_choose_action(
             add_log(f"🏋️‍♂️ {side}는 공격 상승 기술 사용")
             return attack_up_move
 
-        if roll < 0.3 and has_switch_option:
+        if roll < 0.15 and has_switch_option:
             if switch_index != -1:
                 add_log(f"🦅 {side}는 빠르지만 상대의 약점을 찌르기 위해 상대에게 유리한 포켓몬으로 교체")
                 return {"type": "switch", "index": switch_index}
