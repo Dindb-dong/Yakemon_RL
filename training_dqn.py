@@ -187,7 +187,8 @@ async def train_agent(
             )
             
             # 행동 선택
-            if steps < 1000:
+            # 초반 학습 중에는 base ai로 행동 선택
+            if episode < 1000:
                 temp_action = base_ai_choose_action(
                     side="my",
                     my_team=my_team,
