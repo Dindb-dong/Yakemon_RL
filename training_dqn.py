@@ -120,20 +120,14 @@ async def train_agent(
         # PokemonInfo를 BattlePokemon으로 변환
         my_team = [create_battle_pokemon(poke) for poke in my_team]
         enemy_team = [create_battle_pokemon(poke) for poke in enemy_team]
-        
+        print(f"[Episode {episode+1}]")
         # 팀 정보 출력 (딕셔너리 형식)
-        print(f"[Episode {episode+1}] My Team (BattlePokemon):")
+        print(f"My Team (BattlePokemon):")
         for p in my_team:
             print(vars(p))
-        print(f"[Episode {episode+1}] My Team (PokemonInfo):")
-        for p in my_team:
-            print(vars(p.base))
-        print(f"[Episode {episode+1}] Enemy Team (BattlePokemon):")
+        print(f"Enemy Team (BattlePokemon):")
         for p in enemy_team:
             print(vars(p))
-        print(f"[Episode {episode+1}] Enemy Team (PokemonInfo):")
-        for p in enemy_team:
-            print(vars(p.base))
         
         # 2. 배틀 환경 초기화
         state = env.reset(my_team=my_team, enemy_team=enemy_team)
@@ -227,6 +221,7 @@ async def train_agent(
         print(f'Average Loss: {avg_loss:.4f}')
         print(f'Epsilon: {agent.epsilon:.4f}')
         print(f'Steps: {steps}')
+        print(f'Alive Enemies: {len(enemy_team) - sum(pokemon.current_hp > 0 for pokemon in enemy_team)}')
         print(f'Victory: {"Yes" if victory else "No"}')
         print(f'Cumulative Victories: {sum(victories_history)}/{len(victories_history)}')
         print('-' * 50)
@@ -304,7 +299,7 @@ async def test_agent(
             action = agent.select_action(state_vector, env.battle_store, env.duration_store, use_target=True)
             
             # 행동 실행
-            next_state, reward, done, _ = await env.step(action)
+            next_state, reward, done, _ = await env.step(action, test=True)
             
             # 다음 상태 벡터 생성
             next_state_vector = get_state(
@@ -356,6 +351,7 @@ async def test_agent(
 
 #%% [markdown]
 # 메인 실행 코드
+from utils.visualization import capture_output
 if __name__ == "__main__":
     # Jupyter에서 중첩된 이벤트 루프 허용
     nest_asyncio.apply()
@@ -393,21 +389,24 @@ if __name__ == "__main__":
     print("\n" + "="*50 + "\n")
     
     # DDDQN 에이전트 학습
-    ddqn_rewards, ddqn_losses, ddqn_victories = asyncio.run(train_agent(
-        env=env,
-        agent=ddqn_agent,
-        num_episodes=HYPERPARAMS["num_episodes"],
-        save_path=models_dir,
-        agent_name='ddqn'
-    ))
+    with capture_output() as output:
+        ddqn_rewards, ddqn_losses, ddqn_victories = asyncio.run(train_agent(
+            env=env,
+            agent=ddqn_agent,
+            num_episodes=HYPERPARAMS["num_episodes"],
+            save_path=models_dir,
+            agent_name='ddqn'
+        ))
     
     # 학습 결과 시각화
+    log_lines = output.getvalue().splitlines()
     plot_training_results(
         rewards_history=ddqn_rewards,
         losses_history=ddqn_losses,
         agent_name='DDDQN',
         save_path=results_dir,
-        victories_history=ddqn_victories  # 승리 기록 추가
+        victories_history=ddqn_victories,  # 승리 기록 추가
+        log_lines=log_lines
     )
     
     print("\nTraining completed!")
