@@ -5,6 +5,7 @@
 #%% [markdown]
 # 필요한 라이브러리 임포트
 import asyncio
+from typing import Dict, Union
 import nest_asyncio
 import os
 import numpy as np
@@ -14,11 +15,14 @@ import json
 import random
 
 # 환경 관련 import
+from RL.base_ai_choose_action import base_ai_choose_action
 from env.battle_env import YakemonEnv
 
 # 모델 관련 import
 
 # 유틸리티 관련 import
+from p_models.battle_pokemon import BattlePokemon
+from p_models.move_info import MoveInfo
 from utils.battle_logics.create_battle_pokemon import create_battle_pokemon
 from utils.visualization import plot_training_results
 
@@ -35,7 +39,7 @@ from p_data.ability_data import ability_data
 from p_data.mock_pokemon import create_mock_pokemon_list
 
 # 컨텍스트 관련 import
-from context.battle_store import store
+from context.battle_store import BattleStoreState, store
 from context.duration_store import duration_store
 
 
@@ -62,6 +66,29 @@ HYPERPARAMS = {
 
 #%% [markdown]
 # 학습 함수 정의
+def get_action_int(action: MoveInfo | Dict[str, Union[str, int]], pokemon: BattlePokemon):
+    if isinstance(action, dict):
+        state: BattleStoreState = store.get_state()
+        active_my = state["active_my"]
+        if active_my == 0:
+            return action['index'] - 1 + 4
+        elif active_my == 1:
+            if action['index'] == 0:
+                return 4
+            elif action['index'] == 2:
+                return 5
+            else:
+                raise ValueError(f"Invalid action index: {action['index']}")
+        elif active_my == 2:
+            return action['index'] + 4
+        else:
+            raise ValueError(f"Invalid active_my: {active_my}")
+    else: 
+        for i, move in enumerate(pokemon.base.moves):
+            if move.name == action.name:
+                return i
+        raise ValueError(f"Invalid move name: {action.name}")
+
 async def train_agent(
     env: YakemonEnv,
     agent: DDDQNAgent,
@@ -160,7 +187,21 @@ async def train_agent(
             )
             
             # 행동 선택
-            action = agent.select_action(state_vector, env.battle_store, env.duration_store)
+            if steps < 1000:
+                temp_action = base_ai_choose_action(
+                    side="my",
+                    my_team=my_team,
+                    enemy_team=enemy_team,
+                    active_my=env.battle_store.get_active_index("my"),
+                    active_enemy=env.battle_store.get_active_index("enemy"),
+                    public_env=env.public_env.__dict__,
+                    enemy_env=env.my_env.__dict__,
+                    my_env=env.enemy_env.__dict__,
+                    add_log=env.battle_store.add_log
+                )
+                action = get_action_int(temp_action, my_team[env.battle_store.get_active_index("my")])
+            else:
+                action = agent.select_action(state_vector, env.battle_store, env.duration_store, use_target=True)
             
             # 행동 실행
             next_state, reward, done, _ = await env.step(action)
