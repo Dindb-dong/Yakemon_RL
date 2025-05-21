@@ -40,7 +40,6 @@ def base_ai_choose_action(
     my_pokemon = mine_team[active_my if side == 'my' else active_enemy]
     enemy_pokemon = opponent_team[active_enemy if side == 'my' else active_my]
     print(f"{side}의 포켓몬: {my_pokemon.base.name}")
-    print(f"{side}의 상대 포켓몬: {enemy_pokemon.base.name}")
     
     # 속도 계산
     user_speed = (enemy_pokemon.base.speed * 
@@ -110,6 +109,8 @@ def base_ai_choose_action(
                     continue
                 
         usable_moves.append(move)
+    if len(usable_moves) == 0:
+        usable_moves.append(my_pokemon.base.moves[0])
 
     def type_effectiveness(attacker_types: List[str], defender_types: List[str]) -> float:
         return max(calculate_type_effectiveness(atk, defender_types) for atk in attacker_types)

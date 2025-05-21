@@ -117,6 +117,11 @@ def plot_training_results(
     """
     os.makedirs(save_path, exist_ok=True)
     
+    # 무한값 필터링
+    rewards_history = np.array(rewards_history)
+    finite_mask = np.isfinite(rewards_history)
+    filtered_rewards = rewards_history[finite_mask]
+    
     # 1. 보상, 승리 횟수 및 손실 그래프
     plt.figure(figsize=(15, 12))
     
@@ -125,10 +130,10 @@ def plot_training_results(
     plt.plot(rewards_history, label='Average Reward', color='blue', alpha=0.6)
     
     # 이동 평균 추가 (100 에피소드)
-    window_size = min(100, len(rewards_history))
+    window_size = min(100, len(filtered_rewards))
     if window_size > 0:
-        moving_avg = np.convolve(rewards_history, np.ones(window_size)/window_size, mode='valid')
-        plt.plot(range(window_size-1, len(rewards_history)), moving_avg, 
+        moving_avg = np.convolve(filtered_rewards, np.ones(window_size)/window_size, mode='valid')
+        plt.plot(range(window_size-1, len(filtered_rewards)), moving_avg, 
                 label=f'{window_size}-Episode Moving Average', color='red', linewidth=2)
     
     plt.title(f'{agent_name} Training Progress')
@@ -171,7 +176,7 @@ def plot_training_results(
     
     # 보상 분포 히스토그램
     plt.subplot(1, 2, 1)
-    plt.hist(rewards_history, bins=50, alpha=0.7, color='blue')
+    plt.hist(filtered_rewards, bins=50, alpha=0.7, color='blue')
     plt.title(f'{agent_name} Reward Distribution')
     plt.xlabel('Average Reward')
     plt.ylabel('Frequency')
@@ -179,7 +184,7 @@ def plot_training_results(
     
     # 보상 누적 분포
     plt.subplot(1, 2, 2)
-    sorted_rewards = np.sort(rewards_history)
+    sorted_rewards = np.sort(filtered_rewards)
     p = 1. * np.arange(len(sorted_rewards)) / (len(sorted_rewards) - 1)
     plt.plot(sorted_rewards, p, color='red')
     plt.title(f'{agent_name} Reward Cumulative Distribution')

@@ -112,7 +112,7 @@ async def train_agent(
     rewards_history = []
     losses_history = []
     victories_history = []
-    best_reward = float('-inf')
+    best_reward = -200
     
     # 모델 저장 디렉토리 생성
     os.makedirs(save_path, exist_ok=True)
@@ -340,7 +340,7 @@ async def test_agent(
             action = agent.select_action(state_vector, env.battle_store, env.duration_store, use_target=True)
             
             # 행동 실행
-            next_state, reward, done, _ = await env.step(action, test=True)
+            next_state, reward, done, _ = await env.step(action)
             
             # 다음 상태 벡터 생성
             next_state_vector = get_state(
