@@ -40,6 +40,22 @@ from context.duration_store import duration_store
 # from p_models.rank_state import RankManager
 # from p_models.status import StatusManager
 
+def random_enemy_action(enemy_team: List[BattlePokemon], active_enemy: int):
+        current_pokemon = enemy_team[active_enemy]
+        valid_actions = [
+            i for i in range(6)
+            if (i < 4 and current_pokemon.pp.get(current_pokemon.base.moves[i].name, 0) > 0)
+            or (i >= 4 and i - 4 != active_enemy and enemy_team[i - 4].current_hp > 0)
+        ]
+        if valid_actions:
+            chosen = random.choice(valid_actions)
+            if chosen < 4:
+                return current_pokemon.base.moves[chosen]
+            else:
+                return {"type": "switch", "index": chosen - 4}
+        else:
+            return current_pokemon.base.moves[0]
+
 class YakemonEnv(gym.Env):
     """
     Yakemon 배틀 환경을 위한 Gym 인터페이스
@@ -178,7 +194,7 @@ class YakemonEnv(gym.Env):
         action_mask = self._get_action_mask()
         return np.concatenate([state_vector, action_mask])
 
-    async def step(self, action: int) -> Tuple[np.ndarray, float, bool, Dict]:
+    async def step(self, action: int, test: bool = False) -> Tuple[np.ndarray, float, bool, Dict]:
         """
         환경에서 한 스텝 진행
         
@@ -220,6 +236,7 @@ class YakemonEnv(gym.Env):
             
             battle_action = {"type": "switch", "index": switch_index}
             print(f"내가 교체하려는 포켓몬: {self.my_team[switch_index].base.name}")
+            self.battle_store.add_log(f"내가 교체하려는 포켓몬: {self.my_team[switch_index].base.name}")
         
         # 배틀 시퀀스 실행
         async with self._battle_sequence_lock:
@@ -233,7 +250,10 @@ class YakemonEnv(gym.Env):
                 enemy_env=self.my_env.__dict__,
                 my_env=self.enemy_env.__dict__,
                 add_log=self.battle_store.add_log
-            )
+            ) if not test else random_enemy_action(
+                self.enemy_team, 
+                self.battle_store.get_active_index("enemy")
+                )
             
             # 교체와 기술이 동시에 실행되지 않도록 확인
             if isinstance(battle_action, dict) and battle_action["type"] == "switch" and isinstance(enemy_action, dict) and enemy_action["type"] == "switch":
