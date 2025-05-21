@@ -284,10 +284,10 @@ async def apply_move_effect_after_damage(
 
     # 디메리트 효과
     if used_move.demerit_effects:
-        print(f"디메리트 효과 적용: {used_move.name}의 효과 발동!")
         for demerit in used_move.demerit_effects:
             if demerit and random.random() < demerit.chance:
                 if demerit.recoil and applied_damage:
+                    print(f"디메리트 효과 적용: {used_move.name}의 효과 발동!")
                     result = apply_recoil_damage(attacker, demerit.recoil, applied_damage)
                     store.update_pokemon(side, active_mine, lambda _: result)
                     recoil_damage = int(applied_damage * demerit.recoil)

@@ -240,7 +240,7 @@ async def calculate_move_damage(
                 store.add_log(f"🥊 {attacker.base.name}은/는 {move_info.name}을/를 사용했다!")
                 print(f"{attacker.base.name}은/는 {move_info.name}을/를 사용했다!")
                 store.add_log(f"🚫 {attacker.base.name}의 공격은 효과가 없었다...")
-                print(f"{attacker.base.name}의 공격은 효과가 없었다...")
+                print(f"{side} {attacker.base.name}의 공격은 효과가 없었다...")
                 store.update_pokemon(side, active_my if side == "my" else active_enemy, lambda p: set_used_move(p, move_info))
                 store.update_pokemon(side, active_my if side == "my" else active_enemy, 
                                     lambda p: use_move_pp(p, move_name, defender.base.ability.name == "프레셔" if defender.base.ability else False, is_multi_hit))
@@ -292,7 +292,7 @@ async def calculate_move_damage(
                 store.add_log(f"🥊 {attacker.base.name}은/는 {move_info.name}을/를 사용했다!")
                 print(f"{attacker.base.name}은/는 {move_info.name}을/를 사용했다!")
                 store.add_log(f"🚫 {attacker.base.name}의 공격은 효과가 없었다...")
-                print(f"{attacker.base.name}의 공격은 효과가 없었다...")
+                print(f"{side} {attacker.base.name}의 공격은 효과가 없었다...")
                 store.update_pokemon(side, active_my if side == "my" else active_enemy, lambda p: set_used_move(p, move_info))
                 store.update_pokemon(side, active_my if side == "my" else active_enemy, 
                                     lambda p: use_move_pp(p, move_name, defender.base.ability.name == "프레셔" if defender.base.ability else False, is_multi_hit))
@@ -320,16 +320,16 @@ async def calculate_move_damage(
     
         if types >= 2:
             was_effective = 1
-            store.add_log(f"👍 {attacker.base.name}의 공격은 효과가 굉장했다!")
-            print(f"{attacker.base.name}의 공격은 효과가 굉장했다!")
+            store.add_log(f"👍 {side} {attacker.base.name}의 공격은 효과가 굉장했다!")
+            print(f"{side} {attacker.base.name}의 공격은 효과가 굉장했다!")
         if 0 < types <= 0.5:
             was_effective = -1
             store.add_log(f"👎 {attacker.base.name}의 공격은 효과가 별로였다...")
-            print(f"{attacker.base.name}의 공격은 효과가 별로였다...")
+            print(f"{side} {attacker.base.name}의 공격은 효과가 별로였다...")
         if types == 0:
             was_null = True
             store.add_log(f"🚫 {attacker.base.name}의 공격은 효과가 없었다...")
-            print(f"{attacker.base.name}의 공격은 효과가 없었다...")
+            print(f"{side} {attacker.base.name}의 공격은 효과가 없었다...")
             store.update_pokemon(side, active_my if side == "my" else active_enemy, lambda p: set_used_move(p, move_info))
             store.update_pokemon(side, active_my if side == "my" else active_enemy, 
                                 lambda p: use_move_pp(p, move_name, defender.base.ability.name == "프레셔" if defender.base.ability else False, is_multi_hit))
