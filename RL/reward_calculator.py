@@ -44,6 +44,10 @@ def calculate_reward(
     current_pokemon = my_team[active_my]
     target_pokemon = enemy_team[active_enemy]
     
+    # 학습 단계에 따른 가중치 계산
+    episode = battle_store.episode if hasattr(battle_store, 'episode') else 0
+    learning_stage = min(episode / 2000, 1.0)  # 점진적으로 복잡한 전략 도입
+    
     # 1. HP 변화에 따른 보상 (가중치 증가 및 상대적 차이 고려)
     my_hp_ratio = current_pokemon.current_hp / current_pokemon.base.hp
     enemy_hp_ratio = target_pokemon.current_hp / target_pokemon.base.hp
@@ -260,6 +264,12 @@ def calculate_reward(
         if any(p.current_hp > 0 for p in my_team):  # 승리
             reward += 50.0
         else:  # 패배
-            reward -= 5.0
+            # 학습 단계에 따라 패배 패널티 점진적으로 증가
+            if learning_stage < 0.2:  # 초기 학습 단계
+                reward -= 0.0  # 매우 작은 패널티
+            elif learning_stage < 0.35:  # 중급 학습 단계
+                reward -= 1.0  # 중간 패널티
+            else:  # 고급 학습 단계
+                reward -= 10.0  # 최대 패널티
     
     return reward
