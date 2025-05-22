@@ -189,7 +189,7 @@ class DDDQNAgent:
         # 텐서 변환
         state_batch = torch.FloatTensor(states).to(self.device)
         action_batch = torch.LongTensor(actions).to(self.device)
-        reward_batch = torch.FloatTensor(rewards).to(self.device)
+        reward_batch = torch.FloatTensor(rewards).clamp(-5, 5).to(self.device)  # reward 클리핑 범위 조정 (-50 -> -5)
         next_state_batch = torch.FloatTensor(next_states).to(self.device)
         done_batch = torch.FloatTensor(dones).to(self.device)
         
@@ -204,44 +204,37 @@ class DDDQNAgent:
         
         # 다음 상태의 최대 Q 값 계산 (Double DQN)
         with torch.no_grad():
-            # 다음 상태의 Q 값 계산
+            # 다음 상태의 Q 값 계산 (policy net으로 action 선택)
             next_q_values = self.policy_net(next_state_batch)
-            
-            # 마스크 적용 (다음 상태에서 가능한 행동만 고려)
             next_actions = next_q_values.max(1)[1].unsqueeze(1)
-            next_q_values = self.target_net(next_state_batch).gather(1, next_actions)
+            
+            # target net으로 value 계산
+            next_target_q_values = self.target_net(next_state_batch)
+            next_q_values = next_target_q_values.gather(1, next_actions)
+            
+            # Q 값 클리핑 (gamma가 0.95이므로 reward의 약 20배 정도까지 커질 수 있음)
+            next_q_values = next_q_values.clamp(-10, 10)  # Q-value 클리핑 범위 조정 (-100 -> -10)
+            
+            # expected Q 값 계산
             expected_q_values = reward_batch.unsqueeze(1) + (1 - done_batch.unsqueeze(1)) * self.gamma * next_q_values
+            expected_q_values = expected_q_values.clamp(-10, 10)  # expected Q 값도 클리핑
         
         # Q값 디버그 정보
         print(f"Debug - Q-values:")
         print(f"Current Q - Min: {current_q_values.min().item():.2f}, Max: {current_q_values.max().item():.2f}, Mean: {current_q_values.mean().item():.2f}")
+        print(f"Next Q - Min: {next_q_values.min().item():.2f}, Max: {next_q_values.max().item():.2f}, Mean: {next_q_values.mean().item():.2f}")
         print(f"Expected Q - Min: {expected_q_values.min().item():.2f}, Max: {expected_q_values.max().item():.2f}, Mean: {expected_q_values.mean().item():.2f}")
         
-        # NaN/Inf 체크
-        if torch.isnan(current_q_values).any() or torch.isinf(current_q_values).any():
-            print("Warning: NaN or Inf detected in current_q_values")
-            return 0.0
-        if torch.isnan(expected_q_values).any() or torch.isinf(expected_q_values).any():
-            print("Warning: NaN or Inf detected in expected_q_values")
-            return 0.0
-        
-        # 손실 계산
+        # 손실 계산 (Huber Loss 사용)
         loss = F.smooth_l1_loss(current_q_values, expected_q_values)
         
         # 손실값 디버그
         print(f"Debug - Loss: {loss.item():.4f}")
-        if loss.item() < 0:
-            print("Warning: Negative loss detected!")
-            print(f"Current Q shape: {current_q_values.shape}")
-            print(f"Expected Q shape: {expected_q_values.shape}")
-            print(f"Current Q dtype: {current_q_values.dtype}")
-            print(f"Expected Q dtype: {expected_q_values.dtype}")
-            return 0.0
         
         # 최적화
         self.optimizer.zero_grad()
         loss.backward()
-        torch.nn.utils.clip_grad_norm_(self.policy_net.parameters(), 1.0)
+        torch.nn.utils.clip_grad_norm_(self.policy_net.parameters(), 1.0)  # gradient clipping
         self.optimizer.step()
         
         # 학습 스텝 카운트 증가
@@ -250,6 +243,7 @@ class DDDQNAgent:
         
         # 타겟 네트워크 업데이트
         if self.updates % self.update_frequency == 0:
+            print(f"\nUpdating target network at step {self.steps} (update #{self.updates})")
             self.update_target_network()
         
         return loss.item()
