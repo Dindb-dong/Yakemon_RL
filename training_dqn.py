@@ -196,25 +196,20 @@ async def train_agent(
             # 행동 선택
             # 초반 학습 중에는 base ai와 DQN을 혼합하여 사용
             if episode < HYPERPARAMS["base_ai_episodes"]:
-                # 50% 확률로 base ai 사용, 50% 확률로 DQN 사용
-                if random.random() < 0.5:
-                    temp_action = base_ai_choose_action(
-                        side="my",
-                        my_team=my_team,
-                        enemy_team=enemy_team,
-                        active_my=env.battle_store.get_active_index("my"),
-                        active_enemy=env.battle_store.get_active_index("enemy"),
-                        public_env=env.public_env.__dict__,
-                        enemy_env=env.my_env.__dict__,
-                        my_env=env.enemy_env.__dict__,
-                        add_log=env.battle_store.add_log
-                    )
-                    action = get_action_int(temp_action, my_team[env.battle_store.get_active_index("my")])
-                else:
-                    action = agent.select_action(state_vector, env.battle_store, env.duration_store, use_target=True)
+                temp_action = base_ai_choose_action(
+                    side="my",
+                    my_team=my_team,
+                    enemy_team=enemy_team,
+                    active_my=env.battle_store.get_active_index("my"),
+                    active_enemy=env.battle_store.get_active_index("enemy"),
+                    public_env=env.public_env.__dict__,
+                    enemy_env=env.my_env.__dict__,
+                    my_env=env.enemy_env.__dict__,
+                    add_log=env.battle_store.add_log
+                )
+                action = get_action_int(temp_action, my_team[env.battle_store.get_active_index("my")])
             else:
                 action = agent.select_action(state_vector, env.battle_store, env.duration_store, use_target=True)
-            
             # 행동 실행
             next_state, reward, done, _ = await env.step(action)
             
