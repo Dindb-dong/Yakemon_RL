@@ -60,6 +60,7 @@ HYPERPARAMS = {
     "num_episodes": 50000,
     "save_interval": 50,
     "test_episodes": 50,
+    "base_ai_episodes": 1000,  # base AI를 사용할 에피소드 수
     "state_dim": 1165,  # get_state_vector의 출력 차원
     "action_dim": 6   # 4개의 기술 + 2개의 교체
 }
@@ -121,7 +122,13 @@ async def train_agent(
     with open(os.path.join(save_path, f'{agent_name}_hyperparams.json'), 'w') as f:
         json.dump(HYPERPARAMS, f, indent=4)
     
+    # 전체 에피소드 수를 battle_store에 설정
+    env.battle_store.total_episodes = num_episodes
+    
     for episode in range(num_episodes):
+        # 에피소드 번호를 battle_store에 설정
+        env.battle_store.episode = episode
+        
         # 1. 팀 생성 단계
         all_pokemon = create_mock_pokemon_list()
         
@@ -187,20 +194,24 @@ async def train_agent(
             )
             
             # 행동 선택
-            # 초반 학습 중에는 base ai로 행동 선택
-            if episode < 1000:
-                temp_action = base_ai_choose_action(
-                    side="my",
-                    my_team=my_team,
-                    enemy_team=enemy_team,
-                    active_my=env.battle_store.get_active_index("my"),
-                    active_enemy=env.battle_store.get_active_index("enemy"),
-                    public_env=env.public_env.__dict__,
-                    enemy_env=env.my_env.__dict__,
-                    my_env=env.enemy_env.__dict__,
-                    add_log=env.battle_store.add_log
-                )
-                action = get_action_int(temp_action, my_team[env.battle_store.get_active_index("my")])
+            # 초반 학습 중에는 base ai와 DQN을 혼합하여 사용
+            if episode < HYPERPARAMS["base_ai_episodes"]:
+                # 50% 확률로 base ai 사용, 50% 확률로 DQN 사용
+                if random.random() < 0.5:
+                    temp_action = base_ai_choose_action(
+                        side="my",
+                        my_team=my_team,
+                        enemy_team=enemy_team,
+                        active_my=env.battle_store.get_active_index("my"),
+                        active_enemy=env.battle_store.get_active_index("enemy"),
+                        public_env=env.public_env.__dict__,
+                        enemy_env=env.my_env.__dict__,
+                        my_env=env.enemy_env.__dict__,
+                        add_log=env.battle_store.add_log
+                    )
+                    action = get_action_int(temp_action, my_team[env.battle_store.get_active_index("my")])
+                else:
+                    action = agent.select_action(state_vector, env.battle_store, env.duration_store, use_target=True)
             else:
                 action = agent.select_action(state_vector, env.battle_store, env.duration_store, use_target=True)
             

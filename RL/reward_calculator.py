@@ -46,8 +46,14 @@ def calculate_reward(
     
     # 학습 단계에 따른 가중치 계산
     episode = battle_store.episode if hasattr(battle_store, 'episode') else 0
-    learning_stage = min(episode / 2000, 1.0)  # 점진적으로 복잡한 전략 도입
-    
+    if not hasattr(battle_store, 'total_episodes'):
+        raise ValueError("total_episodes not set in battle_store. Please set battle_store.total_episodes before training.")
+    total_episodes = battle_store.total_episodes
+    learning_stage = min(float(episode) / float(total_episodes), 1.0)  # 전체 에피소드 수에 따른 점진적 증가
+    print(f"total_episodes: {total_episodes}")
+    print(f"learning_stage: {learning_stage}")
+
+
     # 1. HP 변화에 따른 보상 (가중치 증가 및 상대적 차이 고려)
     my_hp_ratio = current_pokemon.current_hp / current_pokemon.base.hp
     enemy_hp_ratio = target_pokemon.current_hp / target_pokemon.base.hp
