@@ -6,10 +6,14 @@ from p_models.battle_pokemon import BattlePokemon
 
 SideType = Literal["my", "enemy"]
 
-def apply_appearance(pokemon: BattlePokemon, side: SideType) -> List[str]:
+def apply_appearance(pokemon: BattlePokemon, side: SideType, depth: int = 0) -> List[str]:
     logs: List[str] = []
     ability = pokemon.base.ability
     if not ability or not ability.appear:
+        return logs
+
+    # Prevent infinite recursion
+    if depth > 1:
         return logs
 
     active_my = store.state["active_my"]
@@ -115,7 +119,7 @@ def apply_appearance(pokemon: BattlePokemon, side: SideType) -> List[str]:
             update(side, my_index, lambda p: p.copy_with(ability=new_ability))
             add_log(f"➕ {pokemon.base.name}의 특성이 {new_ability.name if new_ability else '???'}으로 변화했다!")
             if new_ability and new_ability.appear:
-                apply_appearance(my_pokemon, side)
+                apply_appearance(my_pokemon, side, depth + 1)
 
     update(side, my_index, lambda p: p.copy_with(is_first_turn=True))
     return logs
