@@ -35,7 +35,7 @@ async def apply_move_effect_after_multi_damage(
     effect = getattr(used_move, "effects", None)
 
     if used_move.cannot_move:
-        store.update_pokemon(side, active_mine, lambda p: p.deepcopy(cannot_move=True))
+        store.update_pokemon(side, active_mine, lambda p: p.copy_with(cannot_move=True))
         store.add_log(f"💥 {attacker.base.name}은 피로로 인해 다음 턴 움직일 수 없다!")
         print(f"피로 효과 적용: {attacker.base.name}은 피로로 인해 다음 턴 움직일 수 없다!")
 
