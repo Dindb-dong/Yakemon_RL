@@ -164,8 +164,10 @@ class YakemonEnv(gym.Env):
                 mask[i] = 0
         
         # 교체 행동(4,5)에 대한 마스킹
+        other_indices = [0, 1, 2]
+        other_indices.remove(current_index) # 현재 포켓몬 제외
         for i in range(2):  # 교체 행동 2개
-            switch_index = i
+            switch_index = other_indices[i]
             # 자기 자신으로 교체하는 경우
             if switch_index == current_index:
                 mask[4 + i] = 0
@@ -226,6 +228,9 @@ class YakemonEnv(gym.Env):
         else:  # 포켓몬 교체
             switch_index = action - 4
             current_index = self.battle_store.get_active_index("my")
+            other_indices = [0, 1, 2]
+            other_indices.remove(current_index)
+            switch_index = other_indices[switch_index]  # 교체할 포켓몬 인덱스
             
             # 자기 자신으로 교체하는 경우 방지
             if switch_index == current_index:
