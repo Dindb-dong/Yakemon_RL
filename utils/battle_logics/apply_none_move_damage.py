@@ -123,20 +123,21 @@ def apply_status_condition_damage(pokemon: BattlePokemon, status: str) -> Battle
     damage = 0
 
     if ability_name != "매직가드":
+        new_hp = max(0, pokemon.current_hp - damage)
         if status == "화상":
             damage = int(pokemon.base.hp * 0.0625)
             add_log(f"🔥 {pokemon.base.name}은 화상으로 피해를 입었다!")
-            print(f"🔥 {pokemon.base.name}은 화상으로 피해를 입었다!\n {pokemon.current_hp}에서 {pokemon.current_hp - damage}로 변경")
+            print(f"🔥 {pokemon.base.name}은 화상으로 피해를 입었다!\n {pokemon.current_hp}에서 {new_hp}로 변경")
         elif status == "독":
             damage = int(pokemon.base.hp * 0.125)
             add_log(f"🍄 {pokemon.base.name}은 독으로 피해를 입었다!")
-            print(f"🍄 {pokemon.base.name}은 독으로 피해를 입었다!\n {pokemon.current_hp}에서 {pokemon.current_hp - damage}로 변경")
+            print(f"🍄 {pokemon.base.name}은 독으로 피해를 입었다!\n {pokemon.current_hp}에서 {new_hp}로 변경")
         elif status == "조이기":
             damage = int(pokemon.base.hp * 0.125)
             add_log(f"🪢 {pokemon.base.name}은 조임 피해를 입었다!")
-            print(f"🪢 {pokemon.base.name}은 조임 피해를 입었다!\n {pokemon.current_hp}에서 {pokemon.current_hp - damage}로 변경")
+            print(f"🪢 {pokemon.base.name}은 조임 피해를 입었다!\n {pokemon.current_hp}에서 {new_hp}로 변경")
         elif status == "맹독":
             damage = int(pokemon.base.hp * (1 / 6))
             add_log(f"🍄 {pokemon.base.name}은 맹독으로 피해를 입었다!")
-            print(f"🍄 {pokemon.base.name}은 맹독으로 피해를 입었다!\n {pokemon.current_hp}에서 {pokemon.current_hp - damage}로 변경")
+            print(f"🍄 {pokemon.base.name}은 맹독으로 피해를 입었다!\n {pokemon.current_hp}에서 {new_hp}로 변경")
     return pokemon.copy_with(current_hp=max(0, pokemon.current_hp - damage))
