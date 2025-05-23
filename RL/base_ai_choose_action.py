@@ -293,10 +293,14 @@ def base_ai_choose_action(
             add_log(f"⚡ {side}는 막타를 노려 빠른 포켓몬을 꺼냈다")
             print(f"⚡ {side}는 막타를 노려 빠른 포켓몬을 꺼냈다")
             return {"type": "switch", "index": prioritized['index']}
-        else:
+        elif switch_index != -1:  # 빠른 포켓몬은 없지만 교체할 수 있는 포켓몬이 있는 경우
             add_log(f"⚡ {side}는 상성이 좋은 포켓몬을 내보냈다")
             print(f"⚡ {side}는 상성이 좋은 포켓몬을 내보냈다")
             return {"type": "switch", "index": switch_index}
+        else:  # 교체할 수 있는 포켓몬이 없는 경우
+            add_log(f"😱 {side}는 교체할 포켓몬이 없어 최후의 발악을 시도한다!")
+            print(f"😱 {side}는 교체할 포켓몬이 없어 최후의 발악을 시도한다!")
+            return best_move
 
     # === 2. 플레이어가 더 빠를 경우 ===
     if not is_ai_faster:
@@ -451,11 +455,10 @@ def base_ai_choose_action(
             print(f"➕ {side}는 빠르지만 체력이 낮으므로 회복 기술 사용!")
             return heal_move
 
-        if roll < 0.1 and has_switch_option:
-            if switch_index != -1:
-                add_log(f"🛼 {side}는 상대 교체 예상하고 맞교체")
-                print(f"🛼 {side}는 상대 교체 예상하고 맞교체")
-                return {"type": "switch", "index": switch_index}
+        if roll < 0.1 and has_switch_option and switch_index != -1:
+            add_log(f"🛼 {side}는 상대 교체 예상하고 맞교체")
+            print(f"🛼 {side}는 상대 교체 예상하고 맞교체")
+            return {"type": "switch", "index": switch_index}
 
         if roll < 0.2 and support_move:
             add_log(f"🤸‍♀️ {side}는 변화 기술 사용")
@@ -536,11 +539,10 @@ def base_ai_choose_action(
             print(f"➕ {side}는 빠르지만 체력이 낮으므로 회복 기술 사용!")
             return heal_move
 
-        if roll < 0.1 and has_switch_option:
-            if switch_index != -1:
-                add_log(f"🛼 {side}는 상대 교체 예상하고 맞교체")
-                print(f"🛼 {side}는 상대 교체 예상하고 맞교체")
-                return {"type": "switch", "index": switch_index}
+        if roll < 0.1 and has_switch_option and switch_index != -1:
+            add_log(f"🛼 {side}는 상대 교체 예상하고 맞교체")
+            print(f"🛼 {side}는 상대 교체 예상하고 맞교체")
+            return {"type": "switch", "index": switch_index}
 
         if roll < 0.2 and support_move:
             add_log(f"🤸‍♀️ {side}는 변화 기술 사용")
@@ -567,11 +569,10 @@ def base_ai_choose_action(
             print(f"🏋️‍♂️ {side}는 공격 상승 기술 사용")
             return attack_up_move
 
-        if roll < 0.15 and has_switch_option:
-            if switch_index != -1:
-                add_log(f"🦅 {side}는 빠르지만 상대의 약점을 찌르기 위해 상대에게 유리한 포켓몬으로 교체")
-                print(f"🦅 {side}는 빠르지만 상대의 약점을 찌르기 위해 상대에게 유리한 포켓몬으로 교체")
-                return {"type": "switch", "index": switch_index}
+        if roll < 0.15 and has_switch_option and switch_index != -1:
+            add_log(f"🦅 {side}는 빠르지만 상대의 약점을 찌르기 위해 상대에게 유리한 포켓몬으로 교체")
+            print(f"🦅 {side}는 빠르지만 상대의 약점을 찌르기 위해 상대에게 유리한 포켓몬으로 교체")
+            return {"type": "switch", "index": switch_index}
 
         add_log(f"🥊 {side}는 더 빠르기에 가장 강한 공격 시도")
         print(f"🥊 {side}는 더 빠르기에 가장 강한 공격 시도")
