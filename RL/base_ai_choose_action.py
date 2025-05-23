@@ -304,7 +304,7 @@ def base_ai_choose_action(
             if is_user_very_low_hp and priority_move:
                 add_log(f"🦅 {side}는 상대 포켓몬의 빈틈을 포착하여 선공기 사용!")
                 print(f"🦅 {side}는 상대 포켓몬의 빈틈을 포착하여 선공기 사용!")
-                return best_move
+                return priority_move
                 
             if roll < 0.3 and counter_move and is_ai_high_hp:
                 enemy_atk = (enemy_pokemon.base.attack * 

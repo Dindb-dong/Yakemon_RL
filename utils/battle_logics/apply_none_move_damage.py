@@ -21,7 +21,8 @@ def apply_trap_damage(pokemon: BattlePokemon, trap: List[str]) -> Tuple[Optional
                 multiplier = calculate_type_effectiveness("바위", types)
                 damage += int(pokemon.base.hp * 0.125 * multiplier)
                 if damage:
-                    log = f"{pokemon.base.name} 은 {item}의 피해를 입었다! {pokemon.current_hp}에서 {pokemon.current_hp - damage}로 변경"
+                    new_hp = max(0, pokemon.current_hp - damage)
+                    log = f"{pokemon.base.name} 은 {item}의 피해를 입었다! {pokemon.current_hp}에서 {new_hp}로 변경"
 
             elif item == "끈적끈적네트":
                 if "비행" in types or ability_name == "부유":
@@ -58,7 +59,8 @@ def apply_trap_damage(pokemon: BattlePokemon, trap: List[str]) -> Tuple[Optional
                     spike_damage = int(pokemon.base.hp * ratio)
                     if spike_damage > 0:
                         damage += spike_damage
-                        log = f"{pokemon.base.name}은(는) {item}의 피해를 입었다! {pokemon.current_hp}에서 {pokemon.current_hp - damage}로 변경"
+                        new_hp = max(0, pokemon.current_hp - damage)
+                        log = f"{pokemon.base.name}은(는) {item}의 피해를 입었다! {pokemon.current_hp}에서 {new_hp}로 변경"
 
     return damage, log, status_condition
 

@@ -43,6 +43,12 @@ async def switch_pokemon(side: SideType, new_index: int, baton_touch: bool = Fal
 
     if new_index == -1:
         store.add_log(f"{side}는 더 이상 낼 포켓몬이 없음")
+        print(f"{side}는 더 이상 낼 포켓몬이 없음")
+        return
+
+    if team[new_index].current_hp <= 0:
+        store.add_log(f"쓰러진 포켓몬으로 교체할 수 없습니다.")
+        print(f"쓰러진 포켓몬으로 교체할 수 없습니다.")
         return
 
     if switching_pokemon.base.ability and switching_pokemon.base.ability.name == "재생력" and switching_pokemon.current_hp > 0:
@@ -96,8 +102,17 @@ async def switch_pokemon(side: SideType, new_index: int, baton_touch: bool = Fal
     print(f"교체 후 포켓몬: {next_pokemon.base.name}")
     if env.trap:
         damage, trap_log, trap_condition = apply_trap_damage(next_pokemon, env.trap)
-
-        store.update_pokemon(side, new_index, lambda p: p.copy_with(current_hp=max(0, p.current_hp - damage)))
+        
+        # Update HP and check for fainting
+        new_hp = max(0, next_pokemon.current_hp - damage)
+        store.update_pokemon(side, new_index, lambda p: p.copy_with(current_hp=new_hp))
+        
+        if new_hp <= 0:
+            store.add_log(f"{next_pokemon.base.name}이(가) 쓰러졌다!")
+            switch_index = get_best_switch_index(side)
+            if switch_index != -1 and switch_index != new_index:
+                await switch_pokemon(side, switch_index)
+            return
 
         if trap_condition:
             if trap_condition == "독압정 제거":
