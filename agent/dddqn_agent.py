@@ -7,6 +7,7 @@ from collections import namedtuple
 import torch.nn.functional as F
 import numpy as np
 
+from context.battle_store import BattleStore
 from utils.replay_buffer import ReplayBuffer
 
 # 경험 리플레이를 위한 데이터 구조
@@ -96,15 +97,41 @@ class DDDQNAgent:
         self.steps = 0  # 총 학습 스텝 수
         self.updates = 0  # 실제로 수행된 네트워크 업데이트 수
     
-    def select_action(self, state, store=None, duration_store=None, use_target=False):
+    def select_action(self, state, store: BattleStore=None, duration_store=None, use_target=False):
         """ε-greedy 정책에 따라 행동을 선택합니다."""
+        if store is not None:
+            current_index = store.get_active_index("my")
+            my_team = store.get_team("my")
+            current_pokemon = my_team[current_index]
+            
+            # cannot_move 상태 체크
+            if current_pokemon.cannot_move:
+                print("dddqn_agent: cannot_move 상태")
+                return -1
+                
+            # is_charging 상태 체크
+            if current_pokemon.is_charging:
+                print("dddqn_agent: is_charging 상태")
+                for i, move in enumerate(current_pokemon.base.moves):
+                    if current_pokemon.charging_move is not None and move.name == current_pokemon.charging_move:
+                        return i
+                        
+            # locked_move 상태 체크
+            if current_pokemon.locked_move:
+                print("dddqn_agent: locked_move 상태")
+                for i, move in enumerate(current_pokemon.base.moves):
+                    if current_pokemon.locked_move is not None and move.name == current_pokemon.locked_move:
+                        return i
+        
         if random.random() < self.epsilon:  # epsilon 체크
             # 마스크를 고려한 랜덤 행동 선택
             action_mask = self._get_action_mask(store)
             valid_actions = [i for i, mask in enumerate(action_mask) if mask == 1]
             if valid_actions:
                 return random.choice(valid_actions)
-            return random.randrange(self.action_dim)
+            else:
+                print("dddqn_agent: 가능한 행동이 없는 상태")
+                return -1
         
         with torch.no_grad():
             state = torch.FloatTensor(state).unsqueeze(0).to(self.device)
@@ -115,7 +142,7 @@ class DDDQNAgent:
             # 마스크 적용
             action_mask = self._get_action_mask(store)
             masked_q_values = q_values.clone()
-            masked_q_values[0, action_mask == 0] = float('-inf')
+            masked_q_values[0, action_mask == 0] = float(-100)
             
             return masked_q_values.argmax().item()
     
@@ -140,9 +167,11 @@ class DDDQNAgent:
             switch_index = i
             # 자기 자신으로 교체하는 경우
             if switch_index == current_index:
+                print("dddqn_agent: 자기 자신으로 교체할 수 없습니다.")
                 mask[4 + i] = 0
             # 교체하려는 포켓몬이 쓰러진 경우
             elif my_team[switch_index].current_hp <= 0:
+                print("dddqn_agent: 쓰러진 포켓몬으로 교체할 수 없습니다.")
                 mask[4 + i] = 0
         
         return mask
@@ -196,11 +225,19 @@ class DDDQNAgent:
         # 디버그 정보 출력
         print(f"\nDebug - Batch Info:")
         print(f"Replay Buffer Size: {len(self.memory)}/{self.memory.max_size}")
+        print(f"Invalid Actions (-1): {(action_batch == -1).sum().item()}/{len(action_batch)}")
         print(f"Rewards - Min: {reward_batch.min().item():.2f}, Max: {reward_batch.max().item():.2f}, Mean: {reward_batch.mean().item():.2f}")
         print(f"Dones - True count: {done_batch.sum().item()}")
         
         # 현재 Q 값 계산
-        current_q_values = self.policy_net(state_batch).gather(1, action_batch.unsqueeze(1))
+        current_q_values = self.policy_net(state_batch)
+        
+        # -1 액션을 6으로 매핑 (행동불능 상태는 마지막 액션으로 처리)
+        mapped_actions = action_batch.clone()
+        mapped_actions[action_batch == -1] = 6
+        
+        # 선택된 액션의 Q값만 추출
+        current_q_values = current_q_values.gather(1, mapped_actions.unsqueeze(1))
         
         # 다음 상태의 최대 Q 값 계산 (Double DQN)
         with torch.no_grad():

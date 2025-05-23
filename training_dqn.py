@@ -9,7 +9,6 @@ from typing import Dict, Union
 import nest_asyncio
 import os
 import numpy as np
-import matplotlib.pyplot as plt
 from datetime import datetime
 import json
 import random
@@ -30,12 +29,9 @@ from utils.visualization import plot_training_results
 from agent.dddqn_agent import DDDQNAgent
 
 # RL 관련 import
-from RL.reward_calculator import calculate_reward
 from RL.get_state_vector import get_state
 
 # 데이터 관련 import
-from p_data.move_data import move_data
-from p_data.ability_data import ability_data
 from p_data.mock_pokemon import create_mock_pokemon_list
 
 # 컨텍스트 관련 import
@@ -48,7 +44,7 @@ battle_store = store
 duration_store = duration_store
 
 # 하이퍼파라미터 설정
-HYPERPARAMS = {
+hyperparams = {
     "learning_rate": 0.0005,
     "gamma": 0.95,
     "epsilon_start": 1.0,
@@ -57,12 +53,12 @@ HYPERPARAMS = {
     "batch_size": 128,
     "memory_size": 50000,
     "target_update": 20,
-    "num_episodes": 50000,
+    "num_episodes": 1000,
     "save_interval": 50,
-    "test_episodes": 50,
-    "base_ai_episodes": 1000,  # base AI를 사용할 에피소드 수
+    "test_episodes": 300,
+    "base_ai_episodes": 500,  # base AI를 사용할 에피소드 수
     "state_dim": 1165,  # get_state_vector의 출력 차원
-    "action_dim": 6   # 4개의 기술 + 2개의 교체
+    "action_dim": 7   # 4개의 기술 + 2개의 교체 + 1개의 행동불능
 }
 
 #%% [markdown]
@@ -95,7 +91,8 @@ async def train_agent(
     agent: DDDQNAgent,
     num_episodes: int,
     save_path: str = 'models',
-    agent_name: str = 'ddqn'
+    agent_name: str = 'ddqn',
+    HYPERPARAMS: dict = hyperparams
 ) -> tuple:
     """
     에이전트 학습 함수
@@ -208,6 +205,7 @@ async def train_agent(
             # 행동 선택
             # 초반 학습 중에는 base ai와 DQN을 혼합하여 사용
             if episode < HYPERPARAMS["base_ai_episodes"]:
+                print(f"Episode {episode+1} / {HYPERPARAMS['base_ai_episodes']}")
                 temp_action = base_ai_choose_action(
                     side="my",
                     my_team=my_team,
@@ -219,11 +217,16 @@ async def train_agent(
                     my_env=env.enemy_env.__dict__,
                     add_log=env.battle_store.add_log
                 )
-                action = get_action_int(temp_action, my_team[env.battle_store.get_active_index("my")])
+                if temp_action is None: # 행동 불가 상태
+                    action = -1
+                else: 
+                    action = get_action_int(temp_action, my_team[env.battle_store.get_active_index("my")])
             else:
-                action = agent.select_action(state_vector, env.battle_store, env.duration_store, use_target=True)
+                action = agent.select_action(state_vector, env.battle_store, env.duration_store, use_target=False)
+            
             # 행동 실행
-            next_state, reward, done, _ = await env.step(action)
+            # 200판까지는 랜덤 선택 ai 상대로 학습, 이후부터는 base ai 상대로 학습
+            next_state, reward, done, _ = await env.step(action, test=True) if episode < 200 else await env.step(action)
             
             # 다음 상태 벡터 생성
             next_state_vector = get_state(
@@ -281,7 +284,7 @@ async def train_agent(
         print(f'Average Loss: {avg_loss:.4f}')
         print(f'Epsilon: {agent.epsilon:.4f}')
         print(f'Steps: {steps}')
-        print(f'Alive Enemies: {len(enemy_team) - sum(pokemon.current_hp > 0 for pokemon in enemy_team)}')
+        print(f'Alive Enemies: {len(enemy_team) - sum(pokemon.current_hp <= 0 for pokemon in enemy_team)}')
         print(f'Victory: {"Yes" if victory else "No"}')
         print(f'Cumulative Victories: {sum(victories_history)}/{len(victories_history)}')
         print('-' * 50)
@@ -291,9 +294,10 @@ async def train_agent(
 #%% [markdown]
 # 테스트 함수 정의
 async def test_agent(
-    env,
+    env: YakemonEnv,
     agent: DDDQNAgent,
-    num_episodes: int = 10
+    num_episodes: int = 10,
+    HYPERPARAMS: dict = hyperparams
 ) -> tuple:
     """
     학습된 에이전트 테스트
@@ -311,6 +315,7 @@ async def test_agent(
         water_pokemon = [p for p in all_pokemon if '물' in p.types]
         grass_pokemon = [p for p in all_pokemon if '풀' in p.types]
         
+        # test 시에는 물 불 풀만 사용
         # 각 타입에서 랜덤하게 3마리씩 선택
         my_team = (
             random.sample(fire_pokemon, 1) +
@@ -423,28 +428,28 @@ if __name__ == "__main__":
     
     # 환경 초기화
     env = YakemonEnv()  # 실제 게임 환경
-    state_dim = HYPERPARAMS["state_dim"]
-    action_dim = HYPERPARAMS["action_dim"]
+    state_dim = hyperparams["state_dim"]
+    action_dim = hyperparams["action_dim"]
     
     # DDDQN 에이전트 생성
     ddqn_agent = DDDQNAgent(
         state_dim=state_dim,
         action_dim=action_dim,
-        learning_rate=HYPERPARAMS["learning_rate"],
-        gamma=HYPERPARAMS["gamma"],
-        epsilon_start=HYPERPARAMS["epsilon_start"],
-        epsilon_end=HYPERPARAMS["epsilon_end"],
-        epsilon_decay=HYPERPARAMS["epsilon_decay"],
-        target_update=HYPERPARAMS["target_update"],
-        memory_size=HYPERPARAMS["memory_size"],
-        batch_size=HYPERPARAMS["batch_size"]
+        learning_rate=hyperparams["learning_rate"],
+        gamma=hyperparams["gamma"],
+        epsilon_start=hyperparams["epsilon_start"],
+        epsilon_end=hyperparams["epsilon_end"],
+        epsilon_decay=hyperparams["epsilon_decay"],
+        target_update=hyperparams["target_update"],
+        memory_size=hyperparams["memory_size"],
+        batch_size=hyperparams["batch_size"]
     )
     
     print("Starting DDDQN training...")
     print(f"Results will be saved in: {results_dir}")
     print(f"Models will be saved in: {models_dir}")
     print("\nHyperparameters:")
-    for key, value in HYPERPARAMS.items():
+    for key, value in hyperparams.items():
         print(f"  {key}: {value}")
     print("\n" + "="*50 + "\n")
     
@@ -453,7 +458,7 @@ if __name__ == "__main__":
         ddqn_rewards, ddqn_losses, ddqn_victories = asyncio.run(train_agent(
             env=env,
             agent=ddqn_agent,
-            num_episodes=HYPERPARAMS["num_episodes"],
+            num_episodes=hyperparams["num_episodes"],
             save_path=models_dir,
             agent_name='ddqn'
         ))
@@ -478,7 +483,7 @@ if __name__ == "__main__":
     test_results = asyncio.run(test_agent(
         env=env,
         agent=ddqn_agent,
-        num_episodes=HYPERPARAMS["test_episodes"]
+        num_episodes=hyperparams["test_episodes"]
     ))
     
     # 테스트 결과 저장
@@ -498,7 +503,7 @@ if __name__ == "__main__":
         f.write("=" * 50 + "\n\n")
         f.write(f"Average Reward: {test_stats['avg_reward']:.4f} ± {test_stats['std_reward']:.4f}\n")
         f.write(f"Average Steps: {test_stats['avg_steps']:.2f}\n")
-        f.write(f"Victories: {test_stats['victories']}/{HYPERPARAMS['test_episodes']} (Win Rate: {test_stats['win_rate']:.1f}%)\n")
+        f.write(f"Victories: {test_stats['victories']}/{hyperparams['test_episodes']} (Win Rate: {test_stats['win_rate']:.1f}%)\n")
     
     print("\nTest completed!")
     print(f"Test results saved in: {results_dir}")

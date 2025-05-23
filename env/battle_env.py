@@ -20,7 +20,7 @@ if parent_dir not in sys.path:
 # 하이퍼파라미터 정의
 HYPERPARAMS = {
     "state_dim": 1165,  # 상태 공간의 차원
-    "action_dim": 6,   # 행동 공간의 차원 (4개 기술 + 2개 교체)
+    "action_dim": 7,   # 행동 공간의 차원 (4개 기술 + 2개 교체 + 1개 행동불능)
 }
 
 # 절대 경로 import
@@ -216,7 +216,10 @@ class YakemonEnv(gym.Env):
         print(f"현재 상대 포켓몬: {self.enemy_team[self.battle_store.get_active_index('enemy')].base.name}")
         
         # 행동 실행
-        if action < 4:  # 기술 사용
+        if action == -1:
+            print("battle_env: 행동 불가 상태")
+            battle_action = None
+        elif action < 4:  # 기술 사용
             move = self.my_team[self.battle_store.get_active_index("my")].base.moves[action]
             print(f"내 기술: {move.name}")
             battle_action = move
@@ -226,13 +229,13 @@ class YakemonEnv(gym.Env):
             
             # 자기 자신으로 교체하는 경우 방지
             if switch_index == current_index:
-                print("자기 자신으로 교체할 수 없습니다.")
-                return current_state, -float('inf'), self.done, {"error": "self_switch"}
+                print("battle_env: 자기 자신으로 교체할 수 없습니다.")
+                return current_state, -100.0, self.done, {"error": "self_switch"}
             
             # 교체하려는 포켓몬이 쓰러진 경우 방지
             if self.my_team[switch_index].current_hp <= 0:
-                print("쓰러진 포켓몬으로 교체할 수 없습니다.")
-                return current_state, -float('inf'), self.done, {"error": "fainted_switch"}
+                print("battle_env: 쓰러진 포켓몬으로 교체할 수 없습니다.")
+                return current_state, -100.0, self.done, {"error": "fainted_switch"}
             
             battle_action = {"type": "switch", "index": switch_index}
             print(f"내가 교체하려는 포켓몬: {self.my_team[switch_index].base.name}")
@@ -292,6 +295,7 @@ class YakemonEnv(gym.Env):
                     battle_store=self.battle_store,
                     duration_store=self.duration_store
                 )
+                print(f"Reward in this step: {reward}")
                 return next_state, reward, self.done, {}
             
             # 내 포켓몬이 쓰러졌는지 확인
@@ -329,7 +333,7 @@ class YakemonEnv(gym.Env):
             battle_store=self.battle_store,
             duration_store=self.duration_store
         )
-        
+        print(f"Reward in this step: {reward}")
         # 턴 증가
         self.turn += 1
         
