@@ -155,13 +155,20 @@ async def train_agent(
         my_team = [create_battle_pokemon(poke) for poke in my_team]
         enemy_team = [create_battle_pokemon(poke) for poke in enemy_team]
         print(f"[Episode {episode+1}]")
-        # 팀 정보 출력 (딕셔너리 형식)
-        print(f"My Team (BattlePokemon):")
-        for p in my_team:
-            print(vars(p))
-        print(f"Enemy Team (BattlePokemon):")
-        for p in enemy_team:
-            print(vars(p))
+        # 팀 정보 출력 (포켓몬 이름 포함)
+        print(f"\nMy Team:")
+        for i, p in enumerate(my_team):
+            print(f"{i+1}. {p.base.name} (HP: {p.current_hp}/{p.base.hp})")
+            print(f"   타입: {', '.join(p.base.types)}")
+            print(f"   특성: {p.base.ability.name if p.base.ability else '없음'}")
+            print(f"   기술: {', '.join(move.name for move in p.base.moves)}")
+        print(f"\nEnemy Team:")
+        for i, p in enumerate(enemy_team):
+            print(f"{i+1}. {p.base.name} (HP: {p.current_hp}/{p.base.hp})")
+            print(f"   타입: {', '.join(p.base.types)}")
+            print(f"   특성: {p.base.ability.name if p.base.ability else '없음'}")
+            print(f"   기술: {', '.join(move.name for move in p.base.moves)}")
+        print('-' * 50)
         
         # 2. 배틀 환경 초기화
         state = env.reset(my_team=my_team, enemy_team=enemy_team)

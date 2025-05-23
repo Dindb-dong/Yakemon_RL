@@ -189,7 +189,7 @@ def base_ai_choose_action(
         return next((m for m in usable_moves if m.u_turn and m.pp > 0), None)
 
     def get_priority_move() -> Optional[MoveInfo]:
-        return next((m for m in usable_moves if m.priority and m.pp > 0), None)
+        return next((m for m in usable_moves if m.priority and m.priority > 0 and m.pp > 0), None)
 
     def get_heal_move() -> Optional[MoveInfo]:
         return next((m for m in usable_moves 
@@ -382,7 +382,7 @@ def base_ai_choose_action(
                     return {"type": "switch", "index": switch_index}
 
             add_log(f"🥊 {side}는 예측샷으로 최고 위력기를 사용한다!")
-            print(f"�� {side}는 예측샷으로 최고 위력기를 사용한다!")
+            print(f"🥊 {side}는 예측샷으로 최고 위력기를 사용한다!")
             return best_move
 
         else:  # 느리고 상성 같은 경우
@@ -398,7 +398,7 @@ def base_ai_choose_action(
 
             if is_ai_high_hp and user_hp_ratio < 0.5:
                 add_log(f"🥊 {side}는 상대의 체력이 적고 상성이 같아서 가장 강한 기술로 공격한다!")
-                print(f"�� {side}는 상대의 체력이 적고 상성이 같아서 가장 강한 기술로 공격한다!")
+                print(f"🥊 {side}는 상대의 체력이 적고 상성이 같아서 가장 강한 기술로 공격한다!")
                 return best_move
 
             if roll < 0.2 and counter_move and is_ai_high_hp:
