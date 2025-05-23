@@ -120,7 +120,7 @@ async def calculate_move_damage(
     # Handle locked moves (like Outrage)
     if move_info.locked_move:
         store.update_pokemon(side, active_my if side == "my" else active_enemy, 
-                            lambda p: {**p, "locked_move_turn": 2 if random.random() < 0.5 else 1})
+                            lambda p: p.copy_with(locked_move_turn=2 if random.random() < 0.5 else 1))
         store.update_pokemon(side, active_my if side == "my" else active_enemy, 
                             lambda p: set_locked_move(p, move_info))
     
@@ -154,7 +154,7 @@ async def calculate_move_damage(
             store.add_log(f"🚫 {attacker.base.name}의 기술은 실패했다!")
             if (attacker.locked_move_turn or 0) > 0: # 기술 실패시 고정 해제처리
                 store.update_pokemon(side, active_my if side == "my" else active_enemy, 
-                                    lambda p: {**p, "locked_move_turn": 0})
+                                    lambda p: p.copy_with(locked_move_turn=0))
             return {"success": False}
         # 공격 성공 여부 (풀죽음, 마비, 헤롱헤롱, 얼음, 잠듦 등)
     
@@ -255,32 +255,8 @@ async def calculate_move_damage(
                     # 노말스킨 있어도 프리즈드라이, 플라잉프레스의 타입은 계속 적용됨
                     if move_info.name == "플라잉프레스":
                         print("플라잉프레스 타입상성 적용")
-                        fighting_move = MoveInfo(
-                            name=move_info.name,
-                            type="격투",
-                            power=move_info.power,
-                            accuracy=move_info.accuracy,
-                            pp=move_info.pp,
-                            priority=move_info.priority,
-                            target=move_info.target,
-                            damage_class=move_info.damage_class,
-                            effect=move_info.effect,
-                            effect_chance=move_info.effect_chance,
-                            description=move_info.description
-                        )
-                        flying_move = MoveInfo(
-                            name=move_info.name,
-                            type="비행",
-                            power=move_info.power,
-                            accuracy=move_info.accuracy,
-                            pp=move_info.pp,
-                            priority=move_info.priority,
-                            target=move_info.target,
-                            damage_class=move_info.damage_class,
-                            effect=move_info.effect,
-                            effect_chance=move_info.effect_chance,
-                            description=move_info.description
-                        )
+                        fighting_move = move_info.copy(type="격투")
+                        flying_move = move_info.copy(type="비행")
                         fighting_effect = apply_defensive_ability_effect_before_damage(fighting_move, side)
                         flying_effect = apply_defensive_ability_effect_before_damage(flying_move, side)
                         types *= fighting_effect * flying_effect
@@ -292,16 +268,11 @@ async def calculate_move_damage(
             move_info.type = "프리즈드라이"
         # 노말스킨 있어도 프리즈드라이, 플라잉프레스의 타입은 계속 적용됨
         if move_info.name == "플라잉프레스":
-            fighting_effect = calculate_type_effectiveness_with_ability(
-                my_pokemon,
-                opponent_pokemon,
-                {**move_info, move_info.type: "격투"}
-            )
-            flying_effect = calculate_type_effectiveness_with_ability(
-                my_pokemon,
-                opponent_pokemon,
-                {**move_info, move_info.type: "비행"}
-            )
+            print("플라잉프레스 타입상성 적용")
+            fighting_move = move_info.copy(type="격투")
+            flying_move = move_info.copy(type="비행")
+            fighting_effect = apply_defensive_ability_effect_before_damage(fighting_move, side)
+            flying_effect = apply_defensive_ability_effect_before_damage(flying_move, side)
             types *= fighting_effect * flying_effect
         else:
             types *= calculate_type_effectiveness_with_ability(my_pokemon, opponent_pokemon, move_info)
@@ -621,7 +592,7 @@ async def calculate_move_damage(
 
         if move_info.locked_move:
             store.update_pokemon(side, active_mine, 
-                                lambda p: {**p, "locked_move_turn": 3 if random.random() < 0.5 else 2})
+                                lambda p: p.copy_with(locked_move_turn=3 if random.random() < 0.5 else 2))
 
         return {"success": True, "damage": damage, "was_effective": was_effective}
 
