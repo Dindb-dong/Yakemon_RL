@@ -51,12 +51,11 @@ hyperparams = {
     "epsilon_end": 0.01,
     "epsilon_decay": 0.997,
     "batch_size": 128,
-    "memory_size": 50000,
+    "memory_size": 500000,
     "target_update": 20,
-    "num_episodes": 1000,
-    "save_interval": 50,
+    "num_episodes": 50000,
+    "save_interval": 10000,
     "test_episodes": 300,
-    "base_ai_episodes": 500,  # base AI를 사용할 에피소드 수
     "state_dim": 1165,  # get_state_vector의 출력 차원
     "action_dim": 6   # 4개의 기술 + 2개의 교체
 }
@@ -203,52 +202,20 @@ async def train_agent(
             )
             
             # 행동 선택
-            # 초반 학습 중에는 base ai와 DQN을 혼합하여 사용
-            if episode < HYPERPARAMS["base_ai_episodes"]:
-                print(f"Episode {episode+1} / {HYPERPARAMS['base_ai_episodes']}")
-                temp_action = base_ai_choose_action(
-                    side="my",
-                    my_team=my_team,
-                    enemy_team=enemy_team,
-                    active_my=env.battle_store.get_active_index("my"),
-                    active_enemy=env.battle_store.get_active_index("enemy"),
-                    public_env=env.public_env.__dict__,
-                    enemy_env=env.my_env.__dict__,
-                    my_env=env.enemy_env.__dict__,
-                    add_log=env.battle_store.add_log
-                )
-                action = get_action_int(temp_action, my_team[env.battle_store.get_active_index("my")])
-            else:
-                action = agent.select_action(state_vector, env.battle_store, env.duration_store, use_target=False)
+            action = agent.select_action(state_vector, env.battle_store, env.duration_store, use_target=False)
             
             # 행동 실행
-            # 200판까지는 랜덤 선택 ai 상대로 학습, 이후부터는 base ai 상대로 학습
-            next_state, reward, done, _ = await env.step(action, test=True) if episode < 200 else await env.step(action)
-            
-            # 다음 상태 벡터 생성
-            next_state_vector = get_state(
-                store=env.battle_store,
-                my_team=my_team,
-                enemy_team=enemy_team,
-                active_my=env.battle_store.get_active_index("my"),
-                active_enemy=env.battle_store.get_active_index("enemy"),
-                public_env=env.public_env,
-                my_env=env.my_env,
-                enemy_env=env.enemy_env,
-                turn=env.turn,
-                my_effects=env.duration_store.my_effects,
-                enemy_effects=env.duration_store.enemy_effects
-            )
+            next_state, reward, done, _ = await env.step(action)
             
             # 경험 저장 (리플레이 버퍼에 추가)
-            agent.store_transition(state_vector, action, reward, next_state_vector, done)
+            agent.store_transition(state_vector, action, reward, next_state, done)
             
             # ◆ 환경 스텝마다 업데이트 한 번
             loss = agent.update()
             total_loss += loss
             
             # 다음 스텝 준비
-            state_vector = next_state_vector
+            state_vector = next_state
             total_reward += reward
             steps += 1
             
@@ -363,22 +330,15 @@ async def test_agent(
             # 행동 실행
             next_state, reward, done, _ = await env.step(action)
             
-            # 다음 상태 벡터 생성
-            next_state_vector = get_state(
-                store=env.battle_store,
-                my_team=my_team,
-                enemy_team=enemy_team,
-                active_my=env.battle_store.get_active_index("my"),
-                active_enemy=env.battle_store.get_active_index("enemy"),
-                public_env=env.public_env,
-                my_env=env.my_env,
-                enemy_env=env.enemy_env,
-                turn=env.turn,
-                my_effects=env.duration_store.my_effects,
-                enemy_effects=env.duration_store.enemy_effects
-            )
+            # 경험 저장 (리플레이 버퍼에 추가)
+            agent.store_transition(state_vector, action, reward, next_state, done)
             
-            state_vector = next_state_vector
+            # ◆ 환경 스텝마다 업데이트 한 번
+            loss = agent.update()
+            total_loss += loss
+            
+            # 다음 스텝 준비
+            state_vector = next_state
             total_reward += reward
             steps += 1
             
