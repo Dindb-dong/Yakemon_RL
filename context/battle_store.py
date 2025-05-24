@@ -100,6 +100,7 @@ class BattleStore:
         self.state["enemy_roster"] = roster
 
     def reset_all(self) -> None:
+        print("battle_store: reset_all 호출")
         self.__init__()
 
     def get_state(self) -> Dict[str, Any]:

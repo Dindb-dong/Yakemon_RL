@@ -110,7 +110,7 @@ class YakemonEnv(gym.Env):
             if isinstance(poke, BattlePokemon):
                 # PP 초기화
                 for move in poke.base.moves:
-                    poke.pp[move.name] = move.pp
+                    poke.pp[move.name] = move.pp_max
                 return poke
             else:
                 return create_battle_pokemon(poke)
