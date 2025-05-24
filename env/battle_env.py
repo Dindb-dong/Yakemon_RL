@@ -155,41 +155,6 @@ class YakemonEnv(gym.Env):
         # 초기 상태 반환
         return self._get_state()
 
-    def _get_action_mask(self) -> np.ndarray:
-        """
-        현재 상태에서 가능한 행동들의 마스크를 반환
-        Returns:
-            np.ndarray: 각 행동이 가능하면 1, 불가능하면 0인 마스크
-        """
-        mask = np.ones(6, dtype=np.int32)  # 기본적으로 모든 행동 가능
-        
-        current_index = self.battle_store.get_active_index("my")
-        current_pokemon = self.my_team[current_index]
-        
-        # 기술 사용(0-3)에 대한 마스킹
-        for i in range(4):
-            if current_pokemon.pp.get(current_pokemon.base.moves[i].name, 0) <= 0:
-                print(f"battle_env: {current_pokemon.base.moves[i].name} 기술의 PP가 0입니다.")
-                mask[i] = 0
-        
-        # 교체가 비활성화된 경우 교체 행동 마스킹
-        if self.switching_disabled:
-            print("battle_env: 교체가 비활성화되어 교체가 마스킹된 상태입니다.")
-            mask[4:] = 0
-        else:
-            # 교체 행동(4,5)에 대한 마스킹
-            other_indices = [0, 1, 2]
-            other_indices.remove(current_index) # 현재 포켓몬 제외
-            for i in range(2):  # 교체 행동 2개
-                switch_index = other_indices[i]
-                # 자기 자신으로 교체하는 경우
-                if switch_index == current_index:
-                    mask[4 + i] = 0
-                # 교체하려는 포켓몬이 쓰러진 경우
-                elif self.my_team[switch_index].current_hp <= 0:
-                    mask[4 + i] = 0
-        print(f"battle_env: 현재 포켓몬: {current_pokemon.base.name}, 현재 포켓몬의 기술 마스크: {mask[:4]}, 교체 마스크: {mask[4:]}")
-        return mask
 
     def _get_state(self):
         """현재 상태 벡터 반환"""
@@ -206,9 +171,7 @@ class YakemonEnv(gym.Env):
             my_effects=self.duration_store.my_effects,
             enemy_effects=self.duration_store.enemy_effects
         )
-        # 상태 벡터에 action mask 추가
-        action_mask = self._get_action_mask()
-        return np.concatenate([state_vector, action_mask])
+        return state_vector
 
     async def step(self, action: int, test: bool = False) -> Tuple[np.ndarray, float, bool, Dict]:
         """
