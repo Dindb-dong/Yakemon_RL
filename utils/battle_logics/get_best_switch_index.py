@@ -28,6 +28,7 @@ def get_best_switch_index(side: str) -> int:
     
     # 교체 가능한 포켓몬이 없는 경우
     if not available_pokemon:
+        print("get_best_switch_index: 교체 가능한 포켓몬이 없는 경우")
         return -1
     
     # 각 포켓몬의 점수 계산

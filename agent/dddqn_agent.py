@@ -107,7 +107,7 @@ class DDDQNAgent:
             # cannot_move 상태 체크
             if current_pokemon.cannot_move:
                 print("dddqn_agent: cannot_move 상태")
-                return -1
+                return random.randint(0, 5)
                 
             # is_charging 상태 체크
             if current_pokemon.is_charging:
@@ -131,7 +131,7 @@ class DDDQNAgent:
                 return random.choice(valid_actions)
             else:
                 print("dddqn_agent: 가능한 행동이 없는 상태")
-                return -1
+                return 0
         
         with torch.no_grad():
             state = torch.FloatTensor(state).unsqueeze(0).to(self.device)

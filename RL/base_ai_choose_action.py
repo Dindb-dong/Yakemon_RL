@@ -267,7 +267,8 @@ def base_ai_choose_action(
     if my_pokemon.cannot_move:
         add_log(f"😵 {my_pokemon.base.name}은 아직 회복되지 않아 움직이지 못한다!")
         print(f"😵 {my_pokemon.base.name}은 아직 회복되지 않아 움직이지 못한다!")
-        return None
+        return best_move # 원래 None이였는데, 오류때문에 일단 기술 뱉어내도록. 
+    # battle_seqenence에서 처리. 
 
     # === 1. 내 포켓몬이 쓰러졌으면 무조건 교체 ===
     if my_pokemon.current_hp <= 0:

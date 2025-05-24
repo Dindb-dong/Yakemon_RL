@@ -53,7 +53,8 @@ def get_switch_target_index(current_index: int, switch_action_index: int) -> int
     candidates = [i for i in all_indexes if i != current_index]
     
     if switch_action_index < 0 or switch_action_index >= len(candidates):
-        return -1
+        print("get_switch_target_index: 유효하지 않은 교체 행동 인덱스")
+        return 0
     return candidates[switch_action_index]
 
 def agent_choose_action(

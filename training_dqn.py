@@ -217,10 +217,7 @@ async def train_agent(
                     my_env=env.enemy_env.__dict__,
                     add_log=env.battle_store.add_log
                 )
-                if temp_action is None: # 행동 불가 상태
-                    action = -1
-                else: 
-                    action = get_action_int(temp_action, my_team[env.battle_store.get_active_index("my")])
+                action = get_action_int(temp_action, my_team[env.battle_store.get_active_index("my")])
             else:
                 action = agent.select_action(state_vector, env.battle_store, env.duration_store, use_target=False)
             
