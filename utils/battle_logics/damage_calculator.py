@@ -19,7 +19,7 @@ from utils.battle_logics.update_battle_pokemon import (
 from utils.battle_logics.update_environment import add_trap, set_field, set_room, set_screen, set_weather
 from utils.battle_logics.apply_none_move_damage import apply_thorn_damage
 from utils.apply_skin_type_effect import apply_skin_type_effect
-from context.battle_environment import PublicBattleEnvironment, IndividualBattleEnvironment
+from context.battle_environment import PublicBattleEnvironment
 import random
 
 SideType = Literal["my", "enemy"]
@@ -34,6 +34,7 @@ async def calculate_move_damage(
     was_late: bool = False,
     is_multi_hit: bool = False
 ) -> Dict:
+    print("calculate_move_damage 호출 시작")
     # Get battle state
     state = store.get_state()
     my_team: List[BattlePokemon] = state["my_team"]
