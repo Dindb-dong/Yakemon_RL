@@ -247,7 +247,7 @@ async def calculate_move_damage(
                                     lambda p: use_move_pp(p, move_name, defender.base.ability.name == "프레셔" if defender.base.ability else False, is_multi_hit))
                 store.update_pokemon(opponent_side, active_enemy if side == "my" else active_my, 
                                     lambda p: change_rank(p, "dodge", 2))
-                return
+                return {"success": True, "was_null": was_null}
         elif opponent_pokemon.ability and opponent_pokemon.ability.defensive:  # 상대 포켓몬이 방어적 특성 있을 경우
             for category in opponent_pokemon.ability.defensive:
                 if category in ["damage_nullification", "type_nullification", "damage_reduction"]:
@@ -290,7 +290,7 @@ async def calculate_move_damage(
                 store.update_pokemon(side, active_my if side == "my" else active_enemy, lambda p: set_used_move(p, move_info))
                 store.update_pokemon(side, active_my if side == "my" else active_enemy, 
                                     lambda p: use_move_pp(p, move_name, defender.base.ability.name == "프레셔" if defender.base.ability else False, is_multi_hit))
-                return
+                return {"success": True, "was_null": was_null}
             if move_info.name == "아픔나누기":
                 print("아픔나누기~~")
                 my_hp = attacker.current_hp
@@ -329,7 +329,7 @@ async def calculate_move_damage(
                                 lambda p: use_move_pp(p, move_name, defender.base.ability.name == "프레셔" if defender.base.ability else False, is_multi_hit))
             store.update_pokemon(side, active_my if side == "my" else active_enemy, lambda p: set_charging(p, False, None))
             store.update_pokemon(side, active_my if side == "my" else active_enemy, lambda p: change_position(p, None))
-            return {"success": True}
+            return {"success": True, "was_null": was_null}
     
     # 5-2. Handle one-hit KO moves
     if move_info.one_hit_ko:
@@ -349,7 +349,7 @@ async def calculate_move_damage(
         store.update_pokemon(side, active_mine, lambda p: set_charging(p, False, None))
         store.update_pokemon(side, active_mine, lambda p: change_position(p, None))
         store.add_log(f"💥 {opponent_pokemon.name}은/는 일격필살기에 쓰러졌다!")
-        return {"success": True, "damage": defender.current_hp}
+        return {"success": True, "damage": defender.current_hp, "is_hit": True}
         
     # 5-3. Apply same type bonus and previous miss bonus
     if move_info.type in my_pokemon.types or (move_info.type == "프리즈드라이" and "얼음" in my_pokemon.types):

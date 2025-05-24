@@ -1,3 +1,4 @@
+import copy
 from typing import Dict, Callable
 
 from p_models.pokemon_info import PokemonInfo
@@ -29,8 +30,8 @@ def create_battle_pokemon(base: PokemonInfo, exchange: bool = False) -> BattlePo
     if not base or not base.moves:
         raise ValueError(f"create_battle_pokemon: 유효하지 않은 포켓몬 데이터: {base}")
 
-    reset_pp: Dict[str, int] = {move.name: move.pp for move in base.moves}
-
+    reset_pp: Dict[str, int] = {move.name: move.pp_max for move in copy.deepcopy(base.moves)}
+    print(f"reset_pp: {reset_pp}")
     if exchange: # 상대 포켓몬 가져올 때 인데... 시뮬레이터에서는 이거 쓰지 않음
         if base.memorized_base:
             effective_base = base.memorized_base
@@ -67,7 +68,7 @@ def create_battle_pokemon(base: PokemonInfo, exchange: bool = False) -> BattlePo
     return BattlePokemon(
         base=effective_base,
         current_hp=current_hp,
-        pp=reset_pp,
+        pp=reset_pp.copy(),
         rank=default_rank.copy(),
         status=[],
         position=None,

@@ -85,13 +85,15 @@ class MoveInfo:
         screen: ScreenType = None,
         pass_substitute: bool = False,
         cannot_move: bool = False,
-        locked_move: bool = False
+        locked_move: bool = False,
+        pp_max: Optional[int] = None,
     ):
         self.id = id
         self.name = name
         self.power = power
         self.accuracy = accuracy
         self.pp = pp
+        self.pp_max = pp_max if pp_max is not None else pp
         self.type = type
         self.category = category
         self.target = target
@@ -165,5 +167,6 @@ class MoveInfo:
             screen=overrides.get('screen', self.screen),
             pass_substitute=overrides.get('pass_substitute', self.pass_substitute),
             cannot_move=overrides.get('cannot_move', self.cannot_move),
-            locked_move=overrides.get('locked_move', self.locked_move)
+            locked_move=overrides.get('locked_move', self.locked_move),
+            pp_max=self.pp_max
         )
