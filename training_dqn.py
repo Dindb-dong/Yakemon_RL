@@ -330,13 +330,6 @@ async def test_agent(
             # 행동 실행
             next_state, reward, done, _ = await env.step(action)
             
-            # 경험 저장 (리플레이 버퍼에 추가)
-            agent.store_transition(state_vector, action, reward, next_state, done)
-            
-            # ◆ 환경 스텝마다 업데이트 한 번
-            loss = agent.update()
-            total_loss += loss
-            
             # 다음 스텝 준비
             state_vector = next_state
             total_reward += reward
