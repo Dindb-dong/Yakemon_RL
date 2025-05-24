@@ -282,11 +282,11 @@ def base_ai_choose_action(
         prioritized = next(
             (opt for opt in switch_options
              if ((opt['pokemon'].base.speed * 
-                  calculate_rank_effect(opt['pokemon'].rank['speed'])) <
-                 user_speed if public_env['room'] == '트릭룸'
+                calculate_rank_effect(opt['pokemon'].rank['speed'])) <
+                user_speed if public_env['room'] == '트릭룸'
                  else (opt['pokemon'].base.speed * 
-                       calculate_rank_effect(opt['pokemon'].rank['speed'])) >
-                 user_speed) and user_hp_ratio < 0.35),
+                    calculate_rank_effect(opt['pokemon'].rank['speed'])) >
+                user_speed) and user_hp_ratio < 0.35),
             None
         )
 
