@@ -167,11 +167,11 @@ class DDDQNAgent:
             switch_index = i
             # 자기 자신으로 교체하는 경우
             if switch_index == current_index:
-                print("dddqn_agent: 자기 자신으로 교체할 수 없습니다.")
+                #print("dddqn_agent: 자기 자신으로 교체할 수 없습니다.")
                 mask[4 + i] = 0
             # 교체하려는 포켓몬이 쓰러진 경우
             elif my_team[switch_index].current_hp <= 0:
-                print("dddqn_agent: 쓰러진 포켓몬으로 교체할 수 없습니다.")
+                #print("dddqn_agent: 쓰러진 포켓몬으로 교체할 수 없습니다.")
                 mask[4 + i] = 0
         
         return mask
@@ -212,78 +212,88 @@ class DDDQNAgent:
         if len(self.memory) < self.batch_size:
             return 0.0
         
-        # 배치 샘플링
-        states, actions, rewards, next_states, dones = self.memory.sample(self.batch_size)
-        
-        # 텐서 변환
-        state_batch = torch.FloatTensor(states).to(self.device)
-        action_batch = torch.LongTensor(actions).to(self.device)
-        reward_batch = torch.FloatTensor(rewards).clamp(-5, 5).to(self.device)  # reward 클리핑 범위 조정 (-50 -> -5)
-        next_state_batch = torch.FloatTensor(next_states).to(self.device)
-        done_batch = torch.FloatTensor(dones).to(self.device)
-        
-        # 디버그 정보 출력
-        print(f"\nDebug - Batch Info:")
-        print(f"Replay Buffer Size: {len(self.memory)}/{self.memory.max_size}")
-        print(f"Invalid Actions (-1): {(action_batch == -1).sum().item()}/{len(action_batch)}")
-        print(f"Rewards - Min: {reward_batch.min().item():.2f}, Max: {reward_batch.max().item():.2f}, Mean: {reward_batch.mean().item():.2f}")
-        print(f"Dones - True count: {done_batch.sum().item()}")
-        
-        # 현재 Q 값 계산
-        current_q_values = self.policy_net(state_batch)
-        
-        # -1 액션을 6으로 매핑 (행동불능 상태는 마지막 액션으로 처리)
-        mapped_actions = action_batch.clone()
-        mapped_actions[action_batch == -1] = 6
-        
-        # 선택된 액션의 Q값만 추출
-        current_q_values = current_q_values.gather(1, mapped_actions.unsqueeze(1))
-        
-        # 다음 상태의 최대 Q 값 계산 (Double DQN)
-        with torch.no_grad():
-            # 다음 상태의 Q 값 계산 (policy net으로 action 선택)
-            next_q_values = self.policy_net(next_state_batch)
-            next_actions = next_q_values.max(1)[1].unsqueeze(1)
+        try:
+            # 배치 샘플링
+            states, actions, rewards, next_states, dones = self.memory.sample(self.batch_size)
             
-            # target net으로 value 계산
-            next_target_q_values = self.target_net(next_state_batch)
-            next_q_values = next_target_q_values.gather(1, next_actions)
+            # 텐서 변환
+            state_batch = torch.FloatTensor(states).to(self.device)
+            action_batch = torch.LongTensor(actions).to(self.device)
+            reward_batch = torch.FloatTensor(rewards).clamp(-5, 5).to(self.device)
+            next_state_batch = torch.FloatTensor(next_states).to(self.device)
+            done_batch = torch.FloatTensor(dones).to(self.device)
             
-            # Q 값 클리핑 (gamma가 0.95이므로 reward의 약 20배 정도까지 커질 수 있음)
-            next_q_values = next_q_values.clamp(-10, 10)  # Q-value 클리핑 범위 조정 (-100 -> -10)
+            # 디버그 정보 출력
+            print(f"\nDebug - Batch Info:")
+            print(f"Replay Buffer Size: {len(self.memory)}/{self.memory.max_size}")
+            print(f"Invalid Actions (-1): {(action_batch == -1).sum().item()}/{len(action_batch)}")
+            print(f"Rewards - Min: {reward_batch.min().item():.2f}, Max: {reward_batch.max().item():.2f}, Mean: {reward_batch.mean().item():.2f}")
+            print(f"Dones - True count: {done_batch.sum().item()}")
             
-            # expected Q 값 계산
-            expected_q_values = reward_batch.unsqueeze(1) + (1 - done_batch.unsqueeze(1)) * self.gamma * next_q_values
-            expected_q_values = expected_q_values.clamp(-10, 10)  # expected Q 값도 클리핑
-        
-        # Q값 디버그 정보
-        print(f"Debug - Q-values:")
-        print(f"Current Q - Min: {current_q_values.min().item():.2f}, Max: {current_q_values.max().item():.2f}, Mean: {current_q_values.mean().item():.2f}")
-        print(f"Next Q - Min: {next_q_values.min().item():.2f}, Max: {next_q_values.max().item():.2f}, Mean: {next_q_values.mean().item():.2f}")
-        print(f"Expected Q - Min: {expected_q_values.min().item():.2f}, Max: {expected_q_values.max().item():.2f}, Mean: {expected_q_values.mean().item():.2f}")
-        
-        # 손실 계산 (Huber Loss 사용)
-        loss = F.smooth_l1_loss(current_q_values, expected_q_values)
-        
-        # 손실값 디버그
-        print(f"Debug - Loss: {loss.item():.4f}")
-        
-        # 최적화
-        self.optimizer.zero_grad()
-        loss.backward()
-        torch.nn.utils.clip_grad_norm_(self.policy_net.parameters(), 1.0)  # gradient clipping
-        self.optimizer.step()
-        
-        # 학습 스텝 카운트 증가
-        self.steps += 1
-        self.updates += 1
-        
-        # 타겟 네트워크 업데이트
-        if self.updates % self.update_frequency == 0:
-            print(f"\nUpdating target network at step {self.steps} (update #{self.updates})")
-            self.update_target_network()
-        
-        return loss.item()
+            # 현재 Q 값 계산
+            current_q_values = self.policy_net(state_batch)
+            
+            # -1 액션을 6으로 매핑 (행동불능 상태는 마지막 액션으로 처리)
+            mapped_actions = action_batch.clone()
+            mapped_actions[action_batch == -1] = 6
+            
+            # 선택된 액션의 Q값만 추출
+            current_q_values = current_q_values.gather(1, mapped_actions.unsqueeze(1))
+            
+            # 다음 상태의 최대 Q 값 계산 (Double DQN)
+            with torch.no_grad():
+                # 다음 상태의 Q 값 계산 (policy net으로 action 선택)
+                next_q_values = self.policy_net(next_state_batch)
+                next_actions = next_q_values.max(1)[1].unsqueeze(1)
+                
+                # target net으로 value 계산
+                next_target_q_values = self.target_net(next_state_batch)
+                next_q_values = next_target_q_values.gather(1, next_actions)
+                
+                # Q 값 클리핑
+                next_q_values = next_q_values.clamp(-10, 10)
+                
+                # expected Q 값 계산
+                expected_q_values = reward_batch.unsqueeze(1) + (1 - done_batch.unsqueeze(1)) * self.gamma * next_q_values
+                expected_q_values = expected_q_values.clamp(-10, 10)
+            
+            # Q값 디버그 정보
+            print(f"Debug - Q-values:")
+            print(f"Current Q - Min: {current_q_values.min().item():.2f}, Max: {current_q_values.max().item():.2f}, Mean: {current_q_values.mean().item():.2f}")
+            print(f"Next Q - Min: {next_q_values.min().item():.2f}, Max: {next_q_values.max().item():.2f}, Mean: {next_q_values.mean().item():.2f}")
+            print(f"Expected Q - Min: {expected_q_values.min().item():.2f}, Max: {expected_q_values.max().item():.2f}, Mean: {expected_q_values.mean().item():.2f}")
+            
+            # 손실 계산 (Huber Loss 사용)
+            loss = F.smooth_l1_loss(current_q_values, expected_q_values)
+            
+            # 손실값 디버그
+            print(f"Debug - Loss: {loss.item():.4f}")
+            
+            # 최적화
+            self.optimizer.zero_grad()
+            loss.backward()
+            torch.nn.utils.clip_grad_norm_(self.policy_net.parameters(), 1.0)
+            self.optimizer.step()
+            
+            # 학습 스텝 카운트 증가
+            self.steps += 1
+            self.updates += 1
+            
+            # 타겟 네트워크 업데이트
+            if self.updates % self.update_frequency == 0:
+                print(f"\nUpdating target network at step {self.steps} (update #{self.updates})")
+                self.update_target_network()
+            
+            # 메모리 정리
+            del state_batch, action_batch, reward_batch, next_state_batch, done_batch
+            del current_q_values, next_q_values, expected_q_values
+            torch.cuda.empty_cache() if torch.cuda.is_available() else None
+            
+            return loss.item()
+            
+        except Exception as e:
+            print(f"Error during training: {str(e)}")
+            return 0.0
 
     def update(self):
         """

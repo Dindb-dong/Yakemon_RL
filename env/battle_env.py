@@ -91,6 +91,7 @@ class YakemonEnv(gym.Env):
         self.enemy_team = []
         self.turn = 1
         self.done = False
+        self.switching_disabled = False  # 교체 비활성화 플래그 추가
         
         self.reset()
 
@@ -106,9 +107,15 @@ class YakemonEnv(gym.Env):
             
         # 만약 이미 BattlePokemon이면 변환하지 않음
         def ensure_battle_pokemon(poke):
-            return poke if isinstance(poke, BattlePokemon) else create_battle_pokemon(poke)
+            if isinstance(poke, BattlePokemon):
+                # PP 초기화
+                for move in poke.base.moves:
+                    poke.pp[move.name] = move.pp
+                return poke
+            else:
+                return create_battle_pokemon(poke)
         
-        # PokemonInfo를 BattlePokemon으로 변환
+        # PokemonInfo를 BattlePokemon으로 변환하고 PP 초기화
         my_team = [ensure_battle_pokemon(poke) for poke in my_team]
         enemy_team = [ensure_battle_pokemon(poke) for poke in enemy_team]
         
@@ -143,6 +150,7 @@ class YakemonEnv(gym.Env):
         # 턴 초기화
         self.turn = 1
         self.done = False
+        self.switching_disabled = False  # 교체 비활성화 플래그 초기화
         
         # 초기 상태 반환
         return self._get_state()
@@ -161,20 +169,26 @@ class YakemonEnv(gym.Env):
         # 기술 사용(0-3)에 대한 마스킹
         for i in range(4):
             if current_pokemon.pp.get(current_pokemon.base.moves[i].name, 0) <= 0:
+                print(f"battle_env: {current_pokemon.base.moves[i].name} 기술의 PP가 0입니다.")
                 mask[i] = 0
         
-        # 교체 행동(4,5)에 대한 마스킹
-        other_indices = [0, 1, 2]
-        other_indices.remove(current_index) # 현재 포켓몬 제외
-        for i in range(2):  # 교체 행동 2개
-            switch_index = other_indices[i]
-            # 자기 자신으로 교체하는 경우
-            if switch_index == current_index:
-                mask[4 + i] = 0
-            # 교체하려는 포켓몬이 쓰러진 경우
-            elif self.my_team[switch_index].current_hp <= 0:
-                mask[4 + i] = 0
-        
+        # 교체가 비활성화된 경우 교체 행동 마스킹
+        if self.switching_disabled:
+            print("battle_env: 교체가 비활성화되어 교체가 마스킹된 상태입니다.")
+            mask[4:] = 0
+        else:
+            # 교체 행동(4,5)에 대한 마스킹
+            other_indices = [0, 1, 2]
+            other_indices.remove(current_index) # 현재 포켓몬 제외
+            for i in range(2):  # 교체 행동 2개
+                switch_index = other_indices[i]
+                # 자기 자신으로 교체하는 경우
+                if switch_index == current_index:
+                    mask[4 + i] = 0
+                # 교체하려는 포켓몬이 쓰러진 경우
+                elif self.my_team[switch_index].current_hp <= 0:
+                    mask[4 + i] = 0
+        print(f"battle_env: 현재 포켓몬: {current_pokemon.base.name}, 현재 포켓몬의 기술 마스크: {mask[:4]}, 교체 마스크: {mask[4:]}")
         return mask
 
     def _get_state(self):
@@ -211,68 +225,78 @@ class YakemonEnv(gym.Env):
             done: 에피소드 종료 여부
             info: 추가 정보
         """
-        # 현재 상태 저장
-        current_state = self._get_state()
-        print('턴: ',self.turn)
-        print(f"현재 내 포켓몬: {self.my_team[self.battle_store.get_active_index('my')].base.name}")
-        print(f"현재 상대 포켓몬: {self.enemy_team[self.battle_store.get_active_index('enemy')].base.name}")
-        
-        # 행동 실행
-        if action == -1:
-            print("battle_env: 행동 불가 상태")
-            battle_action = None
-        elif action < 4:  # 기술 사용
-            move = self.my_team[self.battle_store.get_active_index("my")].base.moves[action]
-            print(f"내 기술: {move.name}")
-            battle_action = move
-        else:  # 포켓몬 교체
-            switch_index = action - 4
-            current_index = self.battle_store.get_active_index("my")
-            other_indices = [0, 1, 2]
-            other_indices.remove(current_index)
-            switch_index = other_indices[switch_index]  # 교체할 포켓몬 인덱스
+        try:
+            # 현재 상태 저장
+            current_state = self._get_state()
+            alive_my_pokemon = [p for p in self.my_team if p.current_hp > 0]
+            alive_enemy_pokemon = [p for p in self.enemy_team if p.current_hp > 0]
+            print('턴: ',self.turn)
+            print(f"현재 남은 내 포켓몬: {len(alive_my_pokemon)}")
+            print(f"현재 남은 상대 포켓몬: {len(alive_enemy_pokemon)}")
+            print(f"현재 내 포켓몬: {self.my_team[self.battle_store.get_active_index('my')].base.name}")
+            print(f"현재 상대 포켓몬: {self.enemy_team[self.battle_store.get_active_index('enemy')].base.name}")
             
-            # 자기 자신으로 교체하는 경우 방지
-            if switch_index == current_index:
-                print("battle_env: 자기 자신으로 교체할 수 없습니다.")
-                return current_state, -100.0, self.done, {"error": "self_switch"}
+            # 교체가 비활성화된 상태에서 교체 행동을 시도한 경우
+            if self.switching_disabled and action >= 4:
+                print("battle_env: 교체가 비활성화된 상태입니다.")
+                return current_state, -100.0, self.done, {"error": "switching_disabled"}
             
-            # 교체하려는 포켓몬이 쓰러진 경우 방지
-            if self.my_team[switch_index].current_hp <= 0:
-                print("battle_env: 쓰러진 포켓몬으로 교체할 수 없습니다.")
-                return current_state, -100.0, self.done, {"error": "fainted_switch"}
+            # 행동 실행
+            if action == -1:
+                print("battle_env: 행동 불가 상태")
+                battle_action = None
+            elif action < 4:  # 기술 사용
+                move = self.my_team[self.battle_store.get_active_index("my")].base.moves[action]
+                print(f"내 기술: {move.name}")
+                battle_action = move
+            else:  # 포켓몬 교체
+                current_index = self.battle_store.get_active_index("my")
+                # 교체 가능한 포켓몬들의 인덱스 계산
+                available_indices = [i for i in range(3) if i != current_index and self.my_team[i].current_hp > 0]
+                
+                if not available_indices:
+                    print("battle_env: 교체할 수 없습니다.")
+                    self.switching_disabled = True  # 교체 비활성화 플래그 설정
+                    return current_state, -100.0, self.done, {"error": "no_available_switch"}
+                
+                # action이 4나 5일 때, available_indices에서 적절한 인덱스 선택
+                switch_index = available_indices[action - 4] if action - 4 < len(available_indices) else available_indices[0]
+                
+                battle_action = {"type": "switch", "index": switch_index}
+                print(f"내가 교체하려는 포켓몬: {self.my_team[switch_index].base.name}")
+                self.battle_store.add_log(f"내가 교체하려는 포켓몬: {self.my_team[switch_index].base.name}")
             
-            battle_action = {"type": "switch", "index": switch_index}
-            print(f"내가 교체하려는 포켓몬: {self.my_team[switch_index].base.name}")
-            self.battle_store.add_log(f"내가 교체하려는 포켓몬: {self.my_team[switch_index].base.name}")
-        
-        # 배틀 시퀀스 실행
-        async with self._battle_sequence_lock:
-            enemy_action = base_ai_choose_action(
-                side="enemy",
-                my_team=self.my_team,
-                enemy_team=self.enemy_team,
-                active_my=self.battle_store.get_active_index("my"),
-                active_enemy=self.battle_store.get_active_index("enemy"),
-                public_env=self.public_env.__dict__,
-                enemy_env=self.my_env.__dict__,
-                my_env=self.enemy_env.__dict__,
-                add_log=self.battle_store.add_log
-            ) if not test else random_enemy_action(
-                self.enemy_team, 
-                self.battle_store.get_active_index("enemy")
-                )
-            
-            # 교체와 기술이 동시에 실행되지 않도록 확인
-            if isinstance(battle_action, dict) and battle_action["type"] == "switch" and isinstance(enemy_action, dict) and enemy_action["type"] == "switch":
-                # 둘 다 교체하려는 경우, 랜덤하게 하나만 실행
-                if random.random() < 0.5:
-                    enemy_action = self.enemy_team[self.battle_store.get_active_index("enemy")].base.moves[0]
-            
-            await battle_sequence(
-                my_action=battle_action,
-                enemy_action=enemy_action
-            )
+            # 배틀 시퀀스 실행
+            async with self._battle_sequence_lock:
+                try:
+                    enemy_action = base_ai_choose_action(
+                        side="enemy",
+                        my_team=self.my_team,
+                        enemy_team=self.enemy_team,
+                        active_my=self.battle_store.get_active_index("my"),
+                        active_enemy=self.battle_store.get_active_index("enemy"),
+                        public_env=self.public_env.__dict__,
+                        enemy_env=self.my_env.__dict__,
+                        my_env=self.enemy_env.__dict__,
+                        add_log=self.battle_store.add_log
+                    ) if not test else random_enemy_action(
+                        self.enemy_team, 
+                        self.battle_store.get_active_index("enemy")
+                        )
+                    
+                    # 교체와 기술이 동시에 실행되지 않도록 확인
+                    if isinstance(battle_action, dict) and battle_action["type"] == "switch" and isinstance(enemy_action, dict) and enemy_action["type"] == "switch":
+                        # 둘 다 교체하려는 경우, 랜덤하게 하나만 실행
+                        if random.random() < 0.5:
+                            enemy_action = self.enemy_team[self.battle_store.get_active_index("enemy")].base.moves[0]
+                    
+                    await battle_sequence(
+                        my_action=battle_action,
+                        enemy_action=enemy_action
+                    )
+                except Exception as e:
+                    print(f"Error during battle sequence: {str(e)}")
+                    return current_state, -100.0, True, {"error": "battle_sequence_error"}
             
             # 쓰러진 포켓몬 처리
             active_my = self.battle_store.get_active_index("my")
@@ -318,41 +342,46 @@ class YakemonEnv(gym.Env):
                         next_state = self._get_state()
                         reward = 0  # 교체만으로는 보상 없음
         
-        # 다음 상태 가져오기
-        next_state = self._get_state()
-        
-        # 보상 계산
-        reward = calculate_reward(
-            my_team=self.my_team,
-            enemy_team=self.enemy_team,
-            active_my=self.battle_store.get_active_index("my"),
-            active_enemy=self.battle_store.get_active_index("enemy"),
-            public_env=self.public_env.__dict__,
-            my_env=self.my_env.__dict__,
-            enemy_env=self.enemy_env.__dict__,
-            turn=self.turn,
-            my_effects=self.duration_store.my_effects,
-            enemy_effects=self.duration_store.enemy_effects,
-            action=action,
-            done=self.done,
-            battle_store=self.battle_store,
-            duration_store=self.duration_store
-        )
-        print(f"Reward in this step: {reward}")
-        # 턴 증가
-        self.turn += 1
-        
-        # 추가 정보
-        info = {
-            'turn': self.turn,
-            'my_hp': self.my_team[self.battle_store.get_active_index("my")].current_hp,
-            'enemy_hp': self.enemy_team[self.battle_store.get_active_index("enemy")].current_hp,
-            'public_env': self.public_env.__dict__,
-            'my_env': self.my_env.__dict__,
-            'enemy_env': self.enemy_env.__dict__
-        }
-        
-        return next_state, reward, self.done, info
+            # 다음 상태 가져오기
+            next_state = self._get_state()
+            
+            # 보상 계산
+            reward = calculate_reward(
+                my_team=self.my_team,
+                enemy_team=self.enemy_team,
+                active_my=self.battle_store.get_active_index("my"),
+                active_enemy=self.battle_store.get_active_index("enemy"),
+                public_env=self.public_env.__dict__,
+                my_env=self.my_env.__dict__,
+                enemy_env=self.enemy_env.__dict__,
+                turn=self.turn,
+                my_effects=self.duration_store.my_effects,
+                enemy_effects=self.duration_store.enemy_effects,
+                action=action,
+                done=self.done,
+                battle_store=self.battle_store,
+                duration_store=self.duration_store
+            )
+            print(f"Reward in this step: {reward}")
+            # 턴 증가
+            self.turn += 1
+            
+            # 추가 정보
+            info = {
+                'turn': self.turn,
+                'my_hp': self.my_team[self.battle_store.get_active_index("my")].current_hp,
+                'enemy_hp': self.enemy_team[self.battle_store.get_active_index("enemy")].current_hp,
+                'public_env': self.public_env.__dict__,
+                'my_env': self.my_env.__dict__,
+                'enemy_env': self.enemy_env.__dict__,
+                'switching_disabled': self.switching_disabled
+            }
+            
+            return next_state, reward, self.done, info
+            
+        except Exception as e:
+            print(f"Error in step: {str(e)}")
+            return current_state, -100.0, True, {"error": "step_error"}
 
     def check_game_end(self) -> bool:
         """게임 종료 조건 체크"""
