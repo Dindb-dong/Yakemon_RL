@@ -311,12 +311,19 @@ async def calculate_move_damage(
         
         store.add_log(f"🥊 {attacker.base.name}은/는 {move_name}을/를 사용했다!")
         print(f"{attacker.base.name}은/는 {move_name}을/를 사용했다!")
-    
-        if types >= 2:
+        if types >= 4:
+            was_effective = 2
+            store.add_log(f"👍 {side} {attacker.base.name}의 공격은 효과가 매우 굉장했다!")
+            print(f"{side} {attacker.base.name}의 공격은 효과가 매우 굉장했다!")
+        if 2 <= types < 4:
             was_effective = 1
             store.add_log(f"👍 {side} {attacker.base.name}의 공격은 효과가 굉장했다!")
             print(f"{side} {attacker.base.name}의 공격은 효과가 굉장했다!")
-        if 0 < types <= 0.5:
+        if 0 < types <= 0.25:
+            was_effective = -2
+            store.add_log(f"👎 {attacker.base.name}의 공격은 효과가 매우 별로였다...")
+            print(f"{side} {attacker.base.name}의 공격은 효과가 매우 별로였다...")
+        if 0.25 < types <= 0.5:
             was_effective = -1
             store.add_log(f"👎 {attacker.base.name}의 공격은 효과가 별로였다...")
             print(f"{side} {attacker.base.name}의 공격은 효과가 별로였다...")
