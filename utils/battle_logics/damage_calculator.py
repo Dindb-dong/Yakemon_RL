@@ -69,6 +69,7 @@ async def calculate_move_damage(
     if attacker.base.ability and attacker.base.ability.name == "테크니션" and base_power <= 60:
         base_power *= 1.5
     # Calculate power
+    additional_damage += move_info.power if attacker.base.ability and attacker.base.ability.name == "테크니션" else 0
     power = (move_info.get_power(team, side, base_power) + (additional_damage or 0)
                 if move_info.get_power else base_power + (additional_damage or 0))
     # Calculate accuracy
