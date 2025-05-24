@@ -230,6 +230,7 @@ class YakemonEnv(gym.Env):
             current_state = self._get_state()
             alive_my_pokemon = [p for p in self.my_team if p.current_hp > 0]
             alive_enemy_pokemon = [p for p in self.enemy_team if p.current_hp > 0]
+            my_pokemon = self.my_team[self.battle_store.get_active_index('my')]
             print('턴: ',self.turn)
             print(f"현재 남은 내 포켓몬: {len(alive_my_pokemon)}")
             print(f"현재 남은 상대 포켓몬: {len(alive_enemy_pokemon)}")
@@ -242,7 +243,7 @@ class YakemonEnv(gym.Env):
                 return current_state, -100.0, self.done, {"error": "switching_disabled"}
             
             # 행동 실행
-            if action == -1:
+            if my_pokemon.cannot_move:
                 print("battle_env: 행동 불가 상태")
                 battle_action = None
             elif action < 4:  # 기술 사용
