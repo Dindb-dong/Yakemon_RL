@@ -226,19 +226,11 @@ class DDDQNAgent:
             # 디버그 정보 출력
             print(f"\nDebug - Batch Info:")
             print(f"Replay Buffer Size: {len(self.memory)}/{self.memory.max_size}")
-            print(f"Invalid Actions (-1): {(action_batch == -1).sum().item()}/{len(action_batch)}")
             print(f"Rewards - Min: {reward_batch.min().item():.2f}, Max: {reward_batch.max().item():.2f}, Mean: {reward_batch.mean().item():.2f}")
             print(f"Dones - True count: {done_batch.sum().item()}")
             
             # 현재 Q 값 계산
-            current_q_values = self.policy_net(state_batch)
-            
-            # -1 액션을 6으로 매핑 (행동불능 상태는 마지막 액션으로 처리)
-            mapped_actions = action_batch.clone()
-            mapped_actions[action_batch == -1] = 6
-            
-            # 선택된 액션의 Q값만 추출
-            current_q_values = current_q_values.gather(1, mapped_actions.unsqueeze(1))
+            current_q_values = self.policy_net(state_batch).gather(1, action_batch.unsqueeze(1))
             
             # 다음 상태의 최대 Q 값 계산 (Double DQN)
             with torch.no_grad():

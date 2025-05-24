@@ -44,7 +44,7 @@ HYPERPARAMS = {
     "save_interval": 100,
     "test_episodes": 100,
     "state_dim": 1165,  # get_state_vector의 출력 차원
-    "action_dim": 7,   # 4개의 기술 + 2개의 교체 + 1개의 행동불능
+    "action_dim": 6,   # 4개의 기술 + 2개의 교체
 }
 
 #%% [markdown]

@@ -20,7 +20,7 @@ if parent_dir not in sys.path:
 # 하이퍼파라미터 정의
 HYPERPARAMS = {
     "state_dim": 1165,  # 상태 공간의 차원
-    "action_dim": 7,   # 행동 공간의 차원 (4개 기술 + 2개 교체 + 1개 행동불능)
+    "action_dim": 6,   # 행동 공간의 차원 (4개 기술 + 2개 교체)
 }
 
 # 절대 경로 import

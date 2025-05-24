@@ -58,7 +58,7 @@ hyperparams = {
     "test_episodes": 300,
     "base_ai_episodes": 500,  # base AI를 사용할 에피소드 수
     "state_dim": 1165,  # get_state_vector의 출력 차원
-    "action_dim": 7   # 4개의 기술 + 2개의 교체 + 1개의 행동불능
+    "action_dim": 6   # 4개의 기술 + 2개의 교체
 }
 
 #%% [markdown]
