@@ -65,11 +65,14 @@ async def calculate_move_damage(
     # Initialize variables
     types = 1.0  # Type effectiveness multiplier
     base_power = override_power if override_power is not None else move_info.power  # Base power
+    print(f"base_power in damage_calculator: {base_power}")
     # Apply Technician ability
     if attacker.base.ability and attacker.base.ability.name == "테크니션" and base_power <= 60:
         base_power *= 1.5
     # Calculate power
-    additional_damage += move_info.power if attacker.base.ability and attacker.base.ability.name == "테크니션" else 0
+    additional_damage = 0
+    additional_damage += base_power if attacker.base.ability and attacker.base.ability.name == "테크니션" and base_power is not None else 0
+    print(f"additional_damage in damage_calculator: {additional_damage}")
     power = (move_info.get_power(team, side, base_power) + (additional_damage or 0)
                 if move_info.get_power else base_power + (additional_damage or 0))
     # Calculate accuracy
@@ -146,7 +149,7 @@ async def calculate_move_damage(
             print(f"{attacker.base.name}는 방어가 크게 떨어졌다!!")
             store.add_log(f"{attacker.base.name}는 방어가 크게 떨어졌다!")
             
-        return {"success": False}
+        return {"success": True}
     
     # 0-1. Check status effects
     if attacker.status:
@@ -342,11 +345,12 @@ async def calculate_move_damage(
     # 5-2. Handle one-hit KO moves
     if move_info.one_hit_ko:
         if defender.base.ability and defender.base.ability.name == "옹골참":
+            was_null = True
             store.update_pokemon(side, active_mine, lambda p: set_used_move(p, move_info))
             store.update_pokemon(side, active_mine, 
                                 lambda p: use_move_pp(p, move_name, defender.base.ability.name == "프레셔" if defender.base.ability else False, is_multi_hit))
             store.add_log(f"🚫 {attacker.base.name}의 공격은 상대의 옹골참으로 인해 통하지 않았다!")
-            return  # 일격필살기 무효화
+            return {"success": True, "damage": 0, "was_null": was_null}  # 일격필살기 무효화
             
         store.update_pokemon(opponent_side, active_opponent, lambda p: change_hp(p, -p.base.hp))
         store.update_pokemon(opponent_side, active_opponent, lambda p: set_received_damage(p, p.base.hp))
@@ -357,7 +361,7 @@ async def calculate_move_damage(
         store.update_pokemon(side, active_mine, lambda p: set_charging(p, False, None))
         store.update_pokemon(side, active_mine, lambda p: change_position(p, None))
         store.add_log(f"💥 {opponent_pokemon.name}은/는 일격필살기에 쓰러졌다!")
-        return {"success": True, "damage": defender.current_hp, "is_hit": True}
+        return {"success": True, "damage": defender.current_hp, "is_hit": True, "was_null": was_null, "was_effective": 0}
         
     # 5-3. Apply same type bonus and previous miss bonus
     if move_info.type in my_pokemon.types or (move_info.type == "프리즈드라이" and "얼음" in my_pokemon.types):
@@ -561,7 +565,7 @@ async def calculate_move_damage(
             store.update_pokemon(side, active_mine, lambda p: set_used_move(p, move_info))
             store.update_pokemon(side, active_mine, lambda p: set_charging(p, False, None))
             store.update_pokemon(side, active_mine, lambda p: change_position(p, None))
-            return {"success": True, "damage": defender.current_hp - 1, "was_effective": was_effective}
+            return {"success": True, "damage": defender.current_hp - 1, "was_effective": was_effective, "was_null": was_null}
 
         if damage >= defender.current_hp:  # 쓰러뜨렸을 경우
             if move_info.name == "마지막일침":
@@ -603,7 +607,7 @@ async def calculate_move_damage(
             store.update_pokemon(side, active_mine, 
                                 lambda p: p.copy_with(locked_move_turn=3 if random.random() < 0.5 else 2))
 
-        return {"success": True, "damage": damage, "was_effective": was_effective}
+        return {"success": True, "damage": damage, "was_effective": was_effective, "was_null": was_null}
 
 
 def apply_change_effect(

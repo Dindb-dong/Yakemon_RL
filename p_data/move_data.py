@@ -696,7 +696,7 @@ move_datas = [
         affiliation=None,
         accuracy=100,
         critical_rate=0,
-        target='opponent'
+        target='opponent',
     ),
     MoveInfo(
         id=45,

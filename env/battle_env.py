@@ -254,7 +254,7 @@ class YakemonEnv(gym.Env):
                         if random.random() < 0.5:
                             enemy_action = self.enemy_team[self.battle_store.get_active_index("enemy")].base.moves[0]
                     
-                    await battle_sequence(
+                    result: dict[str, Union[bool, int]] = await battle_sequence(
                         my_action=battle_action,
                         enemy_action=enemy_action
                     )
@@ -286,7 +286,8 @@ class YakemonEnv(gym.Env):
                     action=action,
                     done=self.done,
                     battle_store=self.battle_store,
-                    duration_store=self.duration_store
+                    duration_store=self.duration_store,
+                    result=result
                 )
                 print(f"Reward in this step: {reward}")
                 return next_state, reward, self.done, {}
@@ -324,7 +325,8 @@ class YakemonEnv(gym.Env):
                 action=action,
                 done=self.done,
                 battle_store=self.battle_store,
-                duration_store=self.duration_store
+                duration_store=self.duration_store,
+                result=result
             )
             print(f"Reward in this step: {reward}")
             # 턴 증가

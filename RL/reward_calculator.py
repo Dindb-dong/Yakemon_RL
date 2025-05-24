@@ -1,4 +1,4 @@
-from utils.type_relation import calculate_type_effectiveness_with_ability
+from typing import Union
 from p_models.status import StatusManager
 from p_models.battle_pokemon import BattlePokemon
 
@@ -17,6 +17,7 @@ def calculate_reward(
     done: bool,
     battle_store=None,
     duration_store=None,
+    result: dict[str, Union[bool, int]] = None,
 ) -> float:
     """
     전략적 요소를 고려한 최적화된 보상 계산
@@ -56,8 +57,8 @@ def calculate_reward(
     # 교체 후 타입 상성에 따른 보상 계산
     if action >= 4:  # 교체 행동인 경우 (action 4, 5는 교체)
         # damage_calculator.py에서 계산된 was_effective와 was_null 값 사용
-        was_effective = getattr(current_pokemon, 'was_effective', 0)
-        was_null = getattr(current_pokemon, 'was_null', False)
+        was_effective = result.get('was_effective', 0)
+        was_null = result.get('was_null', False)
         print(f"was_effective: {was_effective}")
         if was_null:
             reward += 0.2  # 효과 없는 공격에 대한 보상
