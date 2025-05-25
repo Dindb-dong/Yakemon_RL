@@ -38,6 +38,8 @@ async def battle_sequence(
     def is_switch_action(action: BattleAction) -> bool:
         return isinstance(action, dict) and action.get("type") == "switch"
 
+    result = {}
+
     # === 0. 한 쪽만 null ===
     if my_action is None and enemy_action is not None:
         store.add_log("🙅‍♂️ 내 포켓몬은 행동할 수 없었다...")
@@ -86,7 +88,7 @@ async def battle_sequence(
             await switch_pokemon("enemy", enemy_action["index"])
             await switch_pokemon("my", my_action["index"])
         await apply_end_turn_effects()
-        return [{"was_null": False}, {"was_effective": 0}]
+        return {"was_null": False, "was_effective": 0}
 
     # === 2. 한 쪽만 교체 ===
     if is_switch_action(my_action):
@@ -134,7 +136,7 @@ async def battle_sequence(
                 current_defender = opponent_pokemon[store.get_active_index("enemy")]
                 if current_defender and current_defender.current_hp <= 0:
                     await apply_end_turn_effects()
-                    return result
+                    return result if result else {"was_null": False, "was_effective": 0}
                 result: dict[str, Union[bool, int]] = await handle_move("enemy", enemy_action, active_enemy, watch_mode, True)
         else:  # 상대가 선공일 경우
             if enemy_action.name == "기습" and my_action.category == "변화":

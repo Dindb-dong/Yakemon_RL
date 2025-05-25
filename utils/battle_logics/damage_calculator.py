@@ -609,6 +609,7 @@ async def calculate_move_damage(
 
         return {"success": True, "damage": damage, "was_effective": was_effective, "was_null": was_null}
 
+    return {"success": False, "was_null": False}
 
 def apply_change_effect(
     move_info: MoveInfo,
