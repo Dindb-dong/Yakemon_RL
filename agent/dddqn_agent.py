@@ -142,7 +142,7 @@ class DDDQNAgent:
             # 마스크 적용
             action_mask = self._get_action_mask(store)
             masked_q_values = q_values.clone()
-            masked_q_values[0, action_mask == 0] = float(-100)
+            masked_q_values[0, action_mask == 0] = float(-10)
             
             return masked_q_values.argmax().item()
     

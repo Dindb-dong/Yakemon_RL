@@ -203,7 +203,7 @@ class YakemonEnv(gym.Env):
             # 교체가 비활성화된 상태에서 교체 행동을 시도한 경우
             if self.switching_disabled and action >= 4:
                 print("battle_env: 교체가 비활성화된 상태입니다.")
-                return current_state, -100.0, self.done, {"error": "switching_disabled"}
+                return current_state, -5.0, self.done, {"error": "switching_disabled"}
             
             # 행동 실행
             if my_pokemon.cannot_move:
@@ -221,7 +221,7 @@ class YakemonEnv(gym.Env):
                 if not available_indices:
                     print("battle_env: 교체할 수 없습니다.")
                     self.switching_disabled = True  # 교체 비활성화 플래그 설정
-                    return current_state, -100.0, self.done, {"error": "no_available_switch"}
+                    return current_state, -5.0, self.done, {"error": "no_available_switch"}
                 
                 # action이 4나 5일 때, available_indices에서 적절한 인덱스 선택
                 switch_index = available_indices[action - 4] if action - 4 < len(available_indices) else available_indices[0]
@@ -260,7 +260,7 @@ class YakemonEnv(gym.Env):
                     )
                 except Exception as e:
                     print(f"Error during battle sequence: {str(e)}")
-                    return current_state, -100.0, True, {"error": "battle_sequence_error"}
+                    return current_state, -5.0, True, {"error": "battle_sequence_error"}
             
             # 쓰러진 포켓몬 처리
             active_my = self.battle_store.get_active_index("my")
@@ -347,7 +347,7 @@ class YakemonEnv(gym.Env):
             
         except Exception as e:
             print(f"Error in step: {str(e)}")
-            return current_state, -100.0, True, {"error": "step_error"}
+            return current_state, -5.0, True, {"error": "step_error"}
 
     def check_game_end(self) -> bool:
         """게임 종료 조건 체크"""
