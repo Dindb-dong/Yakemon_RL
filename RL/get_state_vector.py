@@ -147,16 +147,16 @@ def reflect_one_hot(turns, length=6):
 # --- Main state vector function ---
 def get_pokemon_vector(pokemon: BattlePokemon, side: SideType) -> np.ndarray:
     vec = []
-    # species (정수)
-    vec.append(pokemon.base.id if hasattr(pokemon.base, 'id') else 0)
-    # ability (정수, 첫번째 ability만)
+    # species (정수 / 1000.0)
+    vec.append(pokemon.base.id / 1000.0 if hasattr(pokemon.base, 'id') else 0)
+    # ability (정수 / 120.0, 첫번째 ability만)
     ab = pokemon.base.ability
     ab_id = ab.id if ab and hasattr(ab, 'id') else 0
-    vec.append(ab_id)
-    # move (정수 4개)
+    vec.append(ab_id / 120.0)
+    # move (정수 / 253.0, 4개)
     for i in range(4):
         if i < len(pokemon.base.moves):
-            vec.append(pokemon.base.moves[i].id)
+            vec.append(pokemon.base.moves[i].id / 253.0)
         else:
             vec.append(0)
     # move_pp (4x5 one-hot)
