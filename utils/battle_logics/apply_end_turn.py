@@ -9,7 +9,7 @@ from utils.battle_logics.update_environment import set_weather, set_field, set_s
 import random
 
 
-async def apply_end_turn_effects():
+def apply_end_turn_effects():
     print("apply_end_turn_effects 호출 시작")
     state: BattleStoreState = store.get_state()
     my_team = state["my_team"]

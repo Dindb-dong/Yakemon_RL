@@ -8,12 +8,11 @@ from utils.battle_logics.get_best_switch_index import get_best_switch_index
 from utils.battle_logics.rank_effect import calculate_rank_effect
 from utils.battle_logics.apply_none_move_damage import apply_recoil_damage
 from utils.battle_logics.update_environment import set_weather
-import asyncio
 from context.battle_store import SideType
 from typing import Literal, Optional, List, Dict
 import random
 
-async def apply_defensive_ability_effect_after_multi_damage(
+def apply_defensive_ability_effect_after_multi_damage(
     side: Literal["my", "enemy"],
     attacker: BattlePokemon,
     defender: BattlePokemon,
@@ -60,31 +59,31 @@ async def apply_defensive_ability_effect_after_multi_damage(
                     store.update_pokemon(opponent_side, active_opponent,
                                           lambda p: change_rank(p, "defense", 1))
 
-async def apply_after_damage(side: str, attacker: BattlePokemon, defender: BattlePokemon,
-                            used_move: MoveInfo, applied_damage: int = 0,
-                            watch_mode: bool = False, multi_hit: bool = False):
+def apply_after_damage(side: str, attacker: BattlePokemon, defender: BattlePokemon,
+                        used_move: MoveInfo, applied_damage: int = 0,
+                        watch_mode: bool = False, multi_hit: bool = False):
 
     opponent_side = "enemy" if side == "my" else "my"
 
-    await apply_defensive_ability_effect_after_multi_damage(
+    apply_defensive_ability_effect_after_multi_damage(
         side, attacker, defender, used_move, applied_damage, watch_mode, multi_hit
     )
 
-    await apply_offensive_ability_effect_after_damage(
+    apply_offensive_ability_effect_after_damage(
         side, attacker, defender, used_move, applied_damage, watch_mode, multi_hit
     )
 
-    await apply_move_effect_after_damage(
+    apply_move_effect_after_damage(
         side, attacker, defender, used_move, applied_damage, watch_mode, multi_hit
     )
 
-    await apply_panic_uturn(
+    apply_panic_uturn(
         opponent_side, attacker, defender, used_move, applied_damage, watch_mode, multi_hit
     )
 
-async def apply_panic_uturn(side: str, attacker: BattlePokemon, defender: BattlePokemon,
-                            used_move: MoveInfo, applied_damage: int = 0, watch_mode: bool = False,
-                            multi_hit: bool = False):
+def apply_panic_uturn(side: str, attacker: BattlePokemon, defender: BattlePokemon,
+                        used_move: MoveInfo, applied_damage: int = 0, watch_mode: bool = False,
+                        multi_hit: bool = False):
     """
     기술 사용 후 방어측 포켓몬이 '위기회피' 특성을 가질 경우 자동/수동 교체를 수행함.
     - side는 공격자 기준 상대방 진영.
@@ -109,9 +108,9 @@ async def apply_panic_uturn(side: str, attacker: BattlePokemon, defender: Battle
             return
 
         switch_index = get_best_switch_index(side)
-        await switch_pokemon(side, switch_index)
+        switch_pokemon(side, switch_index)
         
-async def apply_move_effect_after_multi_damage(
+def apply_move_effect_after_multi_damage(
     side: SideType,
     attacker: BattlePokemon,
     defender: BattlePokemon,
@@ -136,7 +135,7 @@ async def apply_move_effect_after_multi_damage(
     demerit_effects = used_move.demerit_effects
 
     if used_move.cannot_move:
-        store.update_pokemon(side, active_mine, lambda p: p.copy_with(cannot_move=True))
+        store.update_pokemon(side, active_mine, lambda p: p.deepcopy(cannot_move=True))
         store.add_log(f"💥 {attacker.base.name}은 피로로 인해 다음 턴 움직일 수 없다!")
         print(f"피로 효과 적용: {attacker.base.name}은 피로로 인해 다음 턴 움직일 수 없다!")
 
@@ -147,7 +146,7 @@ async def apply_move_effect_after_multi_damage(
         ]
         if available_indexes:
             best_index = get_best_switch_index(side)
-            await switch_pokemon(side, best_index, baton_touch)
+            switch_pokemon(side, best_index, baton_touch)
             store.add_log(f"💨 {attacker.base.name}이(가) 교체되었습니다!")
             print(f"유턴 효과 적용: {attacker.base.name}이(가) 교체되었습니다!")
 
@@ -208,11 +207,11 @@ async def apply_move_effect_after_multi_damage(
         ]
         if alive_opponents:
             new_index = random.choice(alive_opponents)
-            await switch_pokemon(opponent_side, new_index, baton_touch)
+            switch_pokemon(opponent_side, new_index, baton_touch)
             store.add_log(f"💨 {defender.base.name}은(는) 강제 교체되었다!")
             print(f"강제 교체 효과 적용: {defender.base.name}이(가) 강제 교체되었다!")
 
-async def apply_offensive_ability_effect_after_damage(
+def apply_offensive_ability_effect_after_damage(
     side: Literal["my", "enemy"],
     attacker,
     defender,
@@ -236,7 +235,7 @@ async def apply_offensive_ability_effect_after_damage(
                     store.add_log(f"🦂 {defender.base.name}은(는) 독수 특성으로 독 상태가 되었다!")
                     print(f"특성 효과 적용: {defender.base.name}이(가) 독수 특성으로 독 상태가 되었다!")
 
-async def apply_move_effect_after_damage(
+def apply_move_effect_after_damage(
     side: Literal["my", "enemy"],
     attacker: BattlePokemon,
     defender: BattlePokemon,
@@ -273,7 +272,7 @@ async def apply_move_effect_after_damage(
         available = [i for i, p in enumerate(mine_team) if p.current_hp > 0 and i != active_mine]
         if available:
             switch_index = get_best_switch_index(side)
-            await switch_pokemon(side, switch_index, baton_touch)
+            switch_pokemon(side, switch_index, baton_touch)
             print(f"유턴 효과 적용: {attacker.base.name}이(가) 교체되었습니다!")
 
     # 자폭류 처리
@@ -374,6 +373,6 @@ async def apply_move_effect_after_damage(
         available = [i for i, p in enumerate(opp_team) if p.current_hp > 0 and i != active_opp]
         if available:
             idx = random.choice(available)
-            await switch_pokemon(opponent_side, idx, baton_touch)
+            switch_pokemon(opponent_side, idx, baton_touch)
             store.add_log(f"💨 {opp_team[active_opp].base.name}은/는 강제 교체되었다!")
             print(f"강제 교체 효과 적용: {opp_team[active_opp].base.name}이(가) 강제 교체되었다!")

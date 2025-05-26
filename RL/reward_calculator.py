@@ -46,13 +46,13 @@ def calculate_reward(
     target_pokemon = enemy_team[active_enemy]
     
     # 학습 단계에 따른 가중치 계산
-    episode = battle_store.episode if hasattr(battle_store, 'episode') else 0
-    if not hasattr(battle_store, 'total_episodes'):
-        raise ValueError("total_episodes not set in battle_store. Please set battle_store.total_episodes before training.")
-    total_episodes = battle_store.total_episodes
-    learning_stage = min(float(episode) / float(total_episodes), 1.0)  # 전체 에피소드 수에 따른 점진적 증가
-    print(f"total_episodes: {total_episodes}")
-    print(f"learning_stage: {learning_stage}")
+    # episode = battle_store.episode if hasattr(battle_store, 'episode') else 0
+    # if not hasattr(battle_store, 'total_episodes'):
+    #     raise ValueError("total_episodes not set in battle_store. Please set battle_store.total_episodes before training.")
+    # total_episodes = battle_store.total_episodes
+    # learning_stage = min(float(episode) / float(total_episodes), 1.0)  # 전체 에피소드 수에 따른 점진적 증가
+    # print(f"total_episodes: {total_episodes}")
+    # print(f"learning_stage: {learning_stage}")
 
     # 교체 후 타입 상성에 따른 보상 계산
     if action >= 4:  # 교체 행동인 경우 (action 4, 5는 교체)
@@ -85,16 +85,22 @@ def calculate_reward(
         
         # 포켓몬 수 차이에 따른 보상 계산 (이 값은 그대로 유지 - 승리/패배가 가장 중요)
         if pokemon_count_difference <= -3:
-            reward -= 5.0  # 상대가 3마리 이상 많음
+            reward -= 10.0  # 상대가 3마리 이상 많음
+            print("상대가 3마리 남기고 승리")
         elif pokemon_count_difference == -2:
-            reward -= 2.0  # 상대가 2마리 많음
+            reward -= 10.0  # 상대가 2마리 많음
+            print("상대가 2마리 남기고 승리")
         elif pokemon_count_difference == -1:
-            reward -= 0.5  # 상대가 1마리 많음
+            reward -= 10.0  # 상대가 1마리 많음
+            print("상대가 1마리 남기고 승리")
         elif pokemon_count_difference == 1:
-            reward += 1.0  # 내가 1마리 많음
+            reward += 10.0  # 내가 1마리 많음
+            print("내가 1마리 남기고 승리")
         elif pokemon_count_difference == 2:
-            reward += 2.0  # 내가 2마리 많음
+            reward += 10.0  # 내가 2마리 많음
+            print("내가 2마리 남기고 승리")
         elif pokemon_count_difference >= 3:
-            reward += 5.0  # 내가 3마리 이상 많음
+            reward += 10.0  # 내가 3마리 이상 많음
+            print("내가 3마리 남기고 승리")
     
     return reward

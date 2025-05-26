@@ -139,7 +139,7 @@ async def run_random_agent(
             action = random.randint(0, HYPERPARAMS["action_dim"] - 1)
             
             # 행동 실행
-            next_state, reward, done, _ = await env.step(action)
+            next_state, reward, done, _ = env.step(action)
             
             # 다음 상태 벡터 생성
             next_state_vector = get_state(
@@ -333,7 +333,7 @@ async def test_agent(
             action = random.randint(0, HYPERPARAMS["action_dim"] - 1)
             
             # 행동 실행
-            next_state, reward, done, _ = await env.step(action)
+            next_state, reward, done, _ = env.step(action)
             
             # 다음 상태 벡터 생성
             next_state_vector = get_state(

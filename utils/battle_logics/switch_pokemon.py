@@ -20,7 +20,7 @@ UNMAIN_STATUS_CONDITION_WITH_DURATION = [
 MAIN_STATUS_CONDITION = ['화상', '마비', '잠듦', '얼음', '독', '맹독']
 
 
-async def switch_pokemon(side: SideType, new_index: int, baton_touch: bool = False) -> None:
+def switch_pokemon(side: SideType, new_index: int, baton_touch: bool = False) -> None:
     """
     포켓몬 교체 함수
     
@@ -111,7 +111,7 @@ async def switch_pokemon(side: SideType, new_index: int, baton_touch: bool = Fal
             store.add_log(f"{next_pokemon.base.name}이(가) 쓰러졌다!")
             switch_index = get_best_switch_index(side)
             if switch_index != -1 and switch_index != new_index:
-                await switch_pokemon(side, switch_index)
+                switch_pokemon(side, switch_index)
             return
 
         if trap_condition:
@@ -131,7 +131,7 @@ async def switch_pokemon(side: SideType, new_index: int, baton_touch: bool = Fal
     if team[new_index].current_hp <= 0 and side == "enemy":
         switch_index = get_best_switch_index(side)
         if switch_index != -1 and switch_index != new_index:  # 새로운 인덱스가 다를 때만 재귀 호출
-            await switch_pokemon(side, switch_index)
+            switch_pokemon(side, switch_index)
         return
     else:
         wncp = "나" if side == "my" else "상대"

@@ -7,7 +7,7 @@ from p_models.battle_pokemon import BattlePokemon
 from p_models.move_info import MoveInfo
 from utils.battle_logics.rank_effect import calculate_rank_effect
 
-async def calculate_order(player_move: Optional[MoveInfo], ai_move: Optional[MoveInfo]) -> Literal["my", "enemy"]:
+def calculate_order(player_move: Optional[MoveInfo], ai_move: Optional[MoveInfo]) -> Literal["my", "enemy"]:
     state: BattleStoreState = store.get_state()
     public_env = state["public_env"]
     my_team = state["my_team"]

@@ -10,7 +10,7 @@ from typing import Optional, Literal
 import random
 from utils.battle_logics.apply_after_damage import apply_defensive_ability_effect_after_multi_damage
 
-async def apply_move_effect_after_multi_damage(
+def apply_move_effect_after_multi_damage(
     side: SideType,
     attacker: BattlePokemon,
     defender: BattlePokemon,
@@ -46,7 +46,7 @@ async def apply_move_effect_after_multi_damage(
         ]
         if available_indexes:
             best_index = get_best_switch_index(side)
-            await switch_pokemon(side, best_index, baton_touch)
+            switch_pokemon(side, best_index, baton_touch)
             store.add_log(f"💨 {attacker.base.name}이(가) 교체되었습니다!")
             print(f"유턴 효과 적용: {attacker.base.name}이(가) 교체되었습니다!")
 
@@ -106,6 +106,6 @@ async def apply_move_effect_after_multi_damage(
         ]
         if alive_opponents:
             new_index = random.choice(alive_opponents)
-            await switch_pokemon(opponent_side, new_index, baton_touch)
+            switch_pokemon(opponent_side, new_index, baton_touch)
             store.add_log(f"💨 {defender.base.name}은(는) 강제 교체되었다!")
             print(f"강제 교체 효과 적용: {defender.base.name}이(가) 강제 교체되었다!")

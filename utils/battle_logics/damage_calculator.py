@@ -24,7 +24,7 @@ import random
 
 SideType = Literal["my", "enemy"]
 
-async def calculate_move_damage(
+def calculate_move_damage(
     move_name: str,
     side: SideType,
     current_index: int,
