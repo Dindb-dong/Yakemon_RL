@@ -212,7 +212,7 @@ async def handle_move(
             ]
 
             if current_defender.current_hp <= 0:
-                break
+                return {"success": True, "was_null": False, "was_effective": 0}
 
             current_power = move.power + (10 * i if move.name == "트리플킥" else 20 * i)
             result: dict[Literal["success", "damage", "was_null", "was_effective"], Union[bool, int]] = await calculate_move_damage(
