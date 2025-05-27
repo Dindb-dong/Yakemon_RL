@@ -299,7 +299,7 @@ class YakemonEnv(gym.Env):
             if not available_indices:
                 print("battle_env: 교체할 수 없습니다.")
                 self.switching_disabled = True  # 교체 비활성화 플래그 설정
-                return current_state, -100.0, self.done, {"error": "no_available_switch"}
+                return current_state, 0.0, self.done, False, {"error": "no_available_switch"}
             
             # action이 4나 5일 때, available_indices에서 적절한 인덱스 선택
             switch_index = available_indices[action - 4] if action - 4 < len(available_indices) else available_indices[0]
@@ -310,16 +310,22 @@ class YakemonEnv(gym.Env):
         
         # 배틀 시퀀스 실행
         # async with self._battle_sequence_lock:
-        enemy_action = base_ai_choose_action(
-            side="enemy",
-            my_team=self.my_team,
-            enemy_team=self.enemy_team,
-            active_my=self.battle_store.get_active_index("my"),
-            active_enemy=self.battle_store.get_active_index("enemy"),
-            public_env=self.public_env.__dict__,
-            enemy_env=self.my_env.__dict__,
-            my_env=self.enemy_env.__dict__,
-            add_log=self.battle_store.add_log
+        # enemy_action = base_ai_choose_action(
+        #     side="enemy",
+        #     my_team=self.my_team,
+        #     enemy_team=self.enemy_team,
+        #     active_my=self.battle_store.get_active_index("my"),
+        #     active_enemy=self.battle_store.get_active_index("enemy"),
+        #     public_env=self.public_env.__dict__,
+        #     enemy_env=self.my_env.__dict__,
+        #     my_env=self.enemy_env.__dict__,
+        #     add_log=self.battle_store.add_log
+        # )
+
+        # 랜덤 적 행동 선택
+        enemy_action = random_enemy_action(
+            self.enemy_team,
+            self.battle_store.get_active_index("enemy")
         )
             
         # 교체와 기술이 동시에 실행되지 않도록 확인
