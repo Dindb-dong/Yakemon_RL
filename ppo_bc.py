@@ -314,9 +314,21 @@ class MaskablePPOBC(MaskablePPO):
                 value_losses.append(value_loss.item())
 
                 # ----------- BC loss -----------
-                log_prob = self.policy.forward(rollout_data.observations, action_masks=rollout_data.action_masks)[-1]
-                print(log_prob.shape, rollout_data.expert_actions.shape)
-                bc_loss = -log_prob[rollout_data.expert_actions.view(-1)].mean()
+                # 1. latent_pi, latent_vf 추출
+                features = self.policy.extract_features(rollout_data.observations)
+                latent_pi, _ = self.policy.mlp_extractor(features)
+
+                # 2. distribution 생성
+                distribution = self.policy._get_action_dist_from_latent(latent_pi)
+
+                # 3. expert_actions 준비 (shape: (batch,))
+                expert_actions = rollout_data.expert_actions.view(-1)
+
+                # 4. expert action의 log_prob 계산
+                bc_log_prob = distribution.log_prob(expert_actions)
+
+                # 5. BC loss는 -log_prob의 평균
+                bc_loss = -bc_log_prob.mean()
                 bc_losses.append(bc_loss.item())
                 # ----------- BC loss 끝 -----------
 
