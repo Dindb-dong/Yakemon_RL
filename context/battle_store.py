@@ -19,6 +19,7 @@ class BattleStoreState(TypedDict):
     logs: List[str]
     is_switch_waiting: bool
     switch_request: Optional[Dict[str, Any]]
+    pre_damage_list: List[tuple]
 
 class BattleStore:
     def __init__(self) -> None:
@@ -34,6 +35,7 @@ class BattleStore:
             "logs": [],
             "is_switch_waiting": False,
             "switch_request": None,
+            "pre_damage_list": [],
         }
 
     def set_my_team(self, team: List[BattlePokemon]) -> None:
@@ -111,6 +113,12 @@ class BattleStore:
 
     def get_active_index(self, side: SideType) -> int:
         return self.state["active_my"] if side == "my" else self.state["active_enemy"]
+
+    def set_pre_damage_list(self, pre_damage_list: List[tuple]) -> None:
+        self.state["pre_damage_list"] = pre_damage_list
+
+    def get_pre_damage_list(self) -> List[tuple]:
+        return self.state["pre_damage_list"]
 
 # 전역 인스턴스 생성
 battle_store_instance = BattleStore()

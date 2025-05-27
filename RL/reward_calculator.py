@@ -3,6 +3,7 @@ from p_models.move_info import MoveInfo
 from p_models.status import StatusManager
 from p_models.battle_pokemon import BattlePokemon
 from utils.battle_logics.pre_damage_calculator import pre_calculate_move_damage
+from context.battle_store import store
 
 def calculate_reward(
     my_team: list[BattlePokemon],
@@ -43,22 +44,14 @@ def calculate_reward(
     """     
     # 보상 초기화
     reward = 0.0
-    
+
     # 현재 활성화된 포켓몬
     current_pokemon = my_team[active_my]
     target_pokemon = enemy_team[active_enemy]
-    move_list: List[MoveInfo] = [move for move in current_pokemon.base.moves]
-    # 상대를 때리는 위력이 있는 기술이고 남아있는 pp가 0 이상인 기술 필터링
-    valid_damage_moves = [
-        move for move in move_list 
-        if move.power > 0 and current_pokemon.pp.get(move.name, 0) > 0
-    ]
-    pre_damage_list: List[float] = [
-        # TODO: 인자 나중에 추가로 더 넣을 수 있음
-        pre_calculate_move_damage(move.name, "my", active_my, attacker=current_pokemon, defender=target_pokemon)
-        for move in valid_damage_moves
-    ]
-    print(f"pre_damage_list: {pre_damage_list}")
+
+    # battle_store에서 pre_damage_list 가져오기
+    pre_damage_list = store.get_pre_damage_list() if battle_store else []
+
     # 학습 단계에 따른 가중치 계산
     episode = battle_store.episode if hasattr(battle_store, 'episode') else 0
     if not hasattr(battle_store, 'total_episodes'):
@@ -89,6 +82,34 @@ def calculate_reward(
         elif was_effective == -2:  # 1/4 데미지
             reward += 0.1  # 매우 큰 보상
             print(f"Good switch: Resistant to 1/4 damage! Reward: {reward}")
+    # 교체가 아니라 싸운 경우
+    else:
+        # 포켓몬이 기절했거나 행동할 수 없는 경우 리워드 계산하지 않음
+        if result and (result.get("was_null", False) or current_pokemon.current_hp <= 0):
+            print("Pokemon couldn't move or fainted, skipping reward calculation")
+            return reward
+
+        # 데미지가 같은 기술 중 demerit_effects가 있는 기술이 있음에도 demerit_effects가 없는 기술을 사용한 경우 리워드 증가
+        for i, (damage, demerit, effect) in enumerate(pre_damage_list):
+            if i == action:  # 현재 선택한 기술
+                if demerit == 0 and damage > 0:  # demerit_effects가 없고 데미지가 0보다 큰 기술
+                    # 같은 데미지를 가진 다른 기술 중 demerit_effects가 있는 기술이 있는지 확인
+                    has_demerit_with_same_damage = any(
+                        d == damage and dem == 1 and d > 0 for d, dem, _ in pre_damage_list
+                    )
+                    if has_demerit_with_same_damage:
+                        reward += 0.1  # 리워드 증가
+                        print(f"Good choice: Used a move without demerit effects! Reward: {reward}")
+                
+                # demerit_effects 조건이 동일한 경우, effects가 있는 기술을 사용하면 리워드 증가
+                if effect == 1 and damage > 0:  # effects가 있고 데미지가 0보다 큰 기술
+                    # 같은 데미지를 가진 다른 기술 중 demerit_effects가 동일하고 effects가 없는 기술이 있는지 확인
+                    has_same_demerit_without_effect = any(
+                        d == damage and dem == demerit and eff == 0 and d > 0 for d, dem, eff in pre_damage_list
+                    )
+                    if has_same_demerit_without_effect:
+                        reward += 0.1  # 리워드 증가
+                        print(f"Good choice: Used a move with effects! Reward: {reward}")
 
     # 승리/패배에 따른 보상 (가장 중요한 요소)
     if done:
