@@ -39,18 +39,13 @@ async def battle_sequence(
     current_pokemon = my_team[active_my]
     target_pokemon = enemy_team[active_enemy]
     move_list: List[MoveInfo] = [move for move in current_pokemon.base.moves]
-    # 남아있는 pp가 0 이상인 기술 필터링
-    valid_damage_moves = [
-        move for move in move_list 
-        if current_pokemon.pp.get(move.name, 0) > 0
-    ]
     pre_damage_list: List[tuple] = [
         (
             pre_calculate_move_damage(move.name, "my", active_my, attacker=current_pokemon, defender=target_pokemon),
             1 if move.demerit_effects else 0,
             1 if move.effects else 0
         )
-        for move in valid_damage_moves
+        for move in move_list
     ]
     # pre_damage_list를 battle_store에 저장
     store.set_pre_damage_list(pre_damage_list)

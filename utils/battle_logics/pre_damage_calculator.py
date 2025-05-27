@@ -13,7 +13,7 @@ from context.battle_environment import PublicBattleEnvironment
 
 SideType = Literal["my", "enemy"]
 
-def pre_calculate_move_damage( # 다음 턴에 어떻게 될까? 를 보는 함수 
+def pre_calculate_move_damage( # 배틀을 실행하기 전에 만약 다른 기술을 썼다면? 을 저장하는 함수 
     move_name: str,
     side: SideType,
     current_index: int,
@@ -46,6 +46,14 @@ def pre_calculate_move_damage( # 다음 턴에 어떻게 될까? 를 보는 함�
     team = my_team if side == "my" else enemy_team
     # Get move info and apply skin type effect
     move_info = get_move_info(my_pokemon, move_name)
+    move_list: List[MoveInfo] = [move for move in attacker.base.moves]
+    # 남아있는 pp가 0 이상인 기술 필터링
+    valid_damage_moves = [
+        move for move in move_list 
+        if attacker.pp.get(move.name, 0) > 0
+    ]
+    if move_info not in valid_damage_moves:
+        return 0.0
     move_info = apply_skin_type_effect(move_info, my_pokemon.ability.name if my_pokemon.ability else None)
     # Get environment effects
     weather_effect = public_env.weather
@@ -167,6 +175,10 @@ def pre_calculate_move_damage( # 다음 턴에 어떻게 될까? 를 보는 함�
                 total_hp = my_hp + enemy_hp
                 new_hp = total_hp // 2
                 return enemy_hp - new_hp # 음수값 나올 수 있는게 맞음.
+            return 0.0
+        
+    elif move_info.target in ["self", "none"]:  # 자신이나 필드를 대상으로 하는 기술일 경우
+        return 0.0
     # 5-2. Handle one-hit KO moves
         
     # 5-3. Apply same type bonus and previous miss bonus
@@ -351,25 +363,8 @@ def pre_calculate_move_damage( # 다음 턴에 어떻게 될까? 를 보는 함�
 
 def get_move_info(my_pokemon: PokemonInfo, move_name: str) -> MoveInfo:
     print(f"pokemon: {my_pokemon.name}")
-    state = store.get_state()
-    my_team = state["my_team"]
-    enemy_team = state["enemy_team"]
-    
-    # 현재 포켓몬이 어느 팀에 있는지 찾기
-    battle_pokemon = None
-    for pokemon in my_team:
-        if pokemon.base.name == my_pokemon.name:
-            battle_pokemon = pokemon
-            break
-    if battle_pokemon is None:
-        for pokemon in enemy_team:
-            if pokemon.base.name == my_pokemon.name:
-                battle_pokemon = pokemon
-                break
     
     for move in my_pokemon.moves:
         if move.name == move_name:
-            if battle_pokemon and move_name in battle_pokemon.pp:
-                move.pp = battle_pokemon.pp[move_name]
             return move
     raise ValueError(f"pre_damage_calculator.py: {my_pokemon.name}의 {move_name} 기술을 찾을 수 없습니다.") 

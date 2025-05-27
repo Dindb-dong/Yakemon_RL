@@ -91,8 +91,8 @@ def calculate_reward(
 
         # 데미지가 같은 기술 중 demerit_effects가 있는 기술이 있음에도 demerit_effects가 없는 기술을 사용한 경우 리워드 증가
         for i, (damage, demerit, effect) in enumerate(pre_damage_list):
-            if i == action:  # 현재 선택한 기술
-                if demerit == 0 and damage > 0:  # demerit_effects가 없고 데미지가 0보다 큰 기술
+            if i == action and damage > 0:  # 현재 선택한 공격 기술
+                if demerit == 0:  # demerit_effects가 없고 데미지가 0보다 큰 기술
                     # 같은 데미지를 가진 다른 기술 중 demerit_effects가 있는 기술이 있는지 확인
                     has_demerit_with_same_damage = any(
                         d == damage and dem == 1 and d > 0 for d, dem, _ in pre_damage_list
@@ -102,7 +102,7 @@ def calculate_reward(
                         print(f"Good choice: Used a move without demerit effects! Reward: {reward}")
                 
                 # demerit_effects 조건이 동일한 경우, effects가 있는 기술을 사용하면 리워드 증가
-                if effect == 1 and damage > 0:  # effects가 있고 데미지가 0보다 큰 기술
+                if effect == 1:  # effects가 있고 데미지가 0보다 큰 기술
                     # 같은 데미지를 가진 다른 기술 중 demerit_effects가 동일하고 effects가 없는 기술이 있는지 확인
                     has_same_demerit_without_effect = any(
                         d == damage and dem == demerit and eff == 0 and d > 0 for d, dem, eff in pre_damage_list
