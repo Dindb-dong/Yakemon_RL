@@ -23,6 +23,7 @@ class BattlePokemon:
         is_charging: bool = False,
         charging_move: Optional['MoveInfo'] = None, # vector로 표현할 때에는, moves.id 로 표현
         received_damage: Optional[int] = None,
+        dealt_damage: Optional[int] = None,
         is_first_turn: bool = False,
         cannot_move: bool = False,
         form_num: Optional[int] = None, # 이거는 생략
@@ -48,6 +49,7 @@ class BattlePokemon:
         self.is_charging = is_charging
         self.charging_move = charging_move
         self.received_damage = received_damage
+        self.dealt_damage = dealt_damage
         self.is_first_turn = is_first_turn
         self.cannot_move = cannot_move
         self.form_num = form_num
@@ -75,6 +77,7 @@ class BattlePokemon:
             is_charging=overrides.get("is_charging", self.is_charging),
             charging_move=overrides.get("charging_move", self.charging_move),
             received_damage=overrides.get("received_damage", self.received_damage),
+            dealt_damage=overrides.get("dealt_damage", self.dealt_damage),
             is_first_turn=overrides.get("is_first_turn", self.is_first_turn),
             cannot_move=overrides.get("cannot_move", self.cannot_move),
             form_num=overrides.get("form_num", self.form_num),
