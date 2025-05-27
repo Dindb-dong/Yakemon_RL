@@ -51,8 +51,10 @@ def calculate_reward(
     current_pokemon = my_team[active_my]
     target_pokemon = enemy_team[active_enemy]
     print(f"reward_calculator: my_post_pokemon: {my_post_pokemon.base.name}")
+    print(f"reward_calculator: my_post_pokemon.dealt_damage: {my_post_pokemon.dealt_damage}")
     print(f"reward_calculator: enemy_post_pokemon: {enemy_post_pokemon.base.name}")
     print(f"reward_calculator: enemy_post_pokemon.current_hp: {enemy_post_pokemon.current_hp}")
+    print(f"reward_calculator: enemy_post_pokemon.base.hp: {enemy_post_pokemon.base.hp}")
     print(f"reward_calculator: current_pokemon: {current_pokemon.base.name}")
     print(f"reward_calculator: current_pokemon.used_move: {current_pokemon.used_move.name if current_pokemon.used_move else 'None'}")
     print(f"reward_calculator: current_pokemon.dealt_damage: {current_pokemon.dealt_damage}")
@@ -93,36 +95,51 @@ def calculate_reward(
             reward += 0.1  # 매우 큰 보상
             print(f"Good switch: Resistant to 1/4 damage! Reward: {reward}")
     # 교체가 아니라 싸운 경우
-    elif action < 4 and current_pokemon.base.name == my_post_pokemon.base.name: # 죽어서 새로 나온거 아닐 때 
-        # 포켓몬이 기절했거나 행동할 수 없는 경우 리워드 계산하지 않음
-        if result and (result.get("was_null", False) or current_pokemon.current_hp <= 0):
-            print("Pokemon couldn't move or fainted, skipping reward calculation")
+    elif action < 4:
+        # 포켓몬이 행동할 수 없는 경우 리워드 계산하지 않음 (선공을 맞고 기절한 경우는 제외)
+        if result and result.get("was_null", False):
+            print("Pokemon couldn't move due to type immunity or ability, skipping reward calculation")
             return reward
+
         # 상대 쓰러뜨렸으면 리워드 증가
         if current_pokemon.dealt_damage == enemy_post_pokemon.current_hp:
             reward += 0.2
             print(f"Good choice: Used a move to defeat the enemy! Reward: {reward}")
-        # 데미지가 같은 기술 중 demerit_effects가 있는 기술이 있음에도 demerit_effects가 없는 기술을 사용한 경우 리워드 증가
-        for i, (damage, demerit, effect) in enumerate(pre_damage_list):
-            if i == action and damage > 0:  # 현재 선택한 공격 기술
-                if demerit == 0:  # demerit_effects가 없고 데미지가 0보다 큰 기술
-                    # 같은 데미지를 가진 다른 기술 중 demerit_effects가 있는 기술이 있는지 확인
-                    has_demerit_with_same_damage = any(
-                        d == damage and dem == 1 and d > 0 for d, dem, _ in pre_damage_list
-                    )
-                    if has_demerit_with_same_damage:
-                        reward += 0.1  # 리워드 증가
-                        print(f"Good choice: Used a move without demerit effects! Reward: {reward}")
-                
-                # demerit_effects 조건이 동일한 경우, effects가 있는 기술을 사용하면 리워드 증가
-                if effect == 1:  # effects가 있고 데미지가 0보다 큰 기술
-                    # 같은 데미지를 가진 다른 기술 중 demerit_effects가 동일하고 effects가 없는 기술이 있는지 확인
-                    has_same_demerit_without_effect = any(
-                        d == damage and dem == demerit and eff == 0 and d > 0 for d, dem, eff in pre_damage_list
-                    )
-                    if has_same_demerit_without_effect:
-                        reward += 0.1  # 리워드 증가
-                        print(f"Good choice: Used a move with effects! Reward: {reward}")
+        elif current_pokemon.dealt_damage is not None and enemy_post_pokemon.current_hp != 0:
+            reward += (current_pokemon.dealt_damage / enemy_post_pokemon.base.hp) * 0.2
+            print(f"dealt_damage: {current_pokemon.dealt_damage}")
+            print(f"enemy_post_pokemon.base.hp: {enemy_post_pokemon.base.hp}")
+            print(f"hit! : {reward}")
+        # 내가 먼저 선공, 상대의 후공으로 기절했을 때
+        elif ((my_post_pokemon.base.name != current_pokemon.base.name) and (current_pokemon.used_move == None) and (enemy_post_pokemon.base.name == target_pokemon.base.name)):
+            reward += (target_pokemon.received_damage / target_pokemon.base.hp) * 0.2
+            print(f"received_damage (fallback): {target_pokemon.received_damage}")
+            print(f"enemy_post_pokemon.base.hp: {enemy_post_pokemon.base.hp}")
+            print(f"hit(fallback) : {reward}")
+
+        # 선공을 맞고 죽은 경우가 아닐 때만 기술 선택에 따른 리워드 계산
+        if current_pokemon.current_hp > 0:
+            # 데미지가 같은 기술 중 demerit_effects가 있는 기술이 있음에도 demerit_effects가 없는 기술을 사용한 경우 리워드 증가
+            for i, (damage, demerit, effect) in enumerate(pre_damage_list):
+                if i == action and damage > 0:  # 현재 선택한 공격 기술
+                    if demerit == 0:  # demerit_effects가 없고 데미지가 0보다 큰 기술
+                        # 같은 데미지를 가진 다른 기술 중 demerit_effects가 있는 기술이 있는지 확인
+                        has_demerit_with_same_damage = any(
+                            d == damage and dem == 1 and d > 0 for d, dem, _ in pre_damage_list
+                        )
+                        if has_demerit_with_same_damage:
+                            reward += 0.1  # 리워드 증가
+                            print(f"Good choice: Used a move without demerit effects! Reward: {reward}")
+                    
+                    # demerit_effects 조건이 동일한 경우, effects가 있는 기술을 사용하면 리워드 증가
+                    if effect == 1:  # effects가 있고 데미지가 0보다 큰 기술
+                        # 같은 데미지를 가진 다른 기술 중 demerit_effects가 동일하고 effects가 없는 기술이 있는지 확인
+                        has_same_demerit_without_effect = any(
+                            d == damage and dem == demerit and eff == 0 and d > 0 for d, dem, eff in pre_damage_list
+                        )
+                        if has_same_demerit_without_effect:
+                            reward += 0.1  # 리워드 증가
+                            print(f"Good choice: Used a move with effects! Reward: {reward}")
 
     # 승리/패배에 따른 보상 (가장 중요한 요소)
     if done:
@@ -130,19 +147,39 @@ def calculate_reward(
         my_pokemon_alive = sum(1 for p in my_team if p.current_hp > 0)
         enemy_pokemon_alive = sum(1 for p in enemy_team if p.current_hp > 0)
         pokemon_count_difference = my_pokemon_alive - enemy_pokemon_alive
+        my_team_alive = any(pokemon.current_hp > 0 for pokemon in my_team)
+        enemy_team_alive = any(pokemon.current_hp > 0 for pokemon in enemy_team)
+        victory = 1 if my_team_alive and not enemy_team_alive else 0
+
+        print(f"Game Over - My alive: {my_pokemon_alive}, Enemy alive: {enemy_pokemon_alive}, Difference: {pokemon_count_difference}")
         
         # 포켓몬 수 차이에 따른 보상 계산 (이 값은 그대로 유지 - 승리/패배가 가장 중요)
-        if pokemon_count_difference <= -3:
+        if pokemon_count_difference == -3:
             reward -= 5.0  # 상대가 3마리 이상 많음
+            print(f"You lose! 0 : 3")
         elif pokemon_count_difference == -2:
             reward -= 2.0  # 상대가 2마리 많음
+            print(f"You lose! 0 : 2")
         elif pokemon_count_difference == -1:
             reward -= 0.5  # 상대가 1마리 많음
+            print(f"You lose! 0 : 1")
         elif pokemon_count_difference == 1:
             reward += 1.0  # 내가 1마리 많음
+            print(f"You win! 1 : 0")
         elif pokemon_count_difference == 2:
             reward += 2.0  # 내가 2마리 많음
-        elif pokemon_count_difference >= 3:
+            print(f"You win! 2 : 0")
+        elif pokemon_count_difference == 3:
             reward += 5.0  # 내가 3마리 이상 많음
+            print(f"You win! 3 : 0")
+        else:
+            if victory:
+                reward += 1.0
+                print(f"You win! 0 : 0")
+            else:
+                reward -= 0.5
+                print(f"You lose! 0 : 0")
+        
+        print(f"Final reward after win/loss calculation: {reward}")
     
     return reward
