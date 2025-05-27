@@ -1,6 +1,8 @@
-from typing import Union
+from typing import List, Union
+from p_models.move_info import MoveInfo
 from p_models.status import StatusManager
 from p_models.battle_pokemon import BattlePokemon
+from utils.battle_logics.pre_damage_calculator import pre_calculate_move_damage
 
 def calculate_reward(
     my_team: list[BattlePokemon],
@@ -38,13 +40,25 @@ def calculate_reward(
         duration_store: (옵션) 지속 효과 스토어
     Returns:
         float: 계산된 보상
-    """
+    """     
+    # 보상 초기화
     reward = 0.0
     
     # 현재 활성화된 포켓몬
     current_pokemon = my_team[active_my]
     target_pokemon = enemy_team[active_enemy]
-    
+    move_list: List[MoveInfo] = [move for move in current_pokemon.base.moves]
+    # 상대를 때리는 위력이 있는 기술이고 남아있는 pp가 0 이상인 기술 필터링
+    valid_damage_moves = [
+        move for move in move_list 
+        if move.power > 0 and current_pokemon.pp.get(move.name, 0) > 0
+    ]
+    pre_damage_list: List[float] = [
+        # TODO: 인자 나중에 추가로 더 넣을 수 있음
+        pre_calculate_move_damage(move.name, "my", active_my, attacker=current_pokemon, defender=target_pokemon)
+        for move in valid_damage_moves
+    ]
+    print(f"pre_damage_list: {pre_damage_list}")
     # 학습 단계에 따른 가중치 계산
     episode = battle_store.episode if hasattr(battle_store, 'episode') else 0
     if not hasattr(battle_store, 'total_episodes'):

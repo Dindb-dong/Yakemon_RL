@@ -1,30 +1,19 @@
-from typing import List, Dict, Optional, Union, Literal, Tuple
+from typing import List, Dict, Optional, Literal
 from p_models.move_info import MoveInfo
 from p_models.pokemon_info import PokemonInfo
 from p_models.battle_pokemon import BattlePokemon
-from p_models.types import WeatherType
-from p_models.ability_info import AbilityInfo
 from context.battle_store import store
 from context.duration_store import duration_store
-from utils.battle_logics.rank_effect import calculate_accuracy, calculate_critical, calculate_rank_effect
-from utils.battle_logics.status_effect import apply_status_effect_before
+from utils.battle_logics.rank_effect import calculate_critical, calculate_rank_effect
 from utils.battle_logics.calculate_type_effectiveness import calculate_type_effectiveness_with_ability, is_type_immune
 from utils.battle_logics.helpers import has_ability
 from utils.battle_logics.apply_before_damage import apply_defensive_ability_effect_before_damage, apply_offensive_ability_effect_before_damage
-from utils.battle_logics.update_battle_pokemon import (
-    add_status, change_hp, change_position, change_rank, remove_status,
-    set_charging, set_had_missed, set_locked_move, set_protecting,
-    set_received_damage, set_used_move, use_move_pp
-)
-from utils.battle_logics.update_environment import add_trap, set_field, set_room, set_screen, set_weather
-from utils.battle_logics.apply_none_move_damage import apply_thorn_damage
 from utils.apply_skin_type_effect import apply_skin_type_effect
 from context.battle_environment import PublicBattleEnvironment
-import random
 
 SideType = Literal["my", "enemy"]
 
-async def pre_calculate_move_damage( # 다음 턴에 어떻게 될까? 를 보는 함수 
+def pre_calculate_move_damage( # 다음 턴에 어떻게 될까? 를 보는 함수 
     move_name: str,
     side: SideType,
     current_index: int,
@@ -110,7 +99,9 @@ async def pre_calculate_move_damage( # 다음 턴에 어떻게 될까? 를 보�
     if defender.position is not None:
         position = defender.position
         if (position == "땅" and move_info.name in ["지진", "땅고르기", "땅가르기"]) or \
-        (position == "하늘" and move_info.name in ["번개", "땅고르기"]):
+        (position == "하늘" and move_info.name in ["번개", "폭풍"]):
+            pass
+        else:
             types *= 0
             return 0.0
     
@@ -175,7 +166,7 @@ async def pre_calculate_move_damage( # 다음 턴에 어떻게 될까? 를 보�
                 enemy_hp = defender.current_hp
                 total_hp = my_hp + enemy_hp
                 new_hp = total_hp // 2
-                return new_hp - enemy_hp
+                return enemy_hp - new_hp # 음수값 나올 수 있는게 맞음.
     # 5-2. Handle one-hit KO moves
         
     # 5-3. Apply same type bonus and previous miss bonus
@@ -258,7 +249,8 @@ async def pre_calculate_move_damage( # 다음 턴에 어떻게 될까? 를 보�
     # 급소 맞을 확률이 1/2 이상일 경우에만 작용하도록. 
     if ((my_poke_rank['critical'] if my_poke_rank else 0) + move_info.critical_rate + 
         (1 if my_pokemon.ability and my_pokemon.ability.name == "대운" else 0) 
-        > 0.5):
+        >= 2):
+        print(f"pre_calc: 급소 적용")
         if (my_pokemon.ability and my_pokemon.ability.name == "무모한행동" and 
             any(status in ["독", "맹독"] for status in my_poke_status)):
             is_critical = True
@@ -319,7 +311,7 @@ async def pre_calculate_move_damage( # 다음 턴에 어떻게 될까? 를 보�
     damage = min(defender.current_hp, 
                 round((effectiveness / durability) * opponent_pokemon.hp))  # 소수점 반올림
 
-    if move_info.name == "목숨걸기":
+    if move_info.name == "목숨걸기" and types != 0:
         damage = attacker.current_hp
 
     # 14. 데미지 적용 및 이후 함수 적용
@@ -328,7 +320,7 @@ async def pre_calculate_move_damage( # 다음 턴에 어떻게 될까? 를 보�
     if (defender.base.ability and defender.base.ability.name == "옹골참" and 
         defender.current_hp == defender.base.hp and damage >= defender.current_hp):
         print(f"pre_calc: {defender.base.name}의 옹골참 발동!")
-        return defender.current_hp - 1
+        damage = defender.current_hp - 1
 
     return damage
 
