@@ -21,6 +21,8 @@ def calculate_reward(
     battle_store=None,
     duration_store=None,
     result: dict[str, Union[bool, int]] = None,
+    enemy_post_pokemon: BattlePokemon = None,
+    my_post_pokemon: BattlePokemon = None,
 ) -> float:
     """
     전략적 요소를 고려한 최적화된 보상 계산
@@ -48,6 +50,14 @@ def calculate_reward(
     # 현재 활성화된 포켓몬
     current_pokemon = my_team[active_my]
     target_pokemon = enemy_team[active_enemy]
+    print(f"reward_calculator: my_post_pokemon: {my_post_pokemon.base.name}")
+    print(f"reward_calculator: enemy_post_pokemon: {enemy_post_pokemon.base.name}")
+    print(f"reward_calculator: enemy_post_pokemon.current_hp: {enemy_post_pokemon.current_hp}")
+    print(f"reward_calculator: current_pokemon: {current_pokemon.base.name}")
+    print(f"reward_calculator: current_pokemon.used_move: {current_pokemon.used_move.name if current_pokemon.used_move else 'None'}")
+    print(f"reward_calculator: current_pokemon.dealt_damage: {current_pokemon.dealt_damage}")
+    print(f"reward_calculator: target_pokemon: {target_pokemon.base.name}")
+    print(f"reward_calculator: target_pokemon.received_damage: {target_pokemon.received_damage}")
 
     # battle_store에서 pre_damage_list 가져오기
     pre_damage_list = store.get_pre_damage_list() if battle_store else []
@@ -83,12 +93,15 @@ def calculate_reward(
             reward += 0.1  # 매우 큰 보상
             print(f"Good switch: Resistant to 1/4 damage! Reward: {reward}")
     # 교체가 아니라 싸운 경우
-    else:
+    elif action < 4 and current_pokemon.base.name == my_post_pokemon.base.name: # 죽어서 새로 나온거 아닐 때 
         # 포켓몬이 기절했거나 행동할 수 없는 경우 리워드 계산하지 않음
         if result and (result.get("was_null", False) or current_pokemon.current_hp <= 0):
             print("Pokemon couldn't move or fainted, skipping reward calculation")
             return reward
-
+        # 상대 쓰러뜨렸으면 리워드 증가
+        if current_pokemon.dealt_damage == enemy_post_pokemon.current_hp:
+            reward += 0.2
+            print(f"Good choice: Used a move to defeat the enemy! Reward: {reward}")
         # 데미지가 같은 기술 중 demerit_effects가 있는 기술이 있음에도 demerit_effects가 없는 기술을 사용한 경우 리워드 증가
         for i, (damage, demerit, effect) in enumerate(pre_damage_list):
             if i == action and damage > 0:  # 현재 선택한 공격 기술

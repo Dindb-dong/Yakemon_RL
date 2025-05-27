@@ -193,6 +193,9 @@ class YakemonEnv(gym.Env):
             current_state = self._get_state()
             alive_my_pokemon = [p for p in self.my_team if p.current_hp > 0]
             alive_enemy_pokemon = [p for p in self.enemy_team if p.current_hp > 0]
+            # 배틀 진행되기 전 시점의 포켓몬 복사 저장 
+            my_post_pokemon = self.my_team[self.battle_store.get_active_index('my')].copy_with()
+            enemy_post_pokemon = self.enemy_team[self.battle_store.get_active_index('enemy')].copy_with()
             my_pokemon = self.my_team[self.battle_store.get_active_index('my')]
             print('턴: ',self.turn)
             print(f"현재 남은 내 포켓몬: {len(alive_my_pokemon)}")
@@ -287,7 +290,9 @@ class YakemonEnv(gym.Env):
                     done=self.done,
                     battle_store=self.battle_store,
                     duration_store=self.duration_store,
-                    result=result
+                    result=result,
+                    enemy_post_pokemon=enemy_post_pokemon,
+                    my_post_pokemon=my_post_pokemon
                 )
                 print(f"Reward in this step: {reward}")
                 return next_state, reward, self.done, {}
@@ -326,7 +331,9 @@ class YakemonEnv(gym.Env):
                 done=self.done,
                 battle_store=self.battle_store,
                 duration_store=self.duration_store,
-                result=result
+                result=result,
+                enemy_post_pokemon=enemy_post_pokemon,
+                my_post_pokemon=my_post_pokemon
             )
             print(f"Reward in this step: {reward}")
             # 턴 증가

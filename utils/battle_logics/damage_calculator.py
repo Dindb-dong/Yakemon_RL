@@ -12,9 +12,9 @@ from utils.battle_logics.calculate_type_effectiveness import calculate_type_effe
 from utils.battle_logics.helpers import has_ability
 from utils.battle_logics.apply_before_damage import apply_defensive_ability_effect_before_damage, apply_offensive_ability_effect_before_damage
 from utils.battle_logics.update_battle_pokemon import (
-    add_status, change_hp, change_position, change_rank, remove_status,
+    add_status, change_hp, change_position, change_rank,
     set_charging, set_had_missed, set_locked_move, set_protecting,
-    set_received_damage, set_used_move, use_move_pp
+    set_received_damage, set_used_move, use_move_pp, set_dealt_damage
 )
 from utils.battle_logics.update_environment import add_trap, set_field, set_room, set_screen, set_weather
 from utils.battle_logics.apply_none_move_damage import apply_thorn_damage
@@ -360,6 +360,7 @@ async def calculate_move_damage(
         store.update_pokemon(side, active_mine, lambda p: set_used_move(p, move_info))
         store.update_pokemon(side, active_mine, lambda p: set_charging(p, False, None))
         store.update_pokemon(side, active_mine, lambda p: change_position(p, None))
+        store.update_pokemon(side, active_mine, lambda p: set_dealt_damage(p, defender.base.hp))
         store.add_log(f"💥 {opponent_pokemon.name}은/는 일격필살기에 쓰러졌다!")
         return {"success": True, "damage": defender.current_hp, "is_hit": True, "was_null": was_null, "was_effective": 0}
         
@@ -557,6 +558,7 @@ async def calculate_move_damage(
                                 lambda p: change_hp(p, 1 - p.current_hp))
             store.update_pokemon(opponent_side, active_opponent,
                                 lambda p: set_received_damage(p, p.base.hp - 1))
+            store.update_pokemon(side, active_mine, lambda p: set_dealt_damage(p, defender.base.hp - 1))
             store.update_pokemon(side, active_mine,
                                 lambda p: use_move_pp(p, move_name, 
                                                 defender.base.ability.name == "프레셔" if defender.base.ability else False, 
@@ -594,6 +596,7 @@ async def calculate_move_damage(
                             lambda p: change_hp(p, -damage))
         store.update_pokemon(opponent_side, active_opponent,
                             lambda p: set_received_damage(p, damage))
+        store.update_pokemon(side, active_mine, lambda p: set_dealt_damage(p, damage))
         store.update_pokemon(side, active_mine,
                             lambda p: use_move_pp(p, move_name, 
                                             defender.base.ability.name == "프레셔" if defender.base.ability else False, 
