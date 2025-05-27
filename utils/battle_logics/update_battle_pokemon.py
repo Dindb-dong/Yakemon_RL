@@ -239,6 +239,10 @@ def set_received_damage(pokemon: BattlePokemon, damage: int) -> BattlePokemon:
     pokemon.received_damage = damage
     return pokemon
 
+# 준 데미지 기록
+def set_dealt_damage(pokemon: BattlePokemon, dealt_damage: int) -> BattlePokemon:
+    pokemon.dealt_damage = dealt_damage
+    return pokemon
 
 # 전투 출전 여부
 def set_active(pokemon: BattlePokemon, is_active: bool) -> BattlePokemon:
@@ -272,10 +276,11 @@ def remove_types(pokemon: BattlePokemon, type_: str, is_normal: bool = False) ->
 def reset_state(pokemon: BattlePokemon, is_switch: bool = False) -> BattlePokemon:
     pokemon.is_protecting = False
     pokemon.had_rank_up = False
-    pokemon.received_damage = 0
     pokemon.is_first_turn = False
 
     if is_switch:
+        pokemon.received_damage = 0
+        pokemon.dealt_damage = 0
         pokemon.base.types = pokemon.temp_type if pokemon.temp_type else pokemon.base.types
         pokemon.used_move = None
         pokemon.un_usable_move = None
