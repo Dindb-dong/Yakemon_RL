@@ -106,10 +106,67 @@ async def train_agent(
     Returns:
         tuple: (rewards_history, losses_history, victories_history)
     """
+    # models/ 디렉토리에서 모든 .pth 파일 찾기
+    best_model_files = [f for f in os.listdir('best_models') if f.endswith('.pth')]
+    best_reward = 0
+    if best_model_files:
+        # 파일 이름에서 평균 리워드 추출 (파일명 형식: "숫자_best.pth")
+        reward_model_pairs = []
+        for file in best_model_files:
+            try:
+                reward = float(file.split('_')[0])
+                reward_model_pairs.append((reward, file))
+            except ValueError:
+                continue
+        
+        if reward_model_pairs:
+            # 가장 높은 평균 리워드를 가진 모델 찾기
+            best_reward, best_model = max(reward_model_pairs, key=lambda x: x[0])
+            if HYPERPARAMS["load_best_model"]:
+                load_path = os.path.join('best_models', best_model)
+                print(f"Loading model with highest average reward: {best_reward} from {load_path}")
+                agent.load(load_path)
+        else:
+            print("No valid model files found in best_models/ directory")
+    else:
+        print("No .pth files found in best_models/ directory")
+    # 마지막 모델 로드
+    if HYPERPARAMS["load_last_model"]:
+        # models/ 디렉토리에서 training_* 형식의 폴더들을 찾기
+        training_folders = [f for f in os.listdir('models') if f.startswith('training_')]
+        if training_folders:
+            # 가장 최근의 training 폴더 찾기 (날짜순 정렬)
+            latest_training_folder = sorted(training_folders)[-1]
+            training_path = os.path.join('models', latest_training_folder)
+            
+            # 해당 폴더에서 ddqn_episode_*.pth 파일들 찾기
+            model_files = [f for f in os.listdir(training_path) if f.startswith('ddqn_episode_') and f.endswith('.pth')]
+            if model_files:
+                # episode 번호 추출하여 가장 큰 번호의 모델 찾기
+                episode_numbers = []
+                for file in model_files:
+                    try:
+                        episode = int(file.split('_')[-1].split('.')[0])  # ddqn_episode_숫자.pth에서 숫자 추출
+                        episode_numbers.append((episode, file))
+                    except ValueError:
+                        continue
+                
+                if episode_numbers:
+                    # 가장 큰 episode 번호를 가진 모델 찾기
+                    latest_episode, latest_model = max(episode_numbers, key=lambda x: x[0])
+                    load_path = os.path.join(training_path, latest_model)
+                    print(f"Loading latest model from episode {latest_episode} at {load_path}")
+                    agent.load(load_path)
+                else:
+                    print(f"No valid model files found in {training_path}")
+            else:
+                print(f"No model files found in {training_path}")
+        else:
+            print("No training folders found in models/ directory")
+    
     rewards_history = []
     losses_history = []
     victories_history = []
-    best_reward = -10
     
     # 모델 저장 디렉토리 생성
     os.makedirs(save_path, exist_ok=True)
@@ -140,7 +197,7 @@ async def train_agent(
         first_two_types = first_pokemon_types.union(set(my_team[1].types))
         available_third = [p for p in all_pokemon if not any(t in first_two_types for t in p.types)]
         my_team.append(random.choice(available_third))
-        
+
         # 상대 팀도 동일한 로직으로 구성
         enemy_team = [random.choice(all_pokemon)]
         
@@ -236,7 +293,7 @@ async def train_agent(
         # 최고 성능 모델 저장
         if avg_reward > best_reward:
             best_reward = avg_reward
-            agent.save(os.path.join(save_path, f'{agent_name}_best.pth'))
+            agent.save(os.path.join('best_models', f'{avg_reward}_best.pth'))
         
         # 주기적으로 모델 저장
         if (episode + 1) % HYPERPARAMS["save_interval"] == 0:
@@ -266,6 +323,7 @@ async def test_agent(
     """
     학습된 에이전트 테스트
     """
+    
     rewards = []
     steps_list = []
     victories = 0  # 승리 횟수 추적

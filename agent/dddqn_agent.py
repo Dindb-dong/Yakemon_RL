@@ -17,29 +17,23 @@ class DuelingDQN(nn.Module):
     def __init__(self, input_dim, output_dim):
         super(DuelingDQN, self).__init__()
         
-        # 공통 특성 추출기
+        # 공통 특성 추출기 - 더 작고 단순한 구조로 변경
         self.feature_layer = nn.Sequential(
-            nn.Linear(input_dim, 512),
-            nn.ReLU(),
-            nn.Linear(512, 256),
+            nn.Linear(input_dim, 256),
             nn.ReLU(),
             nn.Linear(256, 128),
             nn.ReLU()
         )
         
-        # Value 스트림
+        # Value 스트림 - 단순화
         self.value_stream = nn.Sequential(
-            nn.Linear(128, 128),
-            nn.ReLU(),
             nn.Linear(128, 64),
             nn.ReLU(),
             nn.Linear(64, 1)
         )
         
-        # Advantage 스트림
+        # Advantage 스트림 - 단순화
         self.advantage_stream = nn.Sequential(
-            nn.Linear(128, 128),
-            nn.ReLU(),
             nn.Linear(128, 64),
             nn.ReLU(),
             nn.Linear(64, output_dim)
@@ -53,7 +47,6 @@ class DuelingDQN(nn.Module):
         # Dueling DQN의 Q-value 계산
         qvals = values + (advantages - advantages.mean(dim=1, keepdim=True))
         return qvals
-
 class DDDQNAgent:
     """
     Dueling Double DQN 에이전트
@@ -199,7 +192,7 @@ class DDDQNAgent:
     def update_epsilon(self):
         """탐험률을 감소시킵니다."""
         self.epsilon = max(self.epsilon_end, self.epsilon * self.epsilon_decay)
-    
+
     def train(self):
         """
         네트워크를 학습합니다.
@@ -219,7 +212,7 @@ class DDDQNAgent:
             # 텐서 변환
             state_batch = torch.FloatTensor(states).to(self.device)
             action_batch = torch.LongTensor(actions).to(self.device)
-            reward_batch = torch.FloatTensor(rewards).clamp(-5, 5).to(self.device)
+            reward_batch = torch.FloatTensor(rewards).clamp(-10, 10).to(self.device)  # reward clipping 범위 확대
             next_state_batch = torch.FloatTensor(next_states).to(self.device)
             done_batch = torch.FloatTensor(dones).to(self.device)
             
@@ -242,12 +235,12 @@ class DDDQNAgent:
                 next_target_q_values = self.target_net(next_state_batch)
                 next_q_values = next_target_q_values.gather(1, next_actions)
                 
-                # Q 값 클리핑
-                next_q_values = next_q_values.clamp(-10, 10)
+                # Q 값 클리핑 - 범위 확대
+                next_q_values = next_q_values.clamp(-20, 20)
                 
                 # expected Q 값 계산
                 expected_q_values = reward_batch.unsqueeze(1) + (1 - done_batch.unsqueeze(1)) * self.gamma * next_q_values
-                expected_q_values = expected_q_values.clamp(-10, 10)
+                expected_q_values = expected_q_values.clamp(-20, 20)
             
             # Q값 디버그 정보
             print(f"Debug - Q-values:")
@@ -264,7 +257,7 @@ class DDDQNAgent:
             # 최적화
             self.optimizer.zero_grad()
             loss.backward()
-            torch.nn.utils.clip_grad_norm_(self.policy_net.parameters(), 1.0)
+            torch.nn.utils.clip_grad_norm_(self.policy_net.parameters(), 5.0)  # gradient clipping 범위 확대
             self.optimizer.step()
             
             # 학습 스텝 카운트 증가
@@ -286,7 +279,6 @@ class DDDQNAgent:
         except Exception as e:
             print(f"Error during training: {str(e)}")
             return 0.0
-
     def update(self):
         """
         네트워크를 학습하고 탐험률을 업데이트합니다.
