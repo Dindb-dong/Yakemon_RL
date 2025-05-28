@@ -29,7 +29,7 @@ async def battle_sequence(
     my_action: BattleAction,
     enemy_action: BattleAction,
     watch_mode: Optional[bool] = None
-) -> dict[str, Union[bool, int]]:
+): #  -> dict[str, Union[bool, int]] 2개.
     state: BattleStoreState = store.get_state()
     active_enemy = state["active_enemy"]
     active_my = state["active_my"]
@@ -59,6 +59,7 @@ async def battle_sequence(
         return isinstance(action, dict) and action.get("type") == "switch"
 
     result = {}
+    outcome = {}
 
     # === 0. 한 쪽만 null ===
     if my_action is None and enemy_action is not None:
@@ -70,18 +71,18 @@ async def battle_sequence(
         elif is_switch_action(enemy_action):
             await switch_pokemon("enemy", enemy_action["index"])
         await apply_end_turn_effects()
-        return result if result else {"was_null": False, "was_effective": 0}
+        return {"result": result if result else {"was_null": False, "was_effective": 0}, "outcome": {"was_null": False, "was_effective": 0}}
 
     if enemy_action is None and my_action is not None:
         store.add_log("🙅‍♀️ 상대 포켓몬은 행동할 수 없었다...")
         print("🙅‍♀️ 상대 포켓몬은 행동할 수 없었다...")
         store.update_pokemon("enemy", active_my, lambda p: set_cannot_move(p, False))
         if is_move_action(my_action):
-            await handle_move("my", my_action, active_my, watch_mode)
+            outcome: dict[str, Union[bool, int]] = await handle_move("my", my_action, active_my, watch_mode)
         elif is_switch_action(my_action):
             await switch_pokemon("my", my_action["index"])
         await apply_end_turn_effects()
-        return {"was_null": False, "was_effective": 0}
+        return {"result": {"was_null": False, "was_effective": 0}, "outcome": outcome if outcome else {"was_null": False, "was_effective": 0}}
 
     if enemy_action is None and my_action is None:
         store.add_log("😴 양측 모두 행동할 수 없었다...")
@@ -89,7 +90,7 @@ async def battle_sequence(
         store.update_pokemon("my", active_enemy, lambda p: set_cannot_move(p, False))
         store.update_pokemon("enemy", active_my, lambda p: set_cannot_move(p, False))
         await apply_end_turn_effects()
-        return {"was_null": False, "was_effective": 0}
+        return {"result": {"was_null": False, "was_effective": 0}, "outcome": {"was_null": False, "was_effective": 0}}
 
     store.add_log("우선도 및 스피드 계산중...")
     print("우선도 및 스피드 계산중...")
@@ -108,7 +109,7 @@ async def battle_sequence(
             await switch_pokemon("enemy", enemy_action["index"])
             await switch_pokemon("my", my_action["index"])
         await apply_end_turn_effects()
-        return {"was_null": False, "was_effective": 0}
+        return {"result": {"was_null": False, "was_effective": 0}, "outcome": {"was_null": False, "was_effective": 0}}
 
     # === 2. 한 쪽만 교체 ===
     if is_switch_action(my_action):
@@ -121,7 +122,7 @@ async def battle_sequence(
                 print('나는 교체, 상대는 공격!')
                 result: dict[str, Union[bool, int]] = await handle_move("enemy", enemy_action, store.get_active_index("enemy"), watch_mode, True)
         await apply_end_turn_effects()
-        return result if result else {"was_null": False, "was_effective": 0}
+        return {"result": result if result else {"was_null": False, "was_effective": 0}, "outcome": {"was_null": False, "was_effective": 0}}
 
     if is_switch_action(enemy_action):
         await switch_pokemon("enemy", enemy_action["index"])
@@ -131,9 +132,9 @@ async def battle_sequence(
                 print("my의 기습은 실패했다...")
             else:
                 print('상대는 교체, 나는 공격!')
-                await handle_move("my", my_action, store.get_active_index("my"), watch_mode, True)
+                outcome: dict[str, Union[bool, int]] = await handle_move("my", my_action, store.get_active_index("my"), watch_mode, True)
         await apply_end_turn_effects()
-        return {"was_null": False, "was_effective": 0}
+        return {"result": {"was_null": False, "was_effective": 0}, "outcome": outcome if outcome else {"was_null": False, "was_effective": 0}}
 
     # === 3. 둘 다 기술 ===
     if is_move_action(my_action) and is_move_action(enemy_action):
@@ -147,23 +148,23 @@ async def battle_sequence(
                 # 상대 기습보다 내 선공기가 먼저였으면 실패 -> 나만 공격함
                 store.add_log("enemy의 기습은 실패했다...")
                 print("enemy의 기습은 실패했다...")
-                await handle_move("my", my_action, store.get_active_index("my"), watch_mode)
+                outcome: dict[str, Union[bool, int]] = await handle_move("my", my_action, store.get_active_index("my"), watch_mode)
             else:  # 그 외의 일반적인 경우들
                 print('내 선공!')
-                await handle_move("my", my_action, store.get_active_index("my"), watch_mode)
+                outcome: dict[str, Union[bool, int]] = await handle_move("my", my_action, store.get_active_index("my"), watch_mode)
                 # 상대가 쓰러졌는지 확인
                 opponent_pokemon = store.get_team("enemy")
                 current_defender = opponent_pokemon[store.get_active_index("enemy")]
                 if current_defender and current_defender.current_hp <= 0:
                     await apply_end_turn_effects()
-                    return result if result else {"was_null": False, "was_effective": 0}
+                    return {"result": {"was_null": False, "was_effective": 0}, "outcome": outcome if outcome else {"was_null": False, "was_effective": 0}}
                 result: dict[str, Union[bool, int]] = await handle_move("enemy", enemy_action, active_enemy, watch_mode, True)
         else:  # 상대가 선공일 경우
             if enemy_action.name == "기습" and my_action.category == "변화":
                 # 상대 기습 실패, 내 기술만 작동
                 store.add_log("enemy의 기습은 실패했다...")
                 print("enemy의 기습은 실패했다...")
-                await handle_move("my", my_action, store.get_active_index("my"), watch_mode, True)
+                outcome: dict[str, Union[bool, int]] = await handle_move("my", my_action, store.get_active_index("my"), watch_mode, True)
             elif my_action.name == "기습":  # 내 기습이 상대보다 느림 -> 상대 기습만 작동
                 store.add_log("my의 기습은 실패했다...")
                 print("my의 기습은 실패했다...")
@@ -177,11 +178,11 @@ async def battle_sequence(
                 current_defender = opponent_pokemon[store.get_active_index("my")]
                 if current_defender and current_defender.current_hp <= 0:
                     await apply_end_turn_effects()
-                    return result
-                await handle_move("my", my_action, active_my, watch_mode, True)
+                    return {"result": result if result else {"was_null": False, "was_effective": 0}, "outcome": {"was_null": False, "was_effective": 0}}
+                outcome: dict[str, Union[bool, int]] = await handle_move("my", my_action, active_my, watch_mode, True)
 
     await apply_end_turn_effects()
-    return result if result else {"was_null": False, "was_effective": 0}
+    return {"result": result if result else {"was_null": False, "was_effective": 0}, "outcome": outcome if outcome else {"was_null": False, "was_effective": 0}}
 
 async def handle_move(
     side: Literal["my", "enemy"],

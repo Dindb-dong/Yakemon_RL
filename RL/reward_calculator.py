@@ -21,6 +21,7 @@ def calculate_reward(
     battle_store=None,
     duration_store=None,
     result: dict[str, Union[bool, int]] = None,
+    outcome: dict[str, Union[bool, int]] = None,
     enemy_post_pokemon: BattlePokemon = None,
     my_post_pokemon: BattlePokemon = None,
 ) -> float:
@@ -98,11 +99,29 @@ def calculate_reward(
             print(f"Good switch: Resistant to 1/4 damage! Reward: {reward}")
     # 교체가 아니라 싸운 경우
     elif action < 4:
+        # damage_calculator.py에서 계산된 was_effective와 was_null 값 사용
+        was_effective = outcome.get('was_effective', 0)
+        was_null = outcome.get('was_null', False)
+        print(f"was_effective: {was_effective}")
+        if was_null:
+            reward -= 0.5  # 효과 없는 공격에 대한 보상
+            print(f"Bad Attack: Immune to attack... Reward: {reward}")
+        elif was_effective == 2:  # 4배 이상 데미지
+            reward += 0.2  # 매우 큰 리워드
+            print(f"Good Attack: Attacked to 4x effectiveness! Reward: {reward}")
+        elif was_effective == 1:  # 2배 데미지
+            reward += 0.1  # 적당한 리워드
+            print(f"Good Attack: Attacked to 2x effectiveness! Reward: {reward}")
+        elif was_effective == -1:  # 1/2 데미지
+            reward -= 0.1 # 적당한 페널티
+            print(f"Bad Attack: Attacked to 1/2 effectiveness! Reward: {reward}")
+        elif was_effective == -2:  # 1/4 데미지
+            reward -= 0.2  # 매우 큰 페널티
+            print(f"Bad Attack: Attacked to 1/4 effectiveness! Reward: {reward}")
         # 포켓몬이 행동할 수 없는 경우 리워드 계산하지 않음 (선공을 맞고 기절한 경우는 제외)
-        if result and result.get("was_null", False):
+        if outcome and outcome.get("was_null", False) and my_post_pokemon.cannot_move is not None and my_post_pokemon.cannot_move == True:
             print("Pokemon couldn't move due to type immunity or ability, skipping reward calculation")
             return reward
-
 
         # 상대 쓰러뜨렸으면 리워드 증가
         if current_pokemon.dealt_damage == enemy_post_pokemon.current_hp or my_post_pokemon.dealt_damage == enemy_post_pokemon.current_hp:

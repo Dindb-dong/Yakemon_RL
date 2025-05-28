@@ -257,10 +257,12 @@ class YakemonEnv(gym.Env):
                         if random.random() < 0.5:
                             enemy_action = self.enemy_team[self.battle_store.get_active_index("enemy")].base.moves[0]
                     
-                    result: dict[str, Union[bool, int]] = await battle_sequence(
+                    battle_result = await battle_sequence(
                         my_action=battle_action,
                         enemy_action=enemy_action
                     )
+                    result = battle_result["result"]
+                    outcome = battle_result["outcome"]
                 except Exception as e:
                     print(f"Error during battle sequence: {str(e)}")
                     return current_state, -5.0, True, {"error": "battle_sequence_error"}
@@ -291,6 +293,7 @@ class YakemonEnv(gym.Env):
                     battle_store=self.battle_store,
                     duration_store=self.duration_store,
                     result=result,
+                    outcome=outcome,
                     enemy_post_pokemon=enemy_post_pokemon,
                     my_post_pokemon=my_post_pokemon
                 )
@@ -332,6 +335,7 @@ class YakemonEnv(gym.Env):
                 battle_store=self.battle_store,
                 duration_store=self.duration_store,
                 result=result,
+                outcome=outcome,
                 enemy_post_pokemon=enemy_post_pokemon,
                 my_post_pokemon=my_post_pokemon
             )
