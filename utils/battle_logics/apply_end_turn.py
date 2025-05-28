@@ -116,7 +116,7 @@ async def apply_end_turn_effects():
             store.add_log(f"🦅 {pokemon.base.name}의 가속 특성 발동!")
 
         if ability_name == "변덕쟁이":
-            stats = ["attack", "spAttack", "defense", "spDefense", "speed"]
+            stats = ["attack", "sp_attack", "defense", "sp_defense", "speed"]
             up = random.choice(stats)
             down = random.choice(stats)
             store.update_pokemon(side, active_index, lambda p: change_rank(p, up, 2))
