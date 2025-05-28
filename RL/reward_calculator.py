@@ -51,6 +51,8 @@ def calculate_reward(
     current_pokemon = my_team[active_my]
     target_pokemon = enemy_team[active_enemy]
     print(f"reward_calculator: my_post_pokemon: {my_post_pokemon.base.name}")
+    print(f"reward_calculator: my_post_pokemon.used_move: {my_post_pokemon.used_move.name if my_post_pokemon.used_move else 'None'}")
+    print(f"reward_calculator: my_post_pokemon.current_hp: {my_post_pokemon.current_hp}")
     print(f"reward_calculator: my_post_pokemon.dealt_damage: {my_post_pokemon.dealt_damage}")
     print(f"reward_calculator: enemy_post_pokemon: {enemy_post_pokemon.base.name}")
     print(f"reward_calculator: enemy_post_pokemon.current_hp: {enemy_post_pokemon.current_hp}")
@@ -101,6 +103,7 @@ def calculate_reward(
             print("Pokemon couldn't move due to type immunity or ability, skipping reward calculation")
             return reward
 
+
         # 상대 쓰러뜨렸으면 리워드 증가
         if current_pokemon.dealt_damage == enemy_post_pokemon.current_hp or my_post_pokemon.dealt_damage == enemy_post_pokemon.current_hp:
             reward += 2.0
@@ -125,6 +128,14 @@ def calculate_reward(
             print(f"received_damage (u_turn): {target_pokemon.received_damage}")
             print(f"enemy_post_pokemon.base.hp: {enemy_post_pokemon.base.hp}")
             print(f"hit(u_turn) : {reward}")
+        # 스탯 상승 기술 사용 후 바로 기절한 경우
+        elif ((my_post_pokemon.base.name != current_pokemon.base.name) and (current_pokemon.used_move == None) and (enemy_post_pokemon.base.name == target_pokemon.base.name)
+            and my_post_pokemon.used_move is not None and my_post_pokemon.used_move.effects and 
+            any(effect.chance == 1.0 and effect.stat_change 
+                for effect in my_post_pokemon.used_move.effects)):
+            print(f"Warning: Used stat boost move ({my_post_pokemon.used_move.name}) but fainted immediately!")
+            reward -= 1.0  # 스탯 상승 기술 사용 후 바로 기절한 경우 페널티
+            print(f"Penalty for using stat boost move and fainting: {reward}")
 
         # 선공을 맞고 죽은 경우가 아닐 때만 기술 선택에 따른 리워드 계산
         if current_pokemon.current_hp > 0:
@@ -164,7 +175,7 @@ def calculate_reward(
         
         # 포켓몬 수 차이에 따른 보상 계산 (이 값은 그대로 유지 - 승리/패배가 가장 중요)
         if pokemon_count_difference == -3:
-            reward -= 2  # 상대가 3마리 이상 많음
+            reward -= 2.0  # 상대가 3마리 이상 많음
             print(f"You lose! 0 : 3")
         elif pokemon_count_difference == -2:
             reward -= 1.0  # 상대가 2마리 많음
@@ -183,7 +194,7 @@ def calculate_reward(
             print(f"You win! 3 : 0")
         else:
             if victory:
-                reward += 1.0
+                reward += 2.0
                 print(f"You win! 0 : 0")
             else:
                 reward -= 0.5
