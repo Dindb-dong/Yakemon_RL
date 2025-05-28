@@ -1,5 +1,6 @@
 from typing import List, Union
 from p_models.move_info import MoveInfo
+from p_models.pokemon_info import PokemonInfo
 from p_models.status import StatusManager
 from p_models.battle_pokemon import BattlePokemon
 from utils.battle_logics.pre_damage_calculator import pre_calculate_move_damage
@@ -47,9 +48,10 @@ def calculate_reward(
     """     
     # 보상 초기화
     reward = 0.0
-
+    my_post_pokemon.used_move = outcome.get("used_move", None)
     # 현재 활성화된 포켓몬
     current_pokemon = my_team[active_my]
+    my_alive_team: List[PokemonInfo] = [p.base for p in my_team if p.current_hp > 0]
     target_pokemon = enemy_team[active_enemy]
     print(f"reward_calculator: my_post_pokemon: {my_post_pokemon.base.name}")
     print(f"reward_calculator: my_post_pokemon.used_move: {my_post_pokemon.used_move.name if my_post_pokemon.used_move else 'None'}")
@@ -122,7 +124,11 @@ def calculate_reward(
         if outcome and outcome.get("was_null", False) and my_post_pokemon.cannot_move is not None and my_post_pokemon.cannot_move == True:
             print("Pokemon couldn't move due to type immunity or ability, skipping reward calculation")
             return reward
-
+        # 이전 포켓몬이 공격 못하고 죽었을 때 또는 강제 교체 당했을 때 리워드 계산
+        if my_post_pokemon.used_move is None and (my_post_pokemon.base.name != current_pokemon.base.name):
+            print("이전 포켓몬이 공격 못하고 쓰러졌거나 강제교체 당함")
+            # 공격 못하고 죽음 
+            reward -= 0.05
         # 상대 쓰러뜨렸으면 리워드 증가
         if current_pokemon.dealt_damage == enemy_post_pokemon.current_hp or my_post_pokemon.dealt_damage == enemy_post_pokemon.current_hp:
             reward += 2.0
@@ -140,13 +146,7 @@ def calculate_reward(
             print(f"received_damage (fallback): {target_pokemon.received_damage}")
             print(f"enemy_post_pokemon.base.hp: {enemy_post_pokemon.base.hp}")
             print(f"hit(fallback) : {reward}")
-            """
-            # 그런데 그 기술이 확정 랭업기였을때
-            if my_post_pokemon.used_move.effects and any(effect.chance == 1.0 and effect.stat_change and any(sc.target == 'self' for sc in effect.stat_change) for effect in my_post_pokemon.used_move.effects):
-                print(f"Warning: Used stat boost move ({my_post_pokemon.used_move.name}) but fainted immediately!")
-                reward -= 0.1  # 스탯 상승 기술 사용 후 바로 기절한 경우 페널티
-                print(f"Penalty for using stat boost move and fainting: {reward}")
-            """
+            
         # 유턴 기술로 때렸을 때
         elif ((my_post_pokemon.base.name != current_pokemon.base.name) and (current_pokemon.used_move == None) and (enemy_post_pokemon.base.name == target_pokemon.base.name)
             and my_post_pokemon.used_move is not None and my_post_pokemon.used_move.u_turn and target_pokemon.received_damage is not None):
@@ -154,6 +154,15 @@ def calculate_reward(
             print(f"received_damage (u_turn): {target_pokemon.received_damage}")
             print(f"enemy_post_pokemon.base.hp: {enemy_post_pokemon.base.hp}")
             print(f"hit(u_turn) : {reward}")
+        # 기술은 썼는데 데미지 못주고 죽음
+        elif ((my_post_pokemon.base.name != current_pokemon.base.name) and (current_pokemon.used_move == None) and (enemy_post_pokemon.base.name == target_pokemon.base.name)
+            and my_post_pokemon.used_move is not None and target_pokemon.received_damage is None):
+            # 그런데 그 기술이 확정 랭업기였을때
+            if my_post_pokemon.used_move.effects and any(effect.chance == 1.0 and effect.stat_change and any(sc.target == 'self' for sc in effect.stat_change) for effect in my_post_pokemon.used_move.effects):
+                print(f"Warning: Used stat boost move ({my_post_pokemon.used_move.name}) but fainted immediately!")
+                reward -= 0.1  # 스탯 상승 기술 사용 후 바로 기절한 경우 페널티
+                print(f"Penalty for using stat boost move and fainting: {reward}")
+            # TODO: 상태이상 기술 추가하기 
         """
         # 스탯 상승 기술 사용 후 바로 기절한 경우 (위력 없음)
         elif ((my_post_pokemon.base.name != current_pokemon.base.name) and (current_pokemon.used_move == None) and (enemy_post_pokemon.base.name == target_pokemon.base.name)

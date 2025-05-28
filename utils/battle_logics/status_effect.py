@@ -32,6 +32,7 @@ def apply_status_effect_before(
             can_act = False
             
         elif s == "잠듦":
+            print(f"잠듦 체크")
             sleep_list = duration_store.get_effects(side)
             sleep_effect = next((e for e in sleep_list if e.name == "잠듦"), None)
             
@@ -63,6 +64,7 @@ def apply_status_effect_before(
                     })
                     
         elif s == "마비":
+            print(f"마비 체크")
             if not can_act:
                 break
             if random.random() < 0.25:
@@ -72,6 +74,7 @@ def apply_status_effect_before(
                 can_act = True
                 
         elif s == "얼음":
+            print(f"얼음 체크")
             if random.random() < 0.2 or move.type == "불":
                 store.update_pokemon(side, active_index, lambda p: remove_status(p, "얼음"))
                 store.add_log(f"🏋️‍♂️ {active_team[active_index].base.name}의 얼음이 녹았다!")
@@ -81,6 +84,7 @@ def apply_status_effect_before(
                 can_act = False
                 
         elif s == "혼란":
+            print(f"혼란 체크")
             recovered = duration_store.decrement_confusion_turn(side, active_index)
             if recovered:
                 can_act = True
