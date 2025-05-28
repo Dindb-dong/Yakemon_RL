@@ -143,11 +143,11 @@ def pre_calculate_move_damage( # 배틀을 실행하기 전에 만약 다른 기
                     if move_info.name == "플라잉프레스":
                         fighting_move = move_info.copy(type="격투")
                         flying_move = move_info.copy(type="비행")
-                        fighting_effect = apply_defensive_ability_effect_before_damage(fighting_move, side)
-                        flying_effect = apply_defensive_ability_effect_before_damage(flying_move, side)
+                        fighting_effect = apply_defensive_ability_effect_before_damage(fighting_move, side, pre_damage=True)
+                        flying_effect = apply_defensive_ability_effect_before_damage(flying_move, side, pre_damage=True)
                         types *= fighting_effect * flying_effect
                     else:  # 일반적인 경우
-                        types *= apply_defensive_ability_effect_before_damage(move_info, side)
+                        types *= apply_defensive_ability_effect_before_damage(move_info, side, pre_damage=True)
         
         # 방어적 특성이 없는 경우
         if move_info.name == "프리즈드라이" and move_info.type == "노말":
@@ -156,8 +156,8 @@ def pre_calculate_move_damage( # 배틀을 실행하기 전에 만약 다른 기
         if move_info.name == "플라잉프레스":
             fighting_move = move_info.copy(type="격투")
             flying_move = move_info.copy(type="비행")
-            fighting_effect = apply_defensive_ability_effect_before_damage(fighting_move, side)
-            flying_effect = apply_defensive_ability_effect_before_damage(flying_move, side)
+            fighting_effect = apply_defensive_ability_effect_before_damage(fighting_move, side, pre_damage=True)
+            flying_effect = apply_defensive_ability_effect_before_damage(flying_move, side, pre_damage=True)
             types *= fighting_effect * flying_effect
         else:
             types *= calculate_type_effectiveness_with_ability(my_pokemon, opponent_pokemon, move_info)
@@ -255,7 +255,7 @@ def pre_calculate_move_damage( # 배틀을 실행하기 전에 만약 다른 기
 
     # 8. 상대 방어 특성 적용 (배율)
     # 만약 위에서 이미 types가 0이더라도, 나중에 곱하면 어차피 0 돼서 상관없음.
-    rate *= apply_defensive_ability_effect_before_damage(move_info, side, was_effective)
+    rate *= apply_defensive_ability_effect_before_damage(move_info, side, was_effective, pre_damage=True)
 
     # 9. 급소 적용
     # 급소 맞을 확률이 1/2 이상일 경우에만 작용하도록. 
