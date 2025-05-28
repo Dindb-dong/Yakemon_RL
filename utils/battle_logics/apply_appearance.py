@@ -78,21 +78,21 @@ def apply_appearance(pokemon: BattlePokemon, side: SideType, depth: int = 0) -> 
 
             elif ability.name == "다운로드":
                 if opp_pokemon.base.defense > opp_pokemon.base.sp_defense:
-                    update(side, my_index, lambda p: change_rank(p, "spAttack", 1))
+                    update(side, my_index, lambda p: change_rank(p, "sp_attack", 1))
                     add_log(f"🔃 상대의 특수방어가 낮아서 {pokemon.base.name}의 특수공격이 상승했다!")
                 elif opp_pokemon.base.defense < opp_pokemon.base.sp_defense:
                     update(side, my_index, lambda p: change_rank(p, "attack", 1))
                     add_log(f"🔃 상대의 방어가 낮아서 {pokemon.base.name}의 공격이 상승했다!")
                 else:
-                    update(side, my_index, lambda p: change_rank(p, "spAttack", 1))
+                    update(side, my_index, lambda p: change_rank(p, "sp_attack", 1))
                     add_log(f"🔃 상대의 방어와 특수방어가 같아서 {pokemon.base.name}의 특수공격이 상승했다!")
 
             elif ability.name == "고대활성" and public_env.weather == "쾌청":
                 stats = {
                     "attack": my_pokemon.base.attack,
                     "defense": my_pokemon.base.defense,
-                    "spAttack": my_pokemon.base.sp_attack,
-                    "spDefense": my_pokemon.base.sp_defense,
+                    "sp_attack": my_pokemon.base.sp_attack,
+                    "sp_defense": my_pokemon.base.sp_defense,
                     "speed": my_pokemon.base.speed,
                 }
                 best_stat = max(stats, key=stats.get)
@@ -103,8 +103,8 @@ def apply_appearance(pokemon: BattlePokemon, side: SideType, depth: int = 0) -> 
                 stats = {
                     "attack": my_pokemon.base.attack,
                     "defense": my_pokemon.base.defense,
-                    "spAttack": my_pokemon.base.sp_attack,
-                    "spDefense": my_pokemon.base.sp_defense,
+                    "sp_attack": my_pokemon.base.sp_attack,
+                    "sp_defense": my_pokemon.base.sp_defense,
                     "speed": my_pokemon.base.speed,
                 }
                 best_stat = max(stats, key=stats.get)

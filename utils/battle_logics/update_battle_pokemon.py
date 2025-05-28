@@ -61,6 +61,7 @@ def change_rank(pokemon: BattlePokemon, stat: str, amount: int) -> BattlePokemon
             manager.decrease_state(stat, abs(amount))
 
     pokemon.rank = manager.get_state()
+    print(f"{pokemon.base.name}의 {stat}이(가) {pokemon.rank[stat]}랭크로 변경되었다!")
     return pokemon
 
 
@@ -242,6 +243,11 @@ def set_received_damage(pokemon: BattlePokemon, damage: int) -> BattlePokemon:
 # 준 데미지 기록
 def set_dealt_damage(pokemon: BattlePokemon, dealt_damage: int) -> BattlePokemon:
     pokemon.dealt_damage = dealt_damage
+    return pokemon
+
+# 행동 불가
+def set_cannot_move(pokemon: BattlePokemon, cannot_move: bool) -> BattlePokemon:
+    pokemon.cannot_move = cannot_move
     return pokemon
 
 # 전투 출전 여부
