@@ -113,14 +113,14 @@ def calculate_reward(
             print(f"hit! : {reward}")
         # 내가 먼저 선공, 상대의 후공으로 기절했을 때
         elif ((my_post_pokemon.base.name != current_pokemon.base.name) and (current_pokemon.used_move == None) and (enemy_post_pokemon.base.name == target_pokemon.base.name)
-            and not my_post_pokemon.used_move.u_turn):
+            and my_post_pokemon.used_move is not None and not my_post_pokemon.used_move.u_turn and target_pokemon.received_damage is not None):
             reward += (target_pokemon.received_damage / target_pokemon.base.hp) * 0.2
             print(f"received_damage (fallback): {target_pokemon.received_damage}")
             print(f"enemy_post_pokemon.base.hp: {enemy_post_pokemon.base.hp}")
             print(f"hit(fallback) : {reward}")
         # 유턴 기술로 때렸을 때
         elif ((my_post_pokemon.base.name != current_pokemon.base.name) and (current_pokemon.used_move == None) and (enemy_post_pokemon.base.name == target_pokemon.base.name)
-            and my_post_pokemon.used_move.u_turn):
+            and my_post_pokemon.used_move is not None and my_post_pokemon.used_move.u_turn and target_pokemon.received_damage is not None):
             reward += (target_pokemon.received_damage / target_pokemon.base.hp) * 0.2
             print(f"received_damage (u_turn): {target_pokemon.received_damage}")
             print(f"enemy_post_pokemon.base.hp: {enemy_post_pokemon.base.hp}")

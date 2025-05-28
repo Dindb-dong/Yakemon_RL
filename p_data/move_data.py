@@ -321,7 +321,7 @@ move_datas = [
             chance=1.0,
             stat_change=[
                 StatChange('self', 'defense', -1),
-                StatChange('self', 'sp_de', -1),
+                StatChange('self', 'sp_defense', -1),
                 StatChange('self', 'attack', 2),
                 StatChange('self', 'sp_attack', 2),
                 StatChange('self', 'speed', 2)
@@ -370,7 +370,7 @@ move_datas = [
         effects=[MoveEffect(
             id=24,
             chance=0.1,
-            stat_change=[StatChange('opponent', 'sp_de', -1)]
+            stat_change=[StatChange('opponent', 'sp_defense', -1)]
         )],
         target='opponent'
     ),
@@ -626,7 +626,7 @@ move_datas = [
             chance=1.0,
             stat_change=[
                 StatChange('self', 'defense', -1),
-                StatChange('self', 'sp_de', -1)
+                StatChange('self', 'sp_defense', -1)
             ]
         )],
         target='opponent'
@@ -897,7 +897,7 @@ move_datas = [
             chance=1.0,
             stat_change=[
                 StatChange('self', 'defense', -1),
-                StatChange('self', 'sp_de', -1)
+                StatChange('self', 'sp_defense', -1)
             ]
         )],
         target='opponent'
@@ -1080,7 +1080,7 @@ move_datas = [
         effects=[MoveEffect(
             id=69,
             chance=0.1,
-            stat_change=[StatChange('opponent', 'sp_de', -1)]
+            stat_change=[StatChange('opponent', 'sp_defense', -1)]
         )],
         target='opponent'
     ),
@@ -1098,7 +1098,7 @@ move_datas = [
         effects=[MoveEffect(
             id=70,
             chance=0.1,
-            stat_change=[StatChange('opponent', 'sp_de', -1)]
+            stat_change=[StatChange('opponent', 'sp_defense', -1)]
         )],
         target='opponent'
     ),
@@ -1116,7 +1116,7 @@ move_datas = [
         effects=[MoveEffect(
             id=71,
             chance=0.1,
-            stat_change=[StatChange('opponent', 'sp_de', -1)]
+            stat_change=[StatChange('opponent', 'sp_defense', -1)]
         )],
         target='opponent'
     ),
@@ -1136,7 +1136,7 @@ move_datas = [
             chance=1.0,
             stat_change=[
                 StatChange('self', 'sp_attack', 1),
-                StatChange('self', 'sp_de', 1)
+                StatChange('self', 'sp_defense', 1)
             ]
         )],
         target='self'
@@ -1947,7 +1947,7 @@ move_datas = [
             chance=1.0,
             stat_change=[
                 StatChange('self', 'sp_attack', 1),
-                StatChange('self', 'sp_de', 1),
+                StatChange('self', 'sp_defense', 1),
                 StatChange('self', 'speed', 1)
             ]
         )],
@@ -2101,7 +2101,7 @@ move_datas = [
         effects=[MoveEffect(
             id=137,
             chance=1.0,
-            stat_change=[StatChange('opponent', 'sp_de', -2)]
+            stat_change=[StatChange('opponent', 'sp_defense', -2)]
         )],
         target='opponent'
     ),
@@ -3053,7 +3053,7 @@ move_datas = [
         effects=[MoveEffect(
             id=199,
             chance=1.0,
-            stat_change=[StatChange('opponent', 'sp_de', -1)]
+            stat_change=[StatChange('opponent', 'sp_defense', -1)]
         )],
         target='opponent'
     ),
@@ -3436,7 +3436,7 @@ move_datas = [
             chance=1.0,
             stat_change=[
                 StatChange('self', 'defense', 1),
-                StatChange('self', 'sp_de', 1)
+                StatChange('self', 'sp_defense', 1)
             ]
         )],
         target='self'
