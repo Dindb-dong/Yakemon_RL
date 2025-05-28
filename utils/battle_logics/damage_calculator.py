@@ -232,6 +232,8 @@ async def calculate_move_damage(
                             lambda p: set_charging(p, False, None))
             store.update_pokemon(side, active_my if side == "my" else active_enemy,
                             lambda p: change_position(p, None))
+            store.update_pokemon(side, active_my if side == "my" else active_enemy, lambda p: set_had_missed(p, True))
+            store.update_pokemon(side, active_my if side == "my" else active_enemy, lambda p: set_dealt_damage(p, 0))
             return {"success": True, "is_hit": False}  # 빗나갔을 때 is_hit: False 반환
     
     # 5-1. Calculate type effectiveness
@@ -251,6 +253,7 @@ async def calculate_move_damage(
                                     lambda p: use_move_pp(p, move_name, defender.base.ability.name == "프레셔" if defender.base.ability else False, is_multi_hit))
                 store.update_pokemon(opponent_side, active_enemy if side == "my" else active_my, 
                                     lambda p: change_rank(p, "dodge", 2))
+                store.update_pokemon(side, active_my if side == "my" else active_enemy, lambda p: set_dealt_damage(p, 0))
                 return {"success": True, "was_null": was_null}
         elif opponent_pokemon.ability and opponent_pokemon.ability.defensive:  # 상대 포켓몬이 방어적 특성 있을 경우
             for category in opponent_pokemon.ability.defensive:
@@ -294,6 +297,7 @@ async def calculate_move_damage(
                 store.update_pokemon(side, active_my if side == "my" else active_enemy, lambda p: set_used_move(p, move_info))
                 store.update_pokemon(side, active_my if side == "my" else active_enemy, 
                                     lambda p: use_move_pp(p, move_name, defender.base.ability.name == "프레셔" if defender.base.ability else False, is_multi_hit))
+                store.update_pokemon(side, active_my if side == "my" else active_enemy, lambda p: set_dealt_damage(p, 0))
                 return {"success": True, "was_null": was_null}
             if move_info.name == "아픔나누기":
                 print("아픔나누기~~")
@@ -311,6 +315,7 @@ async def calculate_move_damage(
                                 lambda p: use_move_pp(p, move_name, defender.base.ability.name == "프레셔" if defender.base.ability else False, is_multi_hit))
             store.update_pokemon(side, active_my if side == "my" else active_enemy, lambda p: set_charging(p, False, None))
             store.update_pokemon(side, active_my if side == "my" else active_enemy, lambda p: change_position(p, None))
+            store.update_pokemon(side, active_my if side == "my" else active_enemy, lambda p: set_dealt_damage(p, 0))
             return {"success": True}  # 변화기술은 성공으로 처리
         
         store.add_log(f"🥊 {attacker.base.name}은/는 {move_name}을/를 사용했다!")
@@ -340,6 +345,7 @@ async def calculate_move_damage(
                                 lambda p: use_move_pp(p, move_name, defender.base.ability.name == "프레셔" if defender.base.ability else False, is_multi_hit))
             store.update_pokemon(side, active_my if side == "my" else active_enemy, lambda p: set_charging(p, False, None))
             store.update_pokemon(side, active_my if side == "my" else active_enemy, lambda p: change_position(p, None))
+            store.update_pokemon(side, active_my if side == "my" else active_enemy, lambda p: set_dealt_damage(p, 0))
             return {"success": True, "was_null": was_null}
     
     # 5-2. Handle one-hit KO moves
@@ -350,6 +356,7 @@ async def calculate_move_damage(
             store.update_pokemon(side, active_mine, 
                                 lambda p: use_move_pp(p, move_name, defender.base.ability.name == "프레셔" if defender.base.ability else False, is_multi_hit))
             store.add_log(f"🚫 {attacker.base.name}의 공격은 상대의 옹골참으로 인해 통하지 않았다!")
+            store.update_pokemon(side, active_my if side == "my" else active_enemy, lambda p: set_dealt_damage(p, 0))
             return {"success": True, "damage": 0, "was_null": was_null}  # 일격필살기 무효화
             
         store.update_pokemon(opponent_side, active_opponent, lambda p: change_hp(p, -p.base.hp))
@@ -644,6 +651,7 @@ def apply_change_effect(
                     # update_pokemon(side, active_mine, lambda p: set_used_move(p, None))  # 다음턴에 다시 길동무 사용 가능하도록
                     store.update_pokemon(side, active_mine, 
                                     lambda p: use_move_pp(p, move_info.name, defender.ability.name == "프레셔" if defender and defender.ability else False, is_multi_hit))
+                    store.update_pokemon(side, active_mine, lambda p: set_dealt_damage(p, 0))
                     return
                 else:
                     store.add_log(f"👻 {side}는 {move_info.name}을/를 사용했다!")
@@ -664,6 +672,7 @@ def apply_change_effect(
                         store.update_pokemon(side, active_mine, lambda p: set_used_move(p, None))
                         store.update_pokemon(side, active_mine, 
                                         lambda p: use_move_pp(p, move_info.name, defender.ability.name == "프레셔" if defender and defender.ability else False, is_multi_hit))
+                        store.update_pokemon(side, active_mine, lambda p: set_dealt_damage(p, 0))
                         return
                 else:
                     store.update_pokemon(side, active_mine, lambda p: set_protecting(p, True))
@@ -716,6 +725,7 @@ def apply_change_effect(
     store.update_pokemon(side, active_mine, lambda p: set_used_move(p, move_info))
     store.update_pokemon(side, active_mine, 
                     lambda p: use_move_pp(p, move_info.name, defender.ability.name == "프레셔" if defender and defender.ability else False, is_multi_hit))
+    store.update_pokemon(side, active_mine, lambda p: set_dealt_damage(p, 0))
 
 def get_move_info(my_pokemon: PokemonInfo, move_name: str) -> MoveInfo:
     print(f"pokemon: {my_pokemon.name}")
