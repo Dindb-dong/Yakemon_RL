@@ -121,6 +121,13 @@ def calculate_reward(
             print(f"received_damage (fallback): {target_pokemon.received_damage}")
             print(f"enemy_post_pokemon.base.hp: {enemy_post_pokemon.base.hp}")
             print(f"hit(fallback) : {reward}")
+            """
+            # 그런데 그 기술이 확정 랭업기였을때
+            if my_post_pokemon.used_move.effects and any(effect.chance == 1.0 and effect.stat_change and any(sc.target == 'self' for sc in effect.stat_change) for effect in my_post_pokemon.used_move.effects):
+                print(f"Warning: Used stat boost move ({my_post_pokemon.used_move.name}) but fainted immediately!")
+                reward -= 0.1  # 스탯 상승 기술 사용 후 바로 기절한 경우 페널티
+                print(f"Penalty for using stat boost move and fainting: {reward}")
+            """
         # 유턴 기술로 때렸을 때
         elif ((my_post_pokemon.base.name != current_pokemon.base.name) and (current_pokemon.used_move == None) and (enemy_post_pokemon.base.name == target_pokemon.base.name)
             and my_post_pokemon.used_move is not None and my_post_pokemon.used_move.u_turn and target_pokemon.received_damage is not None):
@@ -128,14 +135,18 @@ def calculate_reward(
             print(f"received_damage (u_turn): {target_pokemon.received_damage}")
             print(f"enemy_post_pokemon.base.hp: {enemy_post_pokemon.base.hp}")
             print(f"hit(u_turn) : {reward}")
-        # 스탯 상승 기술 사용 후 바로 기절한 경우
+        """
+        # 스탯 상승 기술 사용 후 바로 기절한 경우 (위력 없음)
         elif ((my_post_pokemon.base.name != current_pokemon.base.name) and (current_pokemon.used_move == None) and (enemy_post_pokemon.base.name == target_pokemon.base.name)
             and my_post_pokemon.used_move is not None and my_post_pokemon.used_move.effects and 
-            any(effect.chance == 1.0 and effect.stat_change 
-                for effect in my_post_pokemon.used_move.effects)):
+            any(effect.chance == 1.0 and effect.stat_change and 
+                any(sc.target == 'self' for sc in effect.stat_change) 
+                for effect in my_post_pokemon.used_move.effects) and
+            my_post_pokemon.used_move.power == 0):
             print(f"Warning: Used stat boost move ({my_post_pokemon.used_move.name}) but fainted immediately!")
             reward -= 1.0  # 스탯 상승 기술 사용 후 바로 기절한 경우 페널티
             print(f"Penalty for using stat boost move and fainting: {reward}")
+        """
 
         # 선공을 맞고 죽은 경우가 아닐 때만 기술 선택에 따른 리워드 계산
         if current_pokemon.current_hp > 0:
