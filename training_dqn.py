@@ -62,7 +62,10 @@ hyperparams = {
 
 #%% [markdown]
 # 학습 함수 정의
-def get_action_int(action: MoveInfo | Dict[str, Union[str, int]], pokemon: BattlePokemon):
+def get_action_int(action: MoveInfo | Dict[str, Union[str, int]] | None, pokemon: BattlePokemon):
+    if action is None:
+        print("get_action_int: action is None due to cannot_move")
+        return 6
     if isinstance(action, dict):
         state: BattleStoreState = store.get_state()
         active_my = state["active_my"]
@@ -259,7 +262,23 @@ async def train_agent(
             )
             
             # 행동 선택
-            action = agent.select_action(state_vector, env.battle_store, env.duration_store, use_target=False)
+            # 초반 학습 중에는 base ai와 DQN을 혼합하여 사용
+            if episode < HYPERPARAMS["num_episodes"] / 2:
+                print(f"Episode {episode+1} / {HYPERPARAMS['num_episodes']/2}")
+                temp_action = base_ai_choose_action(
+                    side="my",
+                    my_team=my_team,
+                    enemy_team=enemy_team,
+                    active_my=env.battle_store.get_active_index("my"),
+                    active_enemy=env.battle_store.get_active_index("enemy"),
+                    public_env=env.public_env.__dict__,
+                    enemy_env=env.my_env.__dict__,
+                    my_env=env.enemy_env.__dict__,
+                    add_log=env.battle_store.add_log
+                )
+                action = get_action_int(temp_action, my_team[env.battle_store.get_active_index("my")])
+            else:
+                action = agent.select_action(state_vector, env.battle_store, env.duration_store, use_target=False)
             
             # 행동 실행
             next_state, reward, done, _ = await env.step(action)

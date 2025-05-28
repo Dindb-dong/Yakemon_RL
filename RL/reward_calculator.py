@@ -102,20 +102,29 @@ def calculate_reward(
             return reward
 
         # 상대 쓰러뜨렸으면 리워드 증가
-        if current_pokemon.dealt_damage == enemy_post_pokemon.current_hp:
-            reward += 0.2
+        if current_pokemon.dealt_damage == enemy_post_pokemon.current_hp or my_post_pokemon.dealt_damage == enemy_post_pokemon.current_hp:
+            reward += 2.0
             print(f"Good choice: Used a move to defeat the enemy! Reward: {reward}")
-        elif current_pokemon.dealt_damage is not None and enemy_post_pokemon.current_hp != 0:
+        # 상대 때리면 리워드 증가 
+        if current_pokemon.dealt_damage and enemy_post_pokemon.current_hp != 0:
             reward += (current_pokemon.dealt_damage / enemy_post_pokemon.base.hp) * 0.2
             print(f"dealt_damage: {current_pokemon.dealt_damage}")
             print(f"enemy_post_pokemon.base.hp: {enemy_post_pokemon.base.hp}")
             print(f"hit! : {reward}")
         # 내가 먼저 선공, 상대의 후공으로 기절했을 때
-        elif ((my_post_pokemon.base.name != current_pokemon.base.name) and (current_pokemon.used_move == None) and (enemy_post_pokemon.base.name == target_pokemon.base.name)):
+        elif ((my_post_pokemon.base.name != current_pokemon.base.name) and (current_pokemon.used_move == None) and (enemy_post_pokemon.base.name == target_pokemon.base.name)
+            and not my_post_pokemon.used_move.u_turn):
             reward += (target_pokemon.received_damage / target_pokemon.base.hp) * 0.2
             print(f"received_damage (fallback): {target_pokemon.received_damage}")
             print(f"enemy_post_pokemon.base.hp: {enemy_post_pokemon.base.hp}")
             print(f"hit(fallback) : {reward}")
+        # 유턴 기술로 때렸을 때
+        elif ((my_post_pokemon.base.name != current_pokemon.base.name) and (current_pokemon.used_move == None) and (enemy_post_pokemon.base.name == target_pokemon.base.name)
+            and my_post_pokemon.used_move.u_turn):
+            reward += (target_pokemon.received_damage / target_pokemon.base.hp) * 0.2
+            print(f"received_damage (u_turn): {target_pokemon.received_damage}")
+            print(f"enemy_post_pokemon.base.hp: {enemy_post_pokemon.base.hp}")
+            print(f"hit(u_turn) : {reward}")
 
         # 선공을 맞고 죽은 경우가 아닐 때만 기술 선택에 따른 리워드 계산
         if current_pokemon.current_hp > 0:
@@ -155,19 +164,19 @@ def calculate_reward(
         
         # 포켓몬 수 차이에 따른 보상 계산 (이 값은 그대로 유지 - 승리/패배가 가장 중요)
         if pokemon_count_difference == -3:
-            reward -= 5.0  # 상대가 3마리 이상 많음
+            reward -= 2  # 상대가 3마리 이상 많음
             print(f"You lose! 0 : 3")
         elif pokemon_count_difference == -2:
-            reward -= 2.0  # 상대가 2마리 많음
+            reward -= 1.0  # 상대가 2마리 많음
             print(f"You lose! 0 : 2")
         elif pokemon_count_difference == -1:
             reward -= 0.5  # 상대가 1마리 많음
             print(f"You lose! 0 : 1")
         elif pokemon_count_difference == 1:
-            reward += 1.0  # 내가 1마리 많음
+            reward += 3.0  # 내가 1마리 많음
             print(f"You win! 1 : 0")
         elif pokemon_count_difference == 2:
-            reward += 2.0  # 내가 2마리 많음
+            reward += 4.0  # 내가 2마리 많음
             print(f"You win! 2 : 0")
         elif pokemon_count_difference == 3:
             reward += 5.0  # 내가 3마리 이상 많음

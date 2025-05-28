@@ -52,7 +52,7 @@ def change_rank(pokemon: BattlePokemon, stat: str, amount: int) -> BattlePokemon
         if amount > 0:
             manager.increase_state(stat, amount)
         else:
-            manager.increase_state('spAttack', 2)
+            manager.increase_state('sp_attack', 2)
             manager.decrease_state(stat, abs(amount))
     else:
         if amount > 0:
