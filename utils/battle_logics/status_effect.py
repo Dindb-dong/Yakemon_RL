@@ -35,15 +35,15 @@ def apply_status_effect_before(
         elif s == "잠듦":
             print(f"잠듦 체크")
             sleep_list = duration_store.get_effects(side)
-            sleep_effect = next((e for e in sleep_list if e.name == "잠듦"), None)
+            sleep_effect = next((e for e in sleep_list if e['name'] == "잠듦"), None)
             
-            if not sleep_effect or not sleep_effect.remaining_turn:
-                duration_store.remove_effect(side, "잠듦")
+            if not sleep_effect or not sleep_effect['remaining_turn']:
+                duration_store.remove_effect("잠듦", side)
                 store.update_pokemon(side, active_index, lambda p: remove_status(p, "잠듦"))
                 store.add_log(f"🏋️‍♂️ {active_team[active_index].base.name}은/는 잠에서 깼다!")
                 print(f"🏋️‍♂️ {active_team[active_index].base.name}은/는 잠에서 깼다!")
             else:
-                remaining = sleep_effect.remaining_turn
+                remaining = sleep_effect['remaining_turn']
                 recovery_chance = 0
                 
                 if remaining == 2:
@@ -54,7 +54,7 @@ def apply_status_effect_before(
                     recovery_chance = 1
                     
                 if random.random() < recovery_chance:
-                    duration_store.remove_effect(side, "잠듦")
+                    duration_store.remove_effect("잠듦", side)
                     store.update_pokemon(side, active_index, lambda p: remove_status(p, "잠듦"))
                     store.add_log(f"🏋️‍♂️ {active_team[active_index].base.name}은/는 잠에서 깼다!")
                     print(f"🏋️‍♂️ {active_team[active_index].base.name}은/는 잠에서 깼다!")
@@ -62,8 +62,8 @@ def apply_status_effect_before(
                     can_act = False
                     duration_store.add_effect({
                         "name": "잠듦",
-                        "remaining_turn": sleep_effect.remaining_turn - 1,
-                        "owner_index": sleep_effect.owner_index
+                        "remaining_turn": sleep_effect['remaining_turn'] - 1,
+                        "owner_index": sleep_effect['owner_index']
                     }, side)
                     
         elif s == "마비":
