@@ -174,6 +174,7 @@ class DurationStore:
                 on_expire()
             return True
         else:
+            self.remove_effect(effect, side)
             self.add_effect({"name": status, "remaining_turn": next_turn, "owner_index": index}, side)
             return False
 
