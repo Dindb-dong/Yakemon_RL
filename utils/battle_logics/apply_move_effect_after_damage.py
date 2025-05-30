@@ -65,7 +65,6 @@ async def apply_move_effect_after_multi_damage(
                     store.update_pokemon(side, active_mine, lambda _: result)
                     recoil_damage = int(applied_damage * demerit.recoil)
                     store.add_log(f"🤕 {attacker.base.name}이(가) 반동 데미지 {recoil_damage}를 입었다!")
-                    print(f"반동 데미지 적용: {attacker.base.name}이(가) 반동 데미지 {recoil_damage}를 입었다!")
                 if demerit.stat_change:
                     for sc in demerit.stat_change:
                         store.update_pokemon(

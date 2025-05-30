@@ -173,7 +173,8 @@ def calculate_reward(
                 print(f"Penalty for using stat boost move and fainting: {reward}")
             # TODO: 상태이상 기술 추가하기 
         elif (my_post_pokemon.used_move is not None and my_post_pokemon.used_move.effects 
-            and any(effect.chance == 1.0 and effect.status in target_pokemon.status for effect in my_post_pokemon.used_move.effects)):
+            and any(effect.chance == 1.0 for effect in my_post_pokemon.used_move.effects)
+            and any(effect.status in target_pokemon.status for effect in my_post_pokemon.used_move.effects)):
             print(f"Warning: Used status condition move ({my_post_pokemon.used_move.name}) but Enemy already has status condition!")
             reward -= 0.1  # 상태이상 기술 중복 사용 시 페널티  
             print(f"Penalty for using status condition move in duplicate: {reward}")
@@ -253,6 +254,6 @@ def calculate_reward(
     #             reward -= 0.5
     #             print(f"You lose! 0 : 0")
         
-        print(f"Final reward after win/loss calculation: {reward}")
+    #    print(f"Final reward after win/loss calculation: {reward}")
     
     return reward

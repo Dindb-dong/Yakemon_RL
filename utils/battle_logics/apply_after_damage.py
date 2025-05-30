@@ -165,8 +165,6 @@ async def apply_move_effect_after_multi_damage(
                     result = apply_recoil_damage(attacker, demerit.recoil, applied_damage)
                     store.update_pokemon(side, active_mine, lambda _: result)
                     recoil_damage = int(applied_damage * demerit.recoil)
-                    store.add_log(f"🤕 {attacker.base.name}이(가) 반동 데미지 {recoil_damage}를 입었다!")
-                    print(f"반동 데미지 적용: {attacker.base.name}이(가) 반동 데미지 {recoil_damage}를 입었다!")
                 for sc in demerit.stat_change:
                     store.update_pokemon(
                         side, active_mine,
@@ -196,7 +194,7 @@ async def apply_move_effect_after_multi_damage(
                     store.update_pokemon(target_side, index, lambda p: change_rank(p, sc.stat, sc.change))
                     store.add_log(f"🔃 {target_team[index].base.name}의 {sc.stat}이(가) {sc.change}랭크 변했다!")
                     print(f"부가효과 적용: {target_team[index].base.name}의 {sc.stat}이(가) {sc.change}랭크 변했다!")
-                if eff.status:
+                if eff.status and eff.status not in defender.status:
                     store.update_pokemon(opponent_side, active_opponent, lambda p: add_status(p, eff.status, opponent_side, nullification))
                     store.add_log(f"{defender.base.name}은 {eff.status} 상태가 되었다!")
                     print(f"상태이상 효과 적용: {defender.base.name}이(가) {eff.status} 상태가 되었다!")
