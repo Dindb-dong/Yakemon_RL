@@ -86,7 +86,7 @@ def calculate_reward(
         was_null = result.get('was_null', False)
         print(f"was_effective: {was_effective}")
         if was_null:
-            reward += 0.2  # 효과 없는 공격에 대한 보상
+            reward += 0.8  # 효과 없는 공격에 대한 보상
             print(f"Good switch: Immune to attack! Reward: {reward}")
         elif was_effective == 2:  # 4배 이상 데미지
             reward -= 0.1  # 매우 큰 페널티
@@ -95,10 +95,10 @@ def calculate_reward(
             reward -= 0.05  # 적당한 페널티
             print(f"Warning: Switched into 2x weakness! Reward: {reward}")
         elif was_effective == -1:  # 1/2 데미지
-            reward += 0.05 # 적당한 보상
+            reward += 0.2 # 적당한 보상
             print(f"Good switch: Resistant to 1/2 damage! Reward: {reward}")
         elif was_effective == -2:  # 1/4 데미지
-            reward += 0.1  # 매우 큰 보상
+            reward += 0.4  # 매우 큰 보상
             print(f"Good switch: Resistant to 1/4 damage! Reward: {reward}")
     # 교체가 아니라 싸운 경우
     elif action < 4:
@@ -107,34 +107,35 @@ def calculate_reward(
         was_null = outcome.get('was_null', False)
         print(f"was_effective: {was_effective}")
         if was_null:
-            reward -= 0.5  # 효과 없는 공격에 대한 보상
+            reward -= 1.0  # 효과 없는 공격에 대한 보상
             print(f"Bad Attack: Immune to attack... Reward: {reward}")
         elif was_effective == 2:  # 4배 이상 데미지
-            reward += 0.2  # 매우 큰 리워드
+            reward += 1.0  # 매우 큰 리워드
             print(f"Good Attack: Attacked to 4x effectiveness! Reward: {reward}")
         elif was_effective == 1:  # 2배 데미지
-            reward += 0.1  # 적당한 리워드
+            reward += 0.5  # 적당한 리워드
             print(f"Good Attack: Attacked to 2x effectiveness! Reward: {reward}")
         elif was_effective == -1:  # 1/2 데미지
-            reward -= 0.1 # 적당한 페널티
+            reward -= 0.2 # 적당한 페널티
             print(f"Bad Attack: Attacked to 1/2 effectiveness! Reward: {reward}")
         elif was_effective == -2:  # 1/4 데미지
-            reward -= 0.2  # 매우 큰 페널티
+            reward -= 0.5  # 매우 큰 페널티
             print(f"Bad Attack: Attacked to 1/4 effectiveness! Reward: {reward}")
         # 포켓몬이 행동할 수 없는 경우 리워드 계산하지 않음 (선공을 맞고 기절한 경우는 제외)
         if outcome and outcome.get("was_null", False) and my_post_pokemon.cannot_move is not None and my_post_pokemon.cannot_move == True:
             print("Pokemon couldn't move due to type immunity or ability, skipping reward calculation")
             return reward
-        # 이전 포켓몬이 공격 못하고 죽었을 때 또는 강제 교체 당했을 때 리워드 계산
-        if my_post_pokemon.used_move is None and (my_post_pokemon.base.name != current_pokemon.base.name):
-            print("이전 포켓몬이 공격 못하고 쓰러졌거나 강제교체 당함")
+        # 이전 포켓몬이 공격 못하고 죽었을 때
+        if (my_post_pokemon.used_move is None and (my_post_pokemon.base.name != current_pokemon.base.name)
+            and (target_pokemon.used_move is not None and not target_pokemon.used_move.exile)):
+            print("이전 포켓몬이 공격 못하고 쓰러짐")
             # 공격 못하고 죽음 
-            reward -= 0.05
+            reward -= 0.1
         # 스피드 랭크업 기술 쓰고 스피드 추월했을 경우 
         if (calculate_speed(my_post_pokemon) < calculate_speed(enemy_post_pokemon) and calculate_speed(current_pokemon) > calculate_speed(target_pokemon)
             and my_post_pokemon.base.name == current_pokemon.base.name and enemy_post_pokemon.base.name == target_pokemon.base.name
             and my_post_pokemon.used_move is not None and my_post_pokemon.used_move.effects and any(effect.chance == 1.0 and effect.stat_change and any(sc.stat == 'speed' for sc in effect.stat_change) for effect in my_post_pokemon.used_move.effects)):
-            reward += 0.1
+            reward += 0.5
             print(f"Good choice: Used a speed rank change move to overtake the enemy! Reward: {reward}")
         # 상대 쓰러뜨렸으면 리워드 증가
         if (current_pokemon.dealt_damage == enemy_post_pokemon.current_hp or my_post_pokemon.dealt_damage == enemy_post_pokemon.current_hp
@@ -144,14 +145,14 @@ def calculate_reward(
             print(f"Good choice: Used a move to defeat the enemy! Reward: {reward}")
         # 상대 때리면 리워드 증가 
         if current_pokemon.dealt_damage and enemy_post_pokemon.current_hp != 0:
-            reward += (current_pokemon.dealt_damage / enemy_post_pokemon.base.hp) * 0.2
+            reward += (current_pokemon.dealt_damage / enemy_post_pokemon.base.hp) * 2
             print(f"dealt_damage: {current_pokemon.dealt_damage}")
             print(f"enemy_post_pokemon.base.hp: {enemy_post_pokemon.base.hp}")
             print(f"hit! : {reward}")
         # 내가 먼저 선공, 상대의 후공으로 기절했을 때
         elif ((my_post_pokemon.base.name != current_pokemon.base.name) and (current_pokemon.used_move == None) and (enemy_post_pokemon.base.name == target_pokemon.base.name)
             and my_post_pokemon.used_move is not None and not my_post_pokemon.used_move.u_turn and target_pokemon.received_damage is not None):
-            reward += (target_pokemon.received_damage / target_pokemon.base.hp) * 0.2
+            reward += (target_pokemon.received_damage / target_pokemon.base.hp) * 0.5
             print(f"received_damage (fallback): {target_pokemon.received_damage}")
             print(f"enemy_post_pokemon.base.hp: {enemy_post_pokemon.base.hp}")
             print(f"hit(fallback) : {reward}")
@@ -173,10 +174,11 @@ def calculate_reward(
                 print(f"Penalty for using stat boost move and fainting: {reward}")
             # TODO: 상태이상 기술 추가하기 
         elif (my_post_pokemon.used_move is not None and my_post_pokemon.used_move.effects 
+            and was_null is True
             and any(effect.chance == 1.0 for effect in my_post_pokemon.used_move.effects)
             and any(effect.status in target_pokemon.status for effect in my_post_pokemon.used_move.effects)):
             print(f"Warning: Used status condition move ({my_post_pokemon.used_move.name}) but Enemy already has status condition!")
-            reward -= 0.1  # 상태이상 기술 중복 사용 시 페널티  
+            reward -= 0.3  # 상태이상 기술 중복 사용 시 페널티  
             print(f"Penalty for using status condition move in duplicate: {reward}")
         """
         # 스탯 상승 기술 사용 후 바로 기절한 경우 (위력 없음)

@@ -243,6 +243,11 @@ async def calculate_move_damage(
     if is_hit and move_info.target == "opponent":  # 상대를 대상으로 하는 기술일 경우
         # 상대가 타입 상성 무효화 특성 있을 경우 미리 적용
         if move_info.category == "변화":  # 상대를 때리는 변화기술일 경우 무효 로직
+            # 상태이상 기술인데 이미 상대가 그 상태이상 걸려있을 경우
+            if move_info.effects and any(effect.status in defender.status for effect in move_info.effects):
+                print(f"{defender.base.name}은/는 이미 그 상태이상 걸려있어서 효과가 없었다!")
+                store.add_log(f"🚫 {defender.base.name}은/는 이미 그 상태이상 걸려있어서 효과가 없었다!")
+                return {"success": True, "was_null": True, "used_move": move_info}
             if move_info.type == "풀" and "풀" in opponent_pokemon.types:
                 types *= 0
             if defender.base.ability and defender.base.ability.name == "미라클스킨":
@@ -442,7 +447,7 @@ async def calculate_move_damage(
         screen_list = ["리플렉터", "빛의장막", "오로라베일"]
         for screen_name in screen_list:
             if screen_name and has_active_screen(screen_name):
-                duration_store.remove_effect(opponent_side, screen_name)  # 턴 감소가 아닌 즉시 삭제
+                duration_store.remove_effect(screen_name, opponent_side)  # 턴 감소가 아닌 즉시 삭제
                 store.add_log(f"💥 {screen_name}이 {'상대' if side == 'my' else '내'} 필드에서 깨졌다!")
 
     # 벽 통과하는 기술이나 틈새포착이 아닐 경우
@@ -724,7 +729,6 @@ def apply_change_effect(
             
             if move_info.screen:
                 set_screen(side, move_info.screen)
-                print(f"{side}는 장막을 {move_info.screen}을 설치했다!")
     store.add_log(f"{side}는 {move_info.name}을/를 사용했다!")
     store.update_pokemon(side, active_mine, lambda p: set_used_move(p, move_info))
     store.update_pokemon(side, active_mine, 

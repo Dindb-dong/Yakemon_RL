@@ -72,7 +72,7 @@ async def switch_pokemon(side: SideType, new_index: int, baton_touch: bool = Fal
     for status in UNMAIN_STATUS_CONDITION + UNMAIN_STATUS_CONDITION_WITH_DURATION:
         if status in switching_pokemon.status:
             if status in UNMAIN_STATUS_CONDITION_WITH_DURATION:
-                duration_store.remove_effect(side, status)
+                duration_store.remove_effect(status, side)
             store.update_pokemon(side, current_index,
                                 lambda p: remove_status(p, status))
 
@@ -80,7 +80,7 @@ async def switch_pokemon(side: SideType, new_index: int, baton_touch: bool = Fal
         for status in UNMAIN_STATUS_CONDITION + UNMAIN_STATUS_CONDITION_WITH_DURATION + MAIN_STATUS_CONDITION:
             if status in switching_pokemon.status:
                 if status in UNMAIN_STATUS_CONDITION_WITH_DURATION:
-                    duration_store.remove_effect(side, status)
+                    duration_store.remove_effect(status, side)
                 store.update_pokemon(side, current_index,
                                     lambda p: remove_status(p, status))
 
