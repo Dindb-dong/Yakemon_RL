@@ -17,6 +17,7 @@ from utils.battle_logics.helpers import has_ability
 from utils.battle_logics.update_battle_pokemon import (
     set_ability,
     set_cannot_move,
+    set_dealt_damage,
     set_received_damage,
     set_types,
     use_move_pp
@@ -61,13 +62,14 @@ async def battle_sequence(
 
     result = {}
     outcome = {}
-    store.update_pokemon("my", active_enemy, lambda p: set_received_damage(p, 0))
-    store.update_pokemon("enemy", active_my, lambda p: set_received_damage(p, 0))
+    store.update_pokemon("my", active_my, lambda p: set_received_damage(p, 0))
+    store.update_pokemon("enemy", active_enemy, lambda p: set_received_damage(p, 0))
     # === 0. 한 쪽만 null ===
     if my_action is None and enemy_action is not None:
         store.add_log("🙅‍♂️ 내 포켓몬은 행동할 수 없었다...")
         print("🙅‍♂️ 내 포켓몬은 행동할 수 없었다...")
-        store.update_pokemon("my", active_enemy, lambda p: set_cannot_move(p, False))
+        store.update_pokemon("my", active_my, lambda p: set_cannot_move(p, False))
+        store.update_pokemon("my", active_my, lambda p: set_dealt_damage(p, 0))
         if is_move_action(enemy_action):
             result: dict[str, Union[bool, int]] = await handle_move("enemy", enemy_action, active_enemy, watch_mode)
         elif is_switch_action(enemy_action):
@@ -78,7 +80,8 @@ async def battle_sequence(
     if enemy_action is None and my_action is not None:
         store.add_log("🙅‍♀️ 상대 포켓몬은 행동할 수 없었다...")
         print("🙅‍♀️ 상대 포켓몬은 행동할 수 없었다...")
-        store.update_pokemon("enemy", active_my, lambda p: set_cannot_move(p, False))
+        store.update_pokemon("enemy", active_enemy, lambda p: set_cannot_move(p, False))
+        store.update_pokemon("enemy", active_enemy, lambda p: set_dealt_damage(p, 0))
         if is_move_action(my_action):
             outcome: dict[str, Union[bool, int]] = await handle_move("my", my_action, active_my, watch_mode)
         elif is_switch_action(my_action):
@@ -89,8 +92,10 @@ async def battle_sequence(
     if enemy_action is None and my_action is None:
         store.add_log("😴 양측 모두 행동할 수 없었다...")
         print("😴 양측 모두 행동할 수 없었다...")
-        store.update_pokemon("my", active_enemy, lambda p: set_cannot_move(p, False))
-        store.update_pokemon("enemy", active_my, lambda p: set_cannot_move(p, False))
+        store.update_pokemon("my", active_my, lambda p: set_cannot_move(p, False))
+        store.update_pokemon("enemy", active_enemy, lambda p: set_cannot_move(p, False))
+        store.update_pokemon("my", active_my, lambda p: set_dealt_damage(p, 0))
+        store.update_pokemon("enemy", active_enemy, lambda p: set_dealt_damage(p, 0))
         await apply_end_turn_effects()
         return {"result": {"was_null": False, "was_effective": 0}, "outcome": {"was_null": False, "was_effective": 0, "no_attack": True}}
 

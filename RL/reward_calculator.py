@@ -3,6 +3,7 @@ from p_models.move_info import MoveInfo
 from p_models.pokemon_info import PokemonInfo
 from p_models.status import StatusManager
 from p_models.battle_pokemon import BattlePokemon
+from utils.battle_logics.calculate_order import calculate_speed
 from utils.battle_logics.pre_damage_calculator import pre_calculate_move_damage
 from context.battle_store import store
 
@@ -129,9 +130,17 @@ def calculate_reward(
             print("이전 포켓몬이 공격 못하고 쓰러졌거나 강제교체 당함")
             # 공격 못하고 죽음 
             reward -= 0.05
+        # 스피드 랭크업 기술 쓰고 스피드 추월했을 경우 
+        if (calculate_speed(my_post_pokemon) < calculate_speed(enemy_post_pokemon) and calculate_speed(current_pokemon) > calculate_speed(target_pokemon)
+            and my_post_pokemon.base.name == current_pokemon.base.name and enemy_post_pokemon.base.name == target_pokemon.base.name
+            and my_post_pokemon.used_move is not None and my_post_pokemon.used_move.effects and any(effect.chance == 1.0 and effect.stat_change and any(sc.stat == 'speed' for sc in effect.stat_change) for effect in my_post_pokemon.used_move.effects)):
+            reward += 0.1
+            print(f"Good choice: Used a speed rank change move to overtake the enemy! Reward: {reward}")
         # 상대 쓰러뜨렸으면 리워드 증가
-        if current_pokemon.dealt_damage == enemy_post_pokemon.current_hp or my_post_pokemon.dealt_damage == enemy_post_pokemon.current_hp:
-            reward += 2.0
+        if (current_pokemon.dealt_damage == enemy_post_pokemon.current_hp or my_post_pokemon.dealt_damage == enemy_post_pokemon.current_hp
+            or (current_pokemon.base.name == my_post_pokemon.base.name and current_pokemon.used_move is not None and not current_pokemon.used_move.u_turn and
+                current_pokemon.dealt_damage is not None and current_pokemon.dealt_damage > 0 and (target_pokemon.received_damage is None or target_pokemon.received_damage == 0))):
+            reward += 5.0
             print(f"Good choice: Used a move to defeat the enemy! Reward: {reward}")
         # 상대 때리면 리워드 증가 
         if current_pokemon.dealt_damage and enemy_post_pokemon.current_hp != 0:
@@ -163,6 +172,11 @@ def calculate_reward(
                 reward -= 0.1  # 스탯 상승 기술 사용 후 바로 기절한 경우 페널티
                 print(f"Penalty for using stat boost move and fainting: {reward}")
             # TODO: 상태이상 기술 추가하기 
+        elif (my_post_pokemon.used_move is not None and my_post_pokemon.used_move.effects 
+            and any(effect.chance == 1.0 and effect.status in target_pokemon.status for effect in my_post_pokemon.used_move.effects)):
+            print(f"Warning: Used status condition move ({my_post_pokemon.used_move.name}) but Enemy already has status condition!")
+            reward -= 0.1  # 상태이상 기술 중복 사용 시 페널티  
+            print(f"Penalty for using status condition move in duplicate: {reward}")
         """
         # 스탯 상승 기술 사용 후 바로 기절한 경우 (위력 없음)
         elif ((my_post_pokemon.base.name != current_pokemon.base.name) and (current_pokemon.used_move == None) and (enemy_post_pokemon.base.name == target_pokemon.base.name)
@@ -200,44 +214,44 @@ def calculate_reward(
                             reward += 0.1  # 리워드 증가
                             print(f"Good choice: Used a move with effects! Reward: {reward}")
 
-    # 승리/패배에 따른 보상 (가장 중요한 요소)
-    if done:
-        # 살아있는 포켓몬 수 우위에 대한 보상
-        my_pokemon_alive = sum(1 for p in my_team if p.current_hp > 0)
-        enemy_pokemon_alive = sum(1 for p in enemy_team if p.current_hp > 0)
-        pokemon_count_difference = my_pokemon_alive - enemy_pokemon_alive
-        my_team_alive = any(pokemon.current_hp > 0 for pokemon in my_team)
-        enemy_team_alive = any(pokemon.current_hp > 0 for pokemon in enemy_team)
-        victory = 1 if my_team_alive and not enemy_team_alive else 0
+    # # 승리/패배에 따른 보상 (가장 중요한 요소)
+    # if done:
+    #     # 살아있는 포켓몬 수 우위에 대한 보상
+    #     my_pokemon_alive = sum(1 for p in my_team if p.current_hp > 0)
+    #     enemy_pokemon_alive = sum(1 for p in enemy_team if p.current_hp > 0)
+    #     pokemon_count_difference = my_pokemon_alive - enemy_pokemon_alive
+    #     my_team_alive = any(pokemon.current_hp > 0 for pokemon in my_team)
+    #     enemy_team_alive = any(pokemon.current_hp > 0 for pokemon in enemy_team)
+    #     victory = 1 if my_team_alive and not enemy_team_alive else 0
 
-        print(f"Game Over - My alive: {my_pokemon_alive}, Enemy alive: {enemy_pokemon_alive}, Difference: {pokemon_count_difference}")
+    #     print(f"Game Over - My alive: {my_pokemon_alive}, Enemy alive: {enemy_pokemon_alive}, Difference: {pokemon_count_difference}")
         
-        # 포켓몬 수 차이에 따른 보상 계산 (이 값은 그대로 유지 - 승리/패배가 가장 중요)
-        if pokemon_count_difference == -3:
-            reward -= 2.0  # 상대가 3마리 이상 많음
-            print(f"You lose! 0 : 3")
-        elif pokemon_count_difference == -2:
-            reward -= 1.0  # 상대가 2마리 많음
-            print(f"You lose! 0 : 2")
-        elif pokemon_count_difference == -1:
-            reward -= 0.5  # 상대가 1마리 많음
-            print(f"You lose! 0 : 1")
-        elif pokemon_count_difference == 1:
-            reward += 3.0  # 내가 1마리 많음
-            print(f"You win! 1 : 0")
-        elif pokemon_count_difference == 2:
-            reward += 4.0  # 내가 2마리 많음
-            print(f"You win! 2 : 0")
-        elif pokemon_count_difference == 3:
-            reward += 5.0  # 내가 3마리 이상 많음
-            print(f"You win! 3 : 0")
-        else:
-            if victory:
-                reward += 2.0
-                print(f"You win! 0 : 0")
-            else:
-                reward -= 0.5
-                print(f"You lose! 0 : 0")
+    #     # 포켓몬 수 차이에 따른 보상 계산 (이 값은 그대로 유지 - 승리/패배가 가장 중요)
+    #     if pokemon_count_difference == -3:
+    #         reward -= 2.0  # 상대가 3마리 이상 많음
+    #         print(f"You lose! 0 : 3")
+    #     elif pokemon_count_difference == -2:
+    #         reward -= 1.0  # 상대가 2마리 많음
+    #         print(f"You lose! 0 : 2")
+    #     elif pokemon_count_difference == -1:
+    #         reward -= 0.5  # 상대가 1마리 많음
+    #         print(f"You lose! 0 : 1")
+    #     elif pokemon_count_difference == 1:
+    #         reward += 3.0  # 내가 1마리 많음
+    #         print(f"You win! 1 : 0")
+    #     elif pokemon_count_difference == 2:
+    #         reward += 4.0  # 내가 2마리 많음
+    #         print(f"You win! 2 : 0")
+    #     elif pokemon_count_difference == 3:
+    #         reward += 5.0  # 내가 3마리 이상 많음
+    #         print(f"You win! 3 : 0")
+    #     else:
+    #         if victory:
+    #             reward += 2.0
+    #             print(f"You win! 0 : 0")
+    #         else:
+    #             reward -= 0.5
+    #             print(f"You lose! 0 : 0")
         
         print(f"Final reward after win/loss calculation: {reward}")
     

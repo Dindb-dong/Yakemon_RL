@@ -157,6 +157,7 @@ async def calculate_move_damage(
         rate = status_result["rate"]
         if not status_result["is_hit"]:
             store.add_log(f"🚫 {attacker.base.name}의 기술은 실패했다!")
+            print(f"{attacker.base.name}의 기술은 실패했다!")
             if (attacker.locked_move_turn or 0) > 0: # 기술 실패시 고정 해제처리
                 store.update_pokemon(side, active_my if side == "my" else active_enemy, 
                                     lambda p: p.copy_with(locked_move_turn=0))
@@ -177,6 +178,7 @@ async def calculate_move_damage(
                                         setattr(p, 'position', move_info.position or None) or
                                         p)
             store.add_log(f"{attacker.base.name}은(는) 힘을 모으기 시작했다!")
+            print(f"{attacker.base.name}은(는) 힘을 모으기 시작했다!")
             return {"success": True, "used_move": move_info}
     
     # 0-4. Check position
@@ -185,6 +187,7 @@ async def calculate_move_damage(
         if (position == "땅" and move_info.name in ["지진", "땅고르기", "땅가르기"]) or \
         (position == "하늘" and move_info.name in ["번개", "땅고르기"]):
             store.add_log(f"{attacker.base.name}은/는 {position}에 있는 상대를 공격하려 한다!")
+            print(f"{attacker.base.name}은/는 {position}에 있는 상대를 공격하려 한다!")
         else:
             is_hit = False
     
@@ -717,10 +720,11 @@ def apply_change_effect(
             
             if move_info.room:
                 set_room(move_info.room)
+                print(f"{side}는 방을 {move_info.room}로 바꿨다!")
             
             if move_info.screen:
                 set_screen(side, move_info.screen)
-    
+                print(f"{side}는 장막을 {move_info.screen}을 설치했다!")
     store.add_log(f"{side}는 {move_info.name}을/를 사용했다!")
     store.update_pokemon(side, active_mine, lambda p: set_used_move(p, move_info))
     store.update_pokemon(side, active_mine, 
