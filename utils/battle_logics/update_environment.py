@@ -23,20 +23,23 @@ def set_screen(side: SideType, screen: str, remove: bool = False):
                 store.add_log("빛의장막, 리플렉터는 오로라베일과 중복 발동할 수 없다!")
             else:
                 setter({"screen": screen})
-                add_effect(side, {"name": screen, "remainingTurn": 5})
+                add_effect({"name": screen, "remaining_turn": 5}, side)
                 store.add_log(f"{screen}이 발동되었다!")
+                print(f"update_environment: {screen}이 발동되었다!")
 
 def set_weather(weather: str):
     add_effect = duration_store.add_effect
     public_env = store.state["public_env"]
     if weather and public_env.weather != weather:
-        add_effect("public", {"name": weather, "remainingTurn": 5})
+        add_effect({"name": weather, "remaining_turn": 5}, "public")
     store.set_public_env({"weather": weather})
+    print(f"update_environment: {weather}이 발동되었다!")
 
 def set_field(field: str):
     if field:
-        duration_store.add_effect("public", {"name": field, "remainingTurn": 5})
+        duration_store.add_effect({"name": field, "remaining_turn": 5}, "public")
     store.set_public_env({"field": field})
+    print(f"update_environment: {field}이 발동되었다!")
 
 def set_room(room: str):
     public_env = store.state["public_env"]
@@ -46,9 +49,9 @@ def set_room(room: str):
             store.add_log(f"{room}이 이미 발동되어 있다!")
         else:
             store.add_log(f"{room}이 발동됐다!")
-            add_effect("public", {"name": room, "remainingTurn": 5})
+            add_effect({"name": room, "remaining_turn": 5}, "public")
     store.set_public_env({"room": room})
-
+    print(f"update_environment: {room}이 발동되었다!")
 def set_aura(aura: str):
     public_env = store.state["public_env"]
     aura_list = public_env.aura or []
