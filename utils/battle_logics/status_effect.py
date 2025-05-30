@@ -29,6 +29,7 @@ def apply_status_effect_before(
             if not can_act:
                 break
             store.add_log(f"{active_team[active_index].base.name}은/는 풀이 죽어서 기술 사용에 실패했다!")
+            print(f"{active_team[active_index].base.name}은/는 풀이 죽어서 기술 사용에 실패했다!")
             can_act = False
             
         elif s == "잠듦":
@@ -40,6 +41,7 @@ def apply_status_effect_before(
                 duration_store.remove_effect(side, "잠듦")
                 store.update_pokemon(side, active_index, lambda p: remove_status(p, "잠듦"))
                 store.add_log(f"🏋️‍♂️ {active_team[active_index].base.name}은/는 잠에서 깼다!")
+                print(f"🏋️‍♂️ {active_team[active_index].base.name}은/는 잠에서 깼다!")
             else:
                 remaining = sleep_effect.remaining_turn
                 recovery_chance = 0
@@ -55,13 +57,14 @@ def apply_status_effect_before(
                     duration_store.remove_effect(side, "잠듦")
                     store.update_pokemon(side, active_index, lambda p: remove_status(p, "잠듦"))
                     store.add_log(f"🏋️‍♂️ {active_team[active_index].base.name}은/는 잠에서 깼다!")
+                    print(f"🏋️‍♂️ {active_team[active_index].base.name}은/는 잠에서 깼다!")
                 else:
                     can_act = False
-                    duration_store.add_effect(side, {
+                    duration_store.add_effect({
                         "name": "잠듦",
                         "remaining_turn": sleep_effect.remaining_turn - 1,
                         "owner_index": sleep_effect.owner_index
-                    })
+                    }, side)
                     
         elif s == "마비":
             print(f"마비 체크")
@@ -70,6 +73,7 @@ def apply_status_effect_before(
             if random.random() < 0.25:
                 can_act = False
                 store.add_log(f"{active_team[active_index].base.name}은/는 몸이 저렸다!")
+                print(f"{active_team[active_index].base.name}은/는 몸이 저렸다!")
             else:
                 can_act = True
                 
@@ -78,9 +82,11 @@ def apply_status_effect_before(
             if random.random() < 0.2 or move.type == "불":
                 store.update_pokemon(side, active_index, lambda p: remove_status(p, "얼음"))
                 store.add_log(f"🏋️‍♂️ {active_team[active_index].base.name}의 얼음이 녹았다!")
+                print(f"{active_team[active_index].base.name}의 얼음이 녹았다!")
                 can_act = True
             else:
                 store.add_log(f"☃️ {active_team[active_index].base.name}은/는 얼어있다!")
+                print(f"{active_team[active_index].base.name}은/는 얼어있다!")
                 can_act = False
                 
         elif s == "혼란":
@@ -89,8 +95,10 @@ def apply_status_effect_before(
             if recovered:
                 can_act = True
                 store.add_log(f"🏋️‍♂️ {active_team[active_index].base.name}은/는 혼란에서 깼다!")
+                print(f"{active_team[active_index].base.name}은/는 혼란에서 깼다!")
             else:
                 store.add_log(f"😵‍💫 {active_team[active_index].base.name}은/는 혼란에 빠져있다!")
+                print(f"{active_team[active_index].base.name}은/는 혼란에 빠져있다!")
                 if random.random() < 0.33:
                     can_act = False
                     self_damage = 40 * active_team[active_index].base.attack
@@ -101,6 +109,7 @@ def apply_status_effect_before(
                     )
                     store.update_pokemon(side, active_index, lambda p: change_hp(p, -final_damage))
                     store.add_log(f"😵‍💫 {active_team[active_index].base.name}은/는 스스로를 공격했다!")
+                    print(f"{active_team[active_index].base.name}은/는 스스로를 공격했다!")
                 else:
                     can_act = True
                     
@@ -111,9 +120,12 @@ def apply_status_effect_before(
                 current_rate *= 0.5
                 
         elif s == "소리기술사용불가":
-            store.add_log(f"{active_team[active_index].base.name}은/는 소리기술 사용에 실패했다!")
-            can_act = False
-            
+            if not can_act:
+                break
+            if move.affiliation == "소리":
+                store.add_log(f"{active_team[active_index].base.name}은/는 소리기술 사용에 실패했다!")
+                print(f"{active_team[active_index].base.name}은/는 소리기술 사용에 실패했다!")
+                can_act = False
     return {
         "rate": current_rate,
         "is_hit": can_act

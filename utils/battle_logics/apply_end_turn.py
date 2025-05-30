@@ -68,7 +68,7 @@ async def apply_end_turn_effects():
                 damage = pokemon.base.hp // 16
                 store.update_pokemon(side, active_index, lambda p: change_hp(p, -damage))
                 store.add_log(f"🌪️ {pokemon.base.name}은 모래바람에 의해 피해를 입었다!")
-
+                print(f"🌪️ {pokemon.base.name}은 모래바람에 의해 피해를 입었다!")
     # === 지속형 효과 종료 처리 ===
     expired = duration_store.decrement_turns()
     for i, side in enumerate(["my", "enemy"]):
@@ -76,7 +76,7 @@ async def apply_end_turn_effects():
         for effect_name in expired[side]:
             store.update_pokemon(side, active_index, lambda p: remove_status(p, effect_name))
             store.add_log(f"🏋️‍♂️ {'내' if side == 'my' else '상대'} 포켓몬의 {effect_name} 상태가 해제되었다!")
-
+            print(f"🏋️‍♂️ {'내' if side == 'my' else '상대'} 포켓몬의 {effect_name} 상태가 해제되었다!")
     if public_env.weather and public_env.weather in expired["public"]:
         set_weather(None)
         store.add_log(f"날씨({public_env.weather})의 효과가 사라졌다!")
@@ -103,18 +103,19 @@ async def apply_end_turn_effects():
             if "독" in pokemon.status:
                 store.update_pokemon(side, active_index, lambda p: change_hp(p, p.base.hp * 3 // 16))
                 store.add_log(f"➕ {pokemon.base.name}은 포이즌힐로 체력을 회복했다!")
+                print(f"➕ {pokemon.base.name}은 포이즌힐로 체력을 회복했다!")
             elif "맹독" in pokemon.status:
                 store.update_pokemon(side, active_index, lambda p: change_hp(p, p.base.hp * 22 // 96))
                 store.add_log(f"➕ {pokemon.base.name}은 포이즌힐로 체력을 회복했다!")
-
+                print(f"➕ {pokemon.base.name}은 포이즌힐로 체력을 회복했다!")
         if ability_name == "아이스바디" and public_env.weather == "싸라기눈":
             store.update_pokemon(side, active_index, lambda p: change_hp(p, p.base.hp // 16))
             store.add_log(f"➕ {pokemon.base.name}은 아이스바디로 체력을 회복했다!")
-
+            print(f"➕ {pokemon.base.name}은 아이스바디로 체력을 회복했다!")
         if ability_name == "가속":
             store.update_pokemon(side, active_index, lambda p: change_rank(p, "speed", 1))
             store.add_log(f"🦅 {pokemon.base.name}의 가속 특성 발동!")
-
+            print(f"🦅 {pokemon.base.name}의 가속 특성 발동!")
         if ability_name == "변덕쟁이":
             stats = ["attack", "sp_attack", "defense", "sp_defense", "speed"]
             up = random.choice(stats)
@@ -122,17 +123,17 @@ async def apply_end_turn_effects():
             store.update_pokemon(side, active_index, lambda p: change_rank(p, up, 2))
             store.update_pokemon(side, active_index, lambda p: change_rank(p, down, -1))
             store.add_log(f"🦅 {pokemon.base.name}의 변덕쟁이 특성 발동!")
-
+            print(f"🦅 {pokemon.base.name}의 변덕쟁이 특성 발동!")
         if ability_name == "선파워" and public_env.weather == "쾌청":
             store.update_pokemon(side, active_index, lambda p: change_hp(p, -p.base.hp // 16))
             store.add_log(f"🦅 {pokemon.base.name}의 선파워 특성 발동!")
-
+            print(f"🦅 {pokemon.base.name}의 선파워 특성 발동!")
         if ability_name == "탈피" and any(s in MAIN_STATUS_CONDITION for s in pokemon.status):
             for s in pokemon.status:
                 if s in MAIN_STATUS_CONDITION:
                     store.update_pokemon(side, active_index, lambda p: remove_status(p, s))
             store.add_log(f"🦅 {pokemon.base.name}의 탈피 특성 발동!")
-
+            print(f"🦅 {pokemon.base.name}의 탈피 특성 발동!")
     # === 상태 초기화 및 고정기술 처리 ===
     for i, side in enumerate(["my", "enemy"]):
         active = active_my if side == "my" else active_enemy

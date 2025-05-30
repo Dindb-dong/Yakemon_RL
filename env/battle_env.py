@@ -121,6 +121,7 @@ class YakemonEnv(gym.Env):
         
         # 배틀 스토어 초기화
         self.battle_store.reset_all()
+        self.duration_store.reset_all()
         self.battle_store.set_my_team(my_team)
         self.battle_store.set_enemy_team(enemy_team)
         

@@ -136,11 +136,11 @@ def add_status(pokemon: BattlePokemon, status: StatusState, side: str, nullifica
             add_log("기술은 실패했다...")
             return pokemon
 
-        add_effect(side, {
+        add_effect({
             "name": status,
-            "remainingTurn": DURATION_MAP.get(status, 3),
-            "ownerIndex": active_index,
-        })
+            "remaining_turn": DURATION_MAP.get(status, 3),
+            "owner_index": active_index,
+        }, side)
 
         if status == "사슬묶기" and active_pokemon.used_move:
             pokemon.un_usable_move = active_pokemon.used_move
