@@ -64,6 +64,18 @@ async def battle_sequence(
     outcome = {}
     store.update_pokemon("my", active_my, lambda p: set_received_damage(p, 0))
     store.update_pokemon("enemy", active_enemy, lambda p: set_received_damage(p, 0))
+    # === 속이기, 만나자마자 ===
+    if is_move_action(my_action) and my_action.first_turn_only and current_pokemon.is_first_turn is False:
+        store.add_log("🙅‍♂️ 내 포켓몬은 속이기/만나자마자를 사용할 수 없다...")
+        print("🙅‍♂️ 내 포켓몬은 속이기/만나자마자를 사용할 수 없다...")
+        my_action = None
+        pass
+    if is_move_action(enemy_action) and enemy_action.first_turn_only and target_pokemon.is_first_turn is False:
+        store.add_log("🙅‍♂️ 상대 포켓몬은 속이기/만나자마자를 사용할 수 없다...")
+        print("🙅‍♂️ 상대 포켓몬은 속이기/만나자마자를 사용할 수 없다...")
+        enemy_action = None
+        pass
+    
     # === 0. 한 쪽만 null ===
     if my_action is None and enemy_action is not None:
         store.add_log("🙅‍♂️ 내 포켓몬은 행동할 수 없었다...")

@@ -1,6 +1,7 @@
 from typing import Dict, List, Union, Optional, TypedDict
 from p_models.battle_pokemon import BattlePokemon
 from p_models.move_info import MoveInfo
+from utils.battle_logics.calculate_type_effectiveness import calculate_type_effectiveness_with_ability
 from utils.type_relation import calculate_type_effectiveness
 from utils.battle_logics.apply_before_damage import apply_offensive_ability_effect_before_damage
 from utils.battle_logics.get_best_switch_index import get_best_switch_index
@@ -58,19 +59,28 @@ def base_ai_choose_action(
     # 사용 가능한 기술 필터링
     usable_moves: List[MoveInfo] = []
     for move in my_pokemon.base.moves:
+        # pp 다 쓴 기술 제외
         if my_pokemon.pp.get(move.name, 0) <= 0:
             continue
+        # 사슬묶기 당한 기술 제외 
         if my_pokemon.un_usable_move and my_pokemon.un_usable_move.name == move.name:
             continue
+        # 중복 상태이상 기술 제외
         if (move.target == 'opponent' and 
             move.power == 0 and 
             any(e.status and e.status in enemy_pokemon.status 
                 for e in move.effects or [])):
             continue
+        # 이미 쓴 스크린 기술 제외
         active_env = my_env if side == 'my' else enemy_env
         if move.screen and move.screen == active_env.get('screen'):
             continue
-            
+        # 땅 -> 비행처럼 무효 타입 제외
+        if calculate_type_effectiveness_with_ability(my_pokemon.base, enemy_pokemon.base, move) == 0:
+            continue
+        # 속이기, 만나자마자 제외
+        if move.first_turn_only and my_pokemon.is_first_turn is False:
+            continue
         # 방어적 특성에 의한 기술 사용 제한
         if enemy_pokemon.base.ability and enemy_pokemon.base.ability.defensive:
             ability_name = enemy_pokemon.base.ability.name
