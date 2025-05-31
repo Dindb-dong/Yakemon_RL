@@ -122,6 +122,8 @@ class DurationStore:
         expired = {"my": [], "enemy": [], "public": [], "my_env": [], "enemy_env": []}
 
         def dec(effects: List[TimedEffect], side: SideType):
+            if len(effects) == 0:
+                return []
             print(f"\n=== {side}의 효과 처리 시작 ===")
             print(f"처리 전 효과 목록: {effects}")
             new_list = []

@@ -29,7 +29,6 @@ def pre_calculate_move_damage( # 배틀을 실행하기 전에 만약 다른 기
     heal_check: bool = False,
 ) -> float:
     # 일격기는 여기서 처리 안함 
-    print("pre_calculate_move_damage 호출 시작")
     # Get battle state
     state = store.get_state()
     my_team: List[BattlePokemon] = state["my_team"]
@@ -362,7 +361,6 @@ def pre_calculate_move_damage( # 배틀을 실행하기 전에 만약 다른 기
 #     return heal
 
 def get_move_info(my_pokemon: PokemonInfo, move_name: str) -> MoveInfo:
-    print(f"pokemon: {my_pokemon.name}")
     
     for move in my_pokemon.moves:
         if move.name == move_name:
