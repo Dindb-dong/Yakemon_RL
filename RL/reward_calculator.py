@@ -1,4 +1,5 @@
 from typing import List, Union
+from RL.base_ai_choose_action import type_effectiveness
 from p_models.move_info import MoveInfo
 from p_models.pokemon_info import PokemonInfo
 from p_models.status import StatusManager
@@ -78,6 +79,11 @@ def calculate_reward(
     learning_stage = min(float(episode) / float(total_episodes), 1.0)  # 전체 에피소드 수에 따른 점진적 증가
     print(f"total_episodes: {total_episodes}")
     print(f"learning_stage: {learning_stage}")
+    # 타입 상성 계산
+    agent_to_ai = type_effectiveness(current_pokemon.base.types, target_pokemon.base.types)
+    ai_to_agent = type_effectiveness(target_pokemon.base.types, current_pokemon.base.types)
+    print(f"agent_to_ai: {agent_to_ai}")
+    print(f"ai_to_agent: {ai_to_agent}")
 
     # 교체 후 타입 상성에 따른 보상 계산
     if action >= 4:  # 교체 행동인 경우 (action 4, 5는 교체)
@@ -85,6 +91,18 @@ def calculate_reward(
         was_effective = result.get('was_effective', 0)
         was_null = result.get('was_null', False)
         print(f"was_effective: {was_effective}")
+        if agent_to_ai > 1 and ai_to_agent < 1:
+            reward += 0.5
+            print(f"Good switch: Agent to AI is way stronger! Reward: {reward}")
+        elif agent_to_ai > 1 and ai_to_agent == 1:
+            reward += 0.2
+            print(f"Good switch: Agent to AI is stronger! Reward: {reward}")
+        elif agent_to_ai < 1 and ai_to_agent > 1:
+            reward -= 0.5
+            print(f"Bad switch: AI to Agent is way stronger! Reward: {reward}")
+        elif agent_to_ai < 1 and ai_to_agent == 1:
+            reward -= 0.2
+            print(f"Bad switch: AI to Agent is stronger! Reward: {reward}")
         if was_null:
             reward += 0.8  # 효과 없는 공격에 대한 보상
             print(f"Good switch: Immune to attack! Reward: {reward}")

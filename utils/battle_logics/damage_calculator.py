@@ -245,10 +245,15 @@ async def calculate_move_damage(
         if move_info.category == "변화":  # 상대를 때리는 변화기술일 경우 무효 로직
             # 상태이상 기술인데 이미 상대가 그 상태이상 걸려있을 경우
             if move_info.effects and any(effect.status in defender.status for effect in move_info.effects):
+                was_null = True
                 print(f"{defender.base.name}은/는 이미 그 상태이상 걸려있어서 효과가 없었다!")
                 store.add_log(f"🚫 {defender.base.name}은/는 이미 그 상태이상 걸려있어서 효과가 없었다!")
                 return {"success": True, "was_null": True, "used_move": move_info}
             if move_info.type == "풀" and "풀" in opponent_pokemon.types:
+                was_null = True
+                types *= 0
+            if "화상" in [effect.status for effect in move_info.effects] and ("불" in opponent_pokemon.types or opponent_pokemon.ability.name == '수의베일'):
+                was_null = True
                 types *= 0
             if defender.base.ability and defender.base.ability.name == "미라클스킨":
                 was_null = True

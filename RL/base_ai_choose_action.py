@@ -8,6 +8,9 @@ from utils.battle_logics.get_best_switch_index import get_best_switch_index
 from utils.battle_logics.rank_effect import calculate_rank_effect
 import random
 
+def type_effectiveness(attacker_types: List[str], defender_types: List[str]) -> float:
+        return max(calculate_type_effectiveness(atk, defender_types) for atk in attacker_types)
+
 def base_ai_choose_action(
     side: str,
     my_team: List[BattlePokemon],
@@ -121,9 +124,6 @@ def base_ai_choose_action(
         usable_moves.append(move)
     if len(usable_moves) == 0:
         usable_moves.append(my_pokemon.base.moves[0])
-
-    def type_effectiveness(attacker_types: List[str], defender_types: List[str]) -> float:
-        return max(calculate_type_effectiveness(atk, defender_types) for atk in attacker_types)
 
     def get_best_move() -> MoveInfo:
         best = None
