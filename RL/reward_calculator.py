@@ -122,9 +122,12 @@ def calculate_reward(
             reward -= 0.5  # 매우 큰 페널티
             print(f"Bad Attack: Attacked to 1/4 effectiveness! Reward: {reward}")
         # 포켓몬이 행동할 수 없는 경우 리워드 계산하지 않음 (선공을 맞고 기절한 경우는 제외)
-        if outcome and outcome.get("was_null", False) and my_post_pokemon.cannot_move is not None and my_post_pokemon.cannot_move == True:
-            print("Pokemon couldn't move due to type immunity or ability, skipping reward calculation")
-            return reward
+        if my_post_pokemon.cannot_move is not None and my_post_pokemon.cannot_move == True:
+            print("Pokemon couldn't move, skipping reward calculation")
+        # 속이기, 만나자마자 잘못 사용했을 경우 
+        if my_post_pokemon.used_move is not None and my_post_pokemon.used_move.first_turn_only and my_post_pokemon.is_first_turn is False:
+            print("Bad choice: Used a first turn only move out of turn")
+            reward -= 1
         # 이전 포켓몬이 공격 못하고 죽었을 때
         if (my_post_pokemon.used_move is None and (my_post_pokemon.base.name != current_pokemon.base.name)
             and (target_pokemon.used_move is not None and not target_pokemon.used_move.exile)):
@@ -172,8 +175,8 @@ def calculate_reward(
                 print(f"Warning: Used stat boost move ({my_post_pokemon.used_move.name}) but fainted immediately!")
                 reward -= 0.1  # 스탯 상승 기술 사용 후 바로 기절한 경우 페널티
                 print(f"Penalty for using stat boost move and fainting: {reward}")
-            # TODO: 상태이상 기술 추가하기 
-        elif (my_post_pokemon.used_move is not None and my_post_pokemon.used_move.effects 
+        # 상태이상 기술 중복 사용 시 페널티
+        if (my_post_pokemon.used_move is not None and my_post_pokemon.used_move.effects 
             and was_null is True
             and any(effect.chance == 1.0 for effect in my_post_pokemon.used_move.effects)
             and any(effect.status in target_pokemon.status for effect in my_post_pokemon.used_move.effects)):
