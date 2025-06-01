@@ -331,7 +331,7 @@ async def apply_move_effect_after_damage(
                         print(f"부가효과 적용: {target_team[index].base.name}의 {sc.stat}이(가) {sc.change}랭크 변했다!")
                 continue
             
-            if roll < (effect.chance if effect.chance else 0):
+            elif roll < (effect.chance if effect.chance else 0):
                 print(f"부가효과 적용: {used_move.name}의 효과 발동!")
                 if effect.type_change:
                     battle_store.update_pokemon(opponent_side, active_opp, lambda p: set_types(p, [effect.type_change]))

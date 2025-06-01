@@ -395,13 +395,13 @@ async def handle_move(
             if defender and defender.base.ability and defender.base.ability.name == "매직가드" and move.category == "변화":
                 battle_store.add_log(f"{defender.base.name}은 매직가드로 피해를 입지 않았다!")
                 print(f"{defender.base.name}은 매직가드로 피해를 입지 않았다!")
-                await apply_after_damage(side, attacker, defender, move, result["damage"] if "damage" in result else 0, True, battle_store=battle_store, duration_store=duration_store)
+                await apply_after_damage(side, attacker, defender, move, result["damage"] if "damage" in result else 0, battle_store=battle_store, duration_store=duration_store)
                 return {"was_null": result.get("was_null", False), "was_effective": result.get("was_effective", 0), "no_attack": False, "used_move": move}
 
             current_defender = battle_store.get_state()[f"{opponent_side}_team"][
                 active_enemy if side == "my" else active_my
             ]   
-            await apply_after_damage(side, attacker, current_defender, move, result["damage"] if "damage" in result else 0, True, battle_store=battle_store, duration_store=duration_store)
+            await apply_after_damage(side, attacker, current_defender, move, result["damage"] if "damage" in result else 0, battle_store=battle_store, duration_store=duration_store)
 
         return {"was_null": result.get("was_null", False), "was_effective": result.get("was_effective", 0), "no_attack": result.get('success', True), "used_move": move}
 
