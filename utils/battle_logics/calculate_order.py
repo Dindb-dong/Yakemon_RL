@@ -1,7 +1,7 @@
 from typing import Dict, Optional, Literal
 import random
 
-from context.battle_store import BattleStoreState
+from context.battle_store import BattleStore, BattleStoreState
 from context.battle_store import store
 from p_models.battle_pokemon import BattlePokemon
 from p_models.move_info import MoveInfo
@@ -29,8 +29,8 @@ def calculate_speed(pokemon: BattlePokemon):
         
     return speed
 
-async def calculate_order(player_move: Optional[MoveInfo], ai_move: Optional[MoveInfo]) -> Literal["my", "enemy"]:
-    state: BattleStoreState = store.get_state()
+async def calculate_order(player_move: Optional[MoveInfo], ai_move: Optional[MoveInfo], battle_store: Optional[BattleStore] = store) -> Literal["my", "enemy"]:
+    state: BattleStoreState = battle_store.get_state()
     public_env = state["public_env"]
     my_team = state["my_team"]
     active_my = state["active_my"]

@@ -1,11 +1,8 @@
 from typing import List, Union
 from RL.base_ai_choose_action import type_effectiveness
-from p_models.move_info import MoveInfo
 from p_models.pokemon_info import PokemonInfo
-from p_models.status import StatusManager
 from p_models.battle_pokemon import BattlePokemon
 from utils.battle_logics.calculate_order import calculate_speed
-from utils.battle_logics.pre_damage_calculator import pre_calculate_move_damage
 from context.battle_store import store
 
 def calculate_reward(
@@ -55,35 +52,35 @@ def calculate_reward(
     current_pokemon = my_team[active_my]
     my_alive_team: List[PokemonInfo] = [p.base for p in my_team if p.current_hp > 0]
     target_pokemon = enemy_team[active_enemy]
-    print(f"reward_calculator: my_post_pokemon: {my_post_pokemon.base.name}")
-    print(f"reward_calculator: my_post_pokemon.used_move: {my_post_pokemon.used_move.name if my_post_pokemon.used_move else 'None'}")
-    print(f"reward_calculator: my_post_pokemon.current_hp: {my_post_pokemon.current_hp}")
-    print(f"reward_calculator: my_post_pokemon.dealt_damage: {my_post_pokemon.dealt_damage}")
-    print(f"reward_calculator: enemy_post_pokemon: {enemy_post_pokemon.base.name}")
-    print(f"reward_calculator: enemy_post_pokemon.current_hp: {enemy_post_pokemon.current_hp}")
-    print(f"reward_calculator: enemy_post_pokemon.base.hp: {enemy_post_pokemon.base.hp}")
-    print(f"reward_calculator: current_pokemon: {current_pokemon.base.name}")
-    print(f"reward_calculator: current_pokemon.used_move: {current_pokemon.used_move.name if current_pokemon.used_move else 'None'}")
-    print(f"reward_calculator: current_pokemon.dealt_damage: {current_pokemon.dealt_damage}")
-    print(f"reward_calculator: target_pokemon: {target_pokemon.base.name}")
-    print(f"reward_calculator: target_pokemon.received_damage: {target_pokemon.received_damage}")
+    # print(f"reward_calculator: my_post_pokemon: {my_post_pokemon.base.name}")
+    # print(f"reward_calculator: my_post_pokemon.used_move: {my_post_pokemon.used_move.name if my_post_pokemon.used_move else 'None'}")
+    # print(f"reward_calculator: my_post_pokemon.current_hp: {my_post_pokemon.current_hp}")
+    # print(f"reward_calculator: my_post_pokemon.dealt_damage: {my_post_pokemon.dealt_damage}")
+    # print(f"reward_calculator: enemy_post_pokemon: {enemy_post_pokemon.base.name}")
+    # print(f"reward_calculator: enemy_post_pokemon.current_hp: {enemy_post_pokemon.current_hp}")
+    # print(f"reward_calculator: enemy_post_pokemon.base.hp: {enemy_post_pokemon.base.hp}")
+    # print(f"reward_calculator: current_pokemon: {current_pokemon.base.name}")
+    # print(f"reward_calculator: current_pokemon.used_move: {current_pokemon.used_move.name if current_pokemon.used_move else 'None'}")
+    # print(f"reward_calculator: current_pokemon.dealt_damage: {current_pokemon.dealt_damage}")
+    # print(f"reward_calculator: target_pokemon: {target_pokemon.base.name}")
+    # print(f"reward_calculator: target_pokemon.received_damage: {target_pokemon.received_damage}")
 
     # battle_store에서 pre_damage_list 가져오기
     pre_damage_list = store.get_pre_damage_list() if battle_store else []
 
     # 학습 단계에 따른 가중치 계산
-    episode = battle_store.episode if hasattr(battle_store, 'episode') else 0
-    if not hasattr(battle_store, 'total_episodes'):
-        raise ValueError("total_episodes not set in battle_store. Please set battle_store.total_episodes before training.")
-    total_episodes = battle_store.total_episodes
-    learning_stage = min(float(episode) / float(total_episodes), 1.0)  # 전체 에피소드 수에 따른 점진적 증가
-    print(f"total_episodes: {total_episodes}")
-    print(f"learning_stage: {learning_stage}")
+    #episode = battle_store.episode if hasattr(battle_store, 'episode') else 0
+    # if not hasattr(battle_store, 'total_episodes'):
+    #     raise ValueError("total_episodes not set in battle_store. Please set battle_store.total_episodes before training.")
+    #total_episodes = battle_store.total_episodes
+    #learning_stage = min(float(episode) / float(total_episodes), 1.0)  # 전체 에피소드 수에 따른 점진적 증가
+    # print(f"total_episodes: {total_episodes}")
+    # print(f"learning_stage: {learning_stage}")
     # 타입 상성 계산
     agent_to_ai = type_effectiveness(current_pokemon.base.types, target_pokemon.base.types)
     ai_to_agent = type_effectiveness(target_pokemon.base.types, current_pokemon.base.types)
-    print(f"agent_to_ai: {agent_to_ai}")
-    print(f"ai_to_agent: {ai_to_agent}")
+    # print(f"agent_to_ai: {agent_to_ai}")
+    # print(f"ai_to_agent: {ai_to_agent}")
 
     # 교체 후 타입 상성에 따른 보상 계산
     if action >= 4:  # 교체 행동인 경우 (action 4, 5는 교체)
@@ -152,6 +149,11 @@ def calculate_reward(
             print("이전 포켓몬이 공격 못하고 쓰러짐")
             # 공격 못하고 죽음 
             reward -= 0.1
+        # 공격, 특수공격 랭크업 기술 쓰고 살아있을 때 (상대보다 빠른 조건)
+        if (my_post_pokemon.used_move is not None and my_post_pokemon.used_move.effects and any(effect.chance == 1.0 and effect.stat_change and any(sc.stat == 'attack' or sc.stat == 'special_attack' for sc in effect.stat_change) for effect in my_post_pokemon.used_move.effects)
+            and my_post_pokemon.base.name == current_pokemon.base.name and calculate_speed(current_pokemon) > calculate_speed(target_pokemon)):
+            reward += 1.0
+            print(f"Good choice: Used a rank change (attack/sp_attack) move to increase stats! Reward: {reward}")
         # 스피드 랭크업 기술 쓰고 스피드 추월했을 경우 
         if (calculate_speed(my_post_pokemon) < calculate_speed(enemy_post_pokemon) and calculate_speed(current_pokemon) > calculate_speed(target_pokemon)
             and my_post_pokemon.base.name == current_pokemon.base.name and enemy_post_pokemon.base.name == target_pokemon.base.name

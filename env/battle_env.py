@@ -1,5 +1,6 @@
 # env/battle_env.py
 import asyncio
+from copy import deepcopy
 import random
 import numpy as np
 import gym
@@ -94,6 +95,41 @@ class YakemonEnv(gym.Env):
         self.switching_disabled = False  # 교체 비활성화 플래그 추가
         
         self.reset()
+        
+    def __del__(self):
+        print("battle_env: __del__ 호출")
+        # 각 속성이 존재하는지 확인 후 삭제
+        if hasattr(self, 'battle_store'):
+            del self.battle_store
+        if hasattr(self, 'duration_store'):
+            del self.duration_store
+        if hasattr(self, 'public_env'):
+            del self.public_env
+        if hasattr(self, 'my_env'):
+            del self.my_env
+        if hasattr(self, 'enemy_env'):
+            del self.enemy_env
+        if hasattr(self, 'my_team'):
+            del self.my_team
+        if hasattr(self, 'enemy_team'):
+            del self.enemy_team
+        if hasattr(self, 'turn'):
+            del self.turn
+        if hasattr(self, 'done'):
+            del self.done
+        if hasattr(self, 'switching_disabled'):
+            del self.switching_disabled
+        if hasattr(self, 'pokemon_list'):
+            del self.pokemon_list
+        if hasattr(self, '_battle_sequence_lock'):
+            del self._battle_sequence_lock
+        if hasattr(self, 'observation_space'):
+            del self.observation_space
+        if hasattr(self, 'action_space'):
+            del self.action_space
+    
+    def copy(self) -> "YakemonEnv":
+        return deepcopy(self)
 
     def reset(self, my_team=None, enemy_team=None):
         """
@@ -174,7 +210,7 @@ class YakemonEnv(gym.Env):
         )
         return state_vector
 
-    async def step(self, action: int, test: bool = False) -> Tuple[np.ndarray, float, bool, Dict]:
+    async def step(self, action: int, enemy_action: any = 7, is_always_hit:Optional[bool]=False, test: Optional[bool] = False, is_monte_carlo: Optional[bool] = False) -> Tuple[np.ndarray, float, bool, Dict]:
         """
         환경에서 한 스텝 진행
         
@@ -237,7 +273,9 @@ class YakemonEnv(gym.Env):
             # 배틀 시퀀스 실행
             async with self._battle_sequence_lock:
                 try:
-                    enemy_action = base_ai_choose_action(
+                    if enemy_action == 7: # 기본값일 때 
+                        print("battle_env: enemy_action is not set, using base_ai_choose_action")
+                        enemy_action = base_ai_choose_action(
                         side="enemy",
                         my_team=self.my_team,
                         enemy_team=self.enemy_team,
@@ -260,7 +298,11 @@ class YakemonEnv(gym.Env):
                     
                     battle_result = await battle_sequence(
                         my_action=battle_action,
-                        enemy_action=enemy_action
+                        enemy_action=enemy_action,
+                        is_always_hit=is_always_hit,
+                        battle_store=self.battle_store,
+                        duration_store=self.duration_store,
+                        is_monte_carlo=is_monte_carlo
                     )
                     result = battle_result["result"]
                     outcome = battle_result["outcome"]
@@ -303,7 +345,7 @@ class YakemonEnv(gym.Env):
             
             # 내 포켓몬이 쓰러졌는지 확인
             if self.my_team[active_my] and self.my_team[active_my].current_hp <= 0:
-                await remove_fainted_pokemon("my")
+                await remove_fainted_pokemon("my", battle_store=self.battle_store, duration_store=self.duration_store)
                 next_state = self._get_state()
                 reward = 0  # 교체만으로는 보상 없음
                 
@@ -312,7 +354,7 @@ class YakemonEnv(gym.Env):
                 enemy_team = self.battle_store.get_team("enemy")
                 if enemy_team and 0 <= active_enemy < len(enemy_team) and enemy_team[active_enemy] is not None:
                     if enemy_team[active_enemy].current_hp <= 0:
-                        await remove_fainted_pokemon("enemy")
+                        await remove_fainted_pokemon("enemy", battle_store=self.battle_store, duration_store=self.duration_store)
                         next_state = self._get_state()
                         reward = 0  # 교체만으로는 보상 없음
         

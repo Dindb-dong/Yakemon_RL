@@ -1,7 +1,7 @@
 # get_best_switch_index.py
 
-from typing import List
-from context.battle_store import BattleStoreState, store
+from typing import List, Optional
+from context.battle_store import BattleStore, BattleStoreState, store
 from utils.type_relation import calculate_type_effectiveness
 
 
@@ -12,9 +12,9 @@ def get_max_effectiveness(attacker_types: List[str], defender_types: List[str]) 
     )
 
 
-def get_best_switch_index(side: str) -> int:
+def get_best_switch_index(side: str, battle_store: Optional[BattleStore] = store) -> int:
     """가장 좋은 교체 포켓몬의 인덱스를 반환"""
-    state: BattleStoreState = store.get_state()
+    state: BattleStoreState = battle_store.get_state()
     my_team = state["my_team"] if side == "my" else state["enemy_team"]
     enemy_team = state["enemy_team"] if side == "my" else state["my_team"]
     active_my = state["active_my"] if side == "my" else state["active_enemy"]

@@ -37,6 +37,9 @@ class BattleStore:
             "switch_request": None,
             "pre_damage_list": [],
         }
+        
+    def copy(self) -> "BattleStore":
+        return deepcopy(self)
 
     def set_my_team(self, team: List[BattlePokemon]) -> None:
         self.state["my_team"] = team

@@ -1,3 +1,4 @@
+from copy import deepcopy
 from typing import List, Optional, Literal
 from p_models.move_info import ScreenType
 from p_models.types import FieldType, WeatherType
@@ -17,6 +18,8 @@ class PublicBattleEnvironment:
         self.aura = aura if aura is not None else []
         self.disaster = disaster
         self.room = room
+    def copy(self) -> "PublicBattleEnvironment":
+        return deepcopy(self)
 
 class IndividualBattleEnvironment:
     def __init__(
@@ -30,3 +33,5 @@ class IndividualBattleEnvironment:
         self.screen = screen
         self.substitute = substitute
         self.disguise = disguise
+    def copy(self) -> "IndividualBattleEnvironment":
+        return deepcopy(self)

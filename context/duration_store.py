@@ -1,4 +1,5 @@
 # context/duration_store.py
+from copy import deepcopy
 from typing import TYPE_CHECKING, List, Dict, Literal, Optional, Callable
 from context.battle_store import store
 
@@ -17,7 +18,10 @@ class DurationStore:
         self.public_effects: List[TimedEffect] = []
         self.my_env_effects: List[TimedEffect] = []
         self.enemy_env_effects: List[TimedEffect] = []
-        
+    
+    def copy(self) -> "DurationStore":
+        return deepcopy(self)
+    
     def reset_all(self) -> None:
         print("duration_store: reset_all 호출")
         self.__init__()

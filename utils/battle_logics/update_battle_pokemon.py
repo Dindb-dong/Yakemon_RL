@@ -6,8 +6,8 @@ from p_models.ability_info import AbilityInfo
 from p_models.move_info import MoveInfo
 from p_models.rank_state import RankManager
 from p_models.status import StatusManager, StatusState
-from context.battle_store import store
-from context.duration_store import duration_store
+from context.battle_store import BattleStore, store
+from context.duration_store import DurationStore, duration_store
 unmain_status_with_duration: list[str] = [
     "도발", "트집", "사슬묶기", "회복봉인", "앵콜",
     "소리기술사용불가", "하품", "혼란", "교체불가",
@@ -94,16 +94,16 @@ def is_duration_status(status: StatusState) -> bool:
     return status in unmain_status_with_duration or status == "잠듦"
 
 
-def add_status(pokemon: BattlePokemon, status: StatusState, side: str, nullification: bool = False) -> BattlePokemon:
+def add_status(pokemon: BattlePokemon, status: StatusState, side: str, nullification: bool = False, battle_store: Optional[BattleStore] = store, duration_store: Optional[DurationStore] = duration_store) -> BattlePokemon:
     opponent_side = "enemy" if side == "my" else "my"
-    team = store.get_team(side)
-    opponent_team = store.get_team(opponent_side)
-    active_index = store.get_active_index(side)
-    opponent_active_index = store.get_active_index(opponent_side)
+    team = battle_store.get_team(side)
+    opponent_team = battle_store.get_team(opponent_side)
+    active_index = battle_store.get_active_index(side)
+    opponent_active_index = battle_store.get_active_index(opponent_side)
     active_pokemon = team[active_index]
     opponent_pokemon = opponent_team[opponent_active_index]
     add_effect = duration_store.add_effect
-    add_log = store.add_log
+    add_log = battle_store.add_log
 
     mental_statuses = ["도발", "트집", "사슬묶기", "회복봉인", "헤롱헤롱", "앵콜"]
 
@@ -149,12 +149,12 @@ def add_status(pokemon: BattlePokemon, status: StatusState, side: str, nullifica
     manager = StatusManager(pokemon.status)
     manager.add_status(status)
     pokemon.status = manager.get_status()
-    store.update_pokemon(side, active_index, lambda p: p)
+    battle_store.update_pokemon(side, active_index, lambda p: p)
 
     # 싱크로
     if pokemon.base.ability and pokemon.base.ability.name == '싱크로':
         if not (opponent_pokemon.base.ability and opponent_pokemon.base.ability.name == '싱크로'):
-            add_status(opponent_pokemon, status, opponent_side)
+            add_status(opponent_pokemon, status, opponent_side, battle_store=battle_store, duration_store=duration_store)
 
     return pokemon
 

@@ -2,8 +2,8 @@ from typing import List, Dict, Optional, Literal
 from p_models.move_info import MoveInfo
 from p_models.pokemon_info import PokemonInfo
 from p_models.battle_pokemon import BattlePokemon
-from context.battle_store import store
-from context.duration_store import duration_store
+from context.battle_store import BattleStore, store
+from context.duration_store import DurationStore, duration_store
 from utils.battle_logics.rank_effect import calculate_critical, calculate_rank_effect
 from utils.battle_logics.calculate_type_effectiveness import calculate_type_effectiveness_with_ability, is_type_immune
 from utils.battle_logics.helpers import has_ability
@@ -27,10 +27,12 @@ def pre_calculate_move_damage( # 배틀을 실행하기 전에 만약 다른 기
     my_rank: Dict = None,
     op_rank: Dict = None,
     heal_check: bool = False,
+    battle_store: Optional[BattleStore] = store,
+    duration_store: Optional[DurationStore] = duration_store,
 ) -> float:
     # 일격기는 여기서 처리 안함 
     # Get battle state
-    state = store.get_state()
+    state = battle_store.get_state()
     my_team: List[BattlePokemon] = state["my_team"]
     enemy_team: List[BattlePokemon] = state["enemy_team"]
     active_my: int = state["active_my"]
@@ -142,11 +144,11 @@ def pre_calculate_move_damage( # 배틀을 실행하기 전에 만약 다른 기
                     if move_info.name == "플라잉프레스":
                         fighting_move = move_info.copy(type="격투")
                         flying_move = move_info.copy(type="비행")
-                        fighting_effect = apply_defensive_ability_effect_before_damage(fighting_move, side, pre_damage=True)
-                        flying_effect = apply_defensive_ability_effect_before_damage(flying_move, side, pre_damage=True)
+                        fighting_effect = apply_defensive_ability_effect_before_damage(fighting_move, side, pre_damage=True, battle_store=battle_store)
+                        flying_effect = apply_defensive_ability_effect_before_damage(flying_move, side, pre_damage=True, battle_store=battle_store)
                         types *= fighting_effect * flying_effect
                     else:  # 일반적인 경우
-                        types *= apply_defensive_ability_effect_before_damage(move_info, side, pre_damage=True)
+                        types *= apply_defensive_ability_effect_before_damage(move_info, side, pre_damage=True, battle_store=battle_store)
         
         # 방어적 특성이 없는 경우
         if move_info.name == "프리즈드라이" and move_info.type == "노말":
@@ -155,8 +157,8 @@ def pre_calculate_move_damage( # 배틀을 실행하기 전에 만약 다른 기
         if move_info.name == "플라잉프레스":
             fighting_move = move_info.copy(type="격투")
             flying_move = move_info.copy(type="비행")
-            fighting_effect = apply_defensive_ability_effect_before_damage(fighting_move, side, pre_damage=True)
-            flying_effect = apply_defensive_ability_effect_before_damage(flying_move, side, pre_damage=True)
+            fighting_effect = apply_defensive_ability_effect_before_damage(fighting_move, side, pre_damage=True, battle_store=battle_store)
+            flying_effect = apply_defensive_ability_effect_before_damage(flying_move, side, pre_damage=True, battle_store=battle_store)
             types *= fighting_effect * flying_effect
         else:
             types *= calculate_type_effectiveness_with_ability(my_pokemon, opponent_pokemon, move_info)

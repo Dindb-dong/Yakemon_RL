@@ -1,9 +1,10 @@
+from typing import Optional
 from p_models.move_info import MoveInfo
-from context.battle_store import BattleStoreState, SideType, store
+from context.battle_store import BattleStore, BattleStoreState, SideType, store
 from utils.battle_logics.update_battle_pokemon import change_hp, change_rank
 
-def apply_defensive_ability_effect_before_damage(used_move: MoveInfo, side: SideType, was_effective=None, pre_damage=False):
-    state: BattleStoreState = store.get_state()
+def apply_defensive_ability_effect_before_damage(used_move: MoveInfo, side: SideType, was_effective=None, pre_damage=False, battle_store: Optional[BattleStore] = store):
+    state: BattleStoreState = battle_store.get_state()
     enemy_team = state["enemy_team"]
     active_enemy = state["active_enemy"]
     my_team = state["my_team"]
@@ -76,8 +77,8 @@ def apply_defensive_ability_effect_before_damage(used_move: MoveInfo, side: Side
     return rate
 
 
-def apply_offensive_ability_effect_before_damage(used_move: MoveInfo, side: SideType, was_effective=None) -> float:
-    state: BattleStoreState = store.get_state()
+def apply_offensive_ability_effect_before_damage(used_move: MoveInfo, side: SideType, was_effective=None, battle_store: Optional[BattleStore] = store) -> float:
+    state: BattleStoreState = battle_store.get_state()
     my_team = state["my_team"]
     enemy_team = state["enemy_team"]
     active_my = state["active_my"]

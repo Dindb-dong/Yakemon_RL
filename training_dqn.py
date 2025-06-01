@@ -246,6 +246,7 @@ async def train_agent(
         
         # 3. 배틀 루프: 환경 스텝마다 한 번씩 학습 호출
         while True:
+            print(f"Episode {episode+1} / {HYPERPARAMS['num_episodes']}")
             # 현재 상태 벡터 생성
             state_vector = get_state(
                 store=env.battle_store,
@@ -276,15 +277,84 @@ async def train_agent(
                     my_env=env.enemy_env.__dict__,
                     add_log=env.battle_store.add_log
                 )
-                action = get_action_int(temp_action, my_team[env.battle_store.get_active_index("my")])
+                base_action = get_action_int(temp_action, my_team[env.battle_store.get_active_index("my")])
+                action = base_action
+                
+                next_state, reward, done, _ = await env.step(action, is_monte_carlo=False)
+                agent.store_transition(state_vector, action, reward, next_state, done)
             else:
-                action = agent.select_action(state_vector, env.battle_store, env.duration_store, use_target=False)
-            
-            # 행동 실행
-            next_state, reward, done, _ = await env.step(action)
-            
-            # 경험 저장 (리플레이 버퍼에 추가)
-            agent.store_transition(state_vector, action, reward, next_state, done)
+                # 미니 몬테카를로 평가 시스템 적용
+                # 0. 현재 상태 복사 저장
+                temp_1_env = env.copy()
+                temp_2_env = env.copy()
+                
+                # 1. Base AI의 행동 선택
+                base_temp_action = base_ai_choose_action(
+                    side="my",
+                    my_team=my_team,
+                    enemy_team=enemy_team,
+                    active_my=env.battle_store.get_active_index("my"),
+                    active_enemy=env.battle_store.get_active_index("enemy"),
+                    public_env=env.public_env.__dict__,
+                    enemy_env=env.my_env.__dict__,
+                    my_env=env.enemy_env.__dict__,
+                    add_log=env.battle_store.add_log
+                )
+                base_action = get_action_int(base_temp_action, my_team[env.battle_store.get_active_index("my")])
+                
+                # 2. 상대 Base AI의 행동 선택
+                enemy_base_action = base_ai_choose_action(
+                    side="enemy",
+                    my_team=my_team,
+                    enemy_team=enemy_team,
+                    active_my=env.battle_store.get_active_index("my"),
+                    active_enemy=env.battle_store.get_active_index("enemy"),
+                    public_env=env.public_env.__dict__,
+                    enemy_env=env.enemy_env.__dict__,
+                    my_env=env.my_env.__dict__,
+                    add_log=env.battle_store.add_log
+                )
+                
+                # 3. 에이전트의 행동 선택
+                agent_action = agent.select_action(state_vector, env.battle_store, env.duration_store, use_target=False)
+                action = agent_action
+                
+                # 4. 행동이 다른 경우에만 평가 수행
+                if base_action != agent_action:
+                    print("@@@@@ Start Monte Carlo Evaluation @@@@@")
+                    
+                    # Base AI 행동 임시 실행 및 리워드 계산
+                    print("Start checking reward of Base AI's action")
+                    base_next_state, base_reward, base_done, _ = await temp_1_env.step(base_action, enemy_action=enemy_base_action, is_always_hit=True, is_monte_carlo=True)
+                    
+                    # 에이전트 행동 임시 실행 및 리워드 계산
+                    print("Start checking reward of Agent's action")
+                    agent_next_state, agent_reward, agent_done, _ = await temp_2_env.step(agent_action, enemy_action=enemy_base_action, is_always_hit=True, is_monte_carlo=True)
+                    print("@@@@@ End checking reward of Agent and Base AI's action @@@@@")
+                    del temp_1_env
+                    del temp_2_env
+                    # 리워드 비교 및 조정
+                    if agent_reward > base_reward:
+                        # 에이전트의 선택이 더 좋았을 경우 실제 스텝 진행 후 추가 보상
+                        next_state, reward, done, _ = await env.step(action, enemy_action=enemy_base_action, is_monte_carlo=False)
+                        reward += 0.5
+                        print(f"Agent's action is better than Base AI's action, reward: {reward}")
+                        agent.store_transition(state_vector, action, reward, next_state, done)
+                    elif agent_reward < base_reward:
+                        # 에이전트의 선택이 더 나빴을 경우 실제 스텝 진행 후 페널티
+                        next_state, reward, done, _ = await env.step(action, enemy_action=enemy_base_action, is_monte_carlo=False)
+                        reward -= 0.5
+                        print(f"Agent's action is worse than Base AI's action, reward: {reward}")
+                        agent.store_transition(state_vector, action, reward, next_state, done)
+                    else: # 리워드 같았을 경우 그냥 진행 
+                        print("Reward is the same")
+                        next_state, reward, done, _ = await env.step(action, enemy_action=enemy_base_action, is_monte_carlo=False)
+                        agent.store_transition(state_vector, action, reward, next_state, done)
+
+                else:
+                    # 행동이 같은 경우 일반적인 진행
+                    next_state, reward, done, _ = await env.step(action, is_monte_carlo=False)
+                    agent.store_transition(state_vector, action, reward, next_state, done)
             
             # ◆ 환경 스텝마다 업데이트 한 번
             loss = agent.update()
