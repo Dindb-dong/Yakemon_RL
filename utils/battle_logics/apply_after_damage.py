@@ -125,7 +125,6 @@ async def apply_move_effect_after_multi_damage(
     battle_store: Optional[BattleStore] = store,
     duration_store: Optional[DurationStore] = duration_store
 ):
-
     opponent_side = "enemy" if side == "my" else "my"
     my_team = battle_store.get_team(side)
     enemy_team = battle_store.get_team(opponent_side)
@@ -197,8 +196,8 @@ async def apply_move_effect_after_multi_damage(
                         else opponent_side
                     )
                     print(f"target_side: {target_side}")
-                    target_team = mine_team if target_side == side else mirrored_team
-                    index = active_mine if target_side == side else active_opponent
+                    target_team = battle_store.get_team(target_side)
+                    index = battle_store.get_active_index(target_side)
                     battle_store.update_pokemon(target_side, index, lambda p: change_rank(p, sc.stat, sc.change))
                     battle_store.add_log(f"🔃 {target_team[index].base.name}의 {sc.stat}이(가) {sc.change}랭크 변했다!")
                     print(f"부가효과 적용: {target_team[index].base.name}의 {sc.stat}이(가) {sc.change}랭크 변했다!")
@@ -320,9 +319,16 @@ async def apply_move_effect_after_damage(
                     print(f"상태이상 효과 적용: {defender.base.name}이(가) {effect.status} 상태가 되었다!")
                 if effect.stat_change:
                     for sc in effect.stat_change:
-                        battle_store.update_pokemon(side, active_mine, lambda p: change_rank(p, sc.stat, sc.change))
-                        battle_store.add_log(f"🪞 {attacker.base.name}의 {sc.stat}이/가 {sc.change}랭크 변했다!")
-                        print(f"부가효과 적용: {attacker.base.name}의 {sc.stat}이(가) {sc.change}랭크 변했다!")
+                        target_side = (
+                            side if sc.target == "self"
+                            else opponent_side
+                        )
+                        print(f"target_side: {target_side}")
+                        target_team = battle_store.get_team(target_side)
+                        index = battle_store.get_active_index(target_side)
+                        battle_store.update_pokemon(target_side, index, lambda p: change_rank(p, sc.stat, sc.change))
+                        battle_store.add_log(f"🔃 {target_team[index].base.name}의 {sc.stat}이(가) {sc.change}랭크 변했다!")
+                        print(f"부가효과 적용: {target_team[index].base.name}의 {sc.stat}이(가) {sc.change}랭크 변했다!")
                 continue
             
             if roll < (effect.chance if effect.chance else 0):
