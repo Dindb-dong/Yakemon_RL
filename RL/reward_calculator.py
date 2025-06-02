@@ -90,47 +90,47 @@ def calculate_reward(
         was_null = result.get('was_null', False)
         print(f"was_effective: {was_effective}")
         if agent_to_ai > 1 and ai_to_agent < 1:
-            reward += 0.5
+            reward += 1.5
             if not is_monte_carlo:
                 print(f"Good switch: Agent to AI is way stronger! Reward: {reward}")
             else: print(f"Agent to AI is way stronger! Reward: {reward}")
         elif agent_to_ai > 1 and ai_to_agent == 1:
-            reward += 0.2
+            reward += 0.5
             if not is_monte_carlo:
                 print(f"Good switch: Agent to AI is stronger! Reward: {reward}")
             else: print(f"Agent to AI is stronger! Reward: {reward}")
         elif agent_to_ai < 1 and ai_to_agent > 1:
-            reward -= 0.5
+            reward -= 1.5
             if not is_monte_carlo:
                 print(f"Bad switch: AI to Agent is way stronger! Reward: {reward}")
             else: print(f"AI to Agent is way stronger! Reward: {reward}")
         elif agent_to_ai < 1 and ai_to_agent == 1:
-            reward -= 0.2
+            reward -= 0.5
             if not is_monte_carlo:
                 print(f"Bad switch: AI to Agent is stronger! Reward: {reward}")
             else: print(f"AI to Agent is stronger! Reward: {reward}")
         if was_null:
-            reward += 0.8  # 효과 없는 공격에 대한 보상
+            reward += 1.5  # 효과 없는 공격에 대한 보상
             if not is_monte_carlo:
                 print(f"Good switch: Immune to attack! Reward: {reward}")
             else: print(f"Immune to attack! Reward: {reward}")
         elif was_effective == 2:  # 4배 이상 데미지
-            reward -= 0.1  # 매우 큰 페널티
+            reward -= 0.6  # 매우 큰 페널티
             if not is_monte_carlo:
                 print(f"Bad switch: Switched into 4x weakness! Reward: {reward}")
             else: print(f"Switched into 4x weakness! Reward: {reward}")
         elif was_effective == 1:  # 2배 데미지
-            reward -= 0.05  # 적당한 페널티
+            reward -= 0.25  # 적당한 페널티
             if not is_monte_carlo:
                 print(f"Bad switch: Switched into 2x weakness! Reward: {reward}")
             else: print(f"Switched into 2x weakness! Reward: {reward}")
         elif was_effective == -1:  # 1/2 데미지
-            reward += 0.2 # 적당한 보상
+            reward += 0.3 # 적당한 보상
             if not is_monte_carlo:
                 print(f"Good switch: Resistant to 1/2 damage! Reward: {reward}")
             else: print(f"Resistant to 1/2 damage! Reward: {reward}")
         elif was_effective == -2:  # 1/4 데미지
-            reward += 0.4  # 매우 큰 보상
+            reward += 0.6  # 매우 큰 보상
             if not is_monte_carlo:
                 print(f"Good switch: Resistant to 1/4 damage! Reward: {reward}")
             else: print(f"Resistant to 1/4 damage! Reward: {reward}")
@@ -171,7 +171,7 @@ def calculate_reward(
                 print("Pokemon couldn't move, skipping reward calculation")
         # 속이기, 만나자마자 잘못 사용했을 경우 
         if my_post_pokemon.used_move is not None and my_post_pokemon.used_move.first_turn_only and my_post_pokemon.is_first_turn is False:
-            reward -= 1
+            reward -= 1.0
             if not is_monte_carlo:
                 print("Bad choice: Used a first turn only move out of turn")
             else: print(f"Penalty: Used a first turn only move out of turn")
@@ -180,11 +180,11 @@ def calculate_reward(
             and (target_pokemon.used_move is not None and not target_pokemon.used_move.exile)):
             print("이전 포켓몬이 공격 못하고 쓰러짐")
             # 공격 못하고 죽음 
-            reward -= 0.1
+            reward -= 1.0
         # 공격, 특수공격 랭크업 기술 쓰고 살아있을 때 (상대보다 빠른 조건)
         if (my_post_pokemon.used_move is not None and my_post_pokemon.used_move.effects and any(effect.chance == 1.0 and effect.stat_change and any(sc.stat == 'attack' or sc.stat == 'special_attack' for sc in effect.stat_change) for effect in my_post_pokemon.used_move.effects)
             and my_post_pokemon.base.name == current_pokemon.base.name and calculate_speed(current_pokemon) > calculate_speed(target_pokemon)):
-            reward += 1.0
+            reward += 1.5
             if not is_monte_carlo:
                 print(f"Good choice: Used a rank change (attack/sp_attack) move to increase stats! Reward: {reward}")
             else: print(f"Used a rank change (attack/sp_attack) move to increase stats! Reward: {reward}")
@@ -192,7 +192,7 @@ def calculate_reward(
         if (calculate_speed(my_post_pokemon) < calculate_speed(enemy_post_pokemon) and calculate_speed(current_pokemon) > calculate_speed(target_pokemon)
             and my_post_pokemon.base.name == current_pokemon.base.name and enemy_post_pokemon.base.name == target_pokemon.base.name
             and my_post_pokemon.used_move is not None and my_post_pokemon.used_move.effects and any(effect.chance == 1.0 and effect.stat_change and any(sc.stat == 'speed' for sc in effect.stat_change) for effect in my_post_pokemon.used_move.effects)):
-            reward += 0.5
+            reward += 1.0
             if not is_monte_carlo:
                 print(f"Good choice: Used a speed rank change move to overtake the enemy! Reward: {reward}")
             else: print(f"Used a speed rank change move to overtake the enemy! Reward: {reward}")
@@ -206,14 +206,14 @@ def calculate_reward(
             else: print(f"Used a move to defeat the enemy! Reward: {reward}")
         # 상대 때리면 리워드 증가 
         if current_pokemon.dealt_damage and enemy_post_pokemon.current_hp != 0:
-            reward += (current_pokemon.dealt_damage / enemy_post_pokemon.base.hp) * 2
+            reward += (current_pokemon.dealt_damage / enemy_post_pokemon.base.hp) * 1.2
             print(f"dealt_damage: {current_pokemon.dealt_damage}")
             print(f"enemy_post_pokemon.base.hp: {enemy_post_pokemon.base.hp}")
             print(f"hit! : {reward}")
         # 내가 먼저 선공, 상대의 후공으로 기절했을 때
         elif ((my_post_pokemon.base.name != current_pokemon.base.name) and (current_pokemon.used_move == None) and (enemy_post_pokemon.base.name == target_pokemon.base.name)
             and my_post_pokemon.used_move is not None and not my_post_pokemon.used_move.u_turn and target_pokemon.received_damage is not None):
-            reward += (target_pokemon.received_damage / target_pokemon.base.hp) * 0.5
+            reward += (target_pokemon.received_damage / target_pokemon.base.hp) * 0.3
             print(f"received_damage (fallback): {target_pokemon.received_damage}")
             print(f"enemy_post_pokemon.base.hp: {enemy_post_pokemon.base.hp}")
             print(f"hit(fallback) : {reward}")
