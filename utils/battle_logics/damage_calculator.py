@@ -169,7 +169,7 @@ async def calculate_move_damage(
     
     # 0-2. Check if move is self-targeting or field effect
     if move_info.target in ["self", "none"]:
-        apply_change_effect(move_info, side, defender.base, is_multi_hit)
+        apply_change_effect(move_info, side, defender.base, is_multi_hit, battle_store=battle_store, duration_store=duration_store)
         return {"success": True, "used_move": move_info}
     
     # 0-3. Check charging moves
