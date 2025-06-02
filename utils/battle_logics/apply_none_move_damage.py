@@ -95,7 +95,7 @@ def apply_recoil_damage(pokemon: BattlePokemon, recoil: float, applied_damage: i
         damage = int(applied_damage * recoil)
         add_log(f"{pokemon.base.name}은 반동으로 피해를 입었다!")
     print(f"반동 데미지 적용: {pokemon.base.name}이(가) 반동 데미지 {damage}를 입었다!\
-        {pokemon.current_hp}에서 {pokemon.current_hp - damage}로 변경")
+        {pokemon.current_hp}에서 {max(0, pokemon.current_hp - damage)}로 변경")
     return pokemon.copy_with(current_hp=max(0, pokemon.current_hp - damage))
 
 
@@ -110,7 +110,7 @@ def apply_thorn_damage(pokemon: BattlePokemon) -> BattlePokemon:
     if ability_name != "매직가드":
         damage = int(pokemon.base.hp * 0.125)
         add_log(f"{pokemon.base.name}은 가시에 의해 피해를 입었다!")
-        print(f"{pokemon.base.name}은 가시에 의해 피해를 입었다!\n {pokemon.current_hp}에서 {pokemon.current_hp - damage}로 변경")
+        print(f"{pokemon.base.name}은 가시에 의해 피해를 입었다!\n {pokemon.current_hp}에서 {max(0, pokemon.current_hp - damage)}로 변경")
     return pokemon.copy_with(current_hp=max(0, pokemon.current_hp - damage))
 
 

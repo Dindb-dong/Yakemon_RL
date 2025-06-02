@@ -421,25 +421,29 @@ async def test_agent(
         # 1. 팀 생성 단계
         all_pokemon = create_mock_pokemon_list()
         
-        # 불, 물, 풀 타입의 포켓몬들을 각각 분류
-        fire_pokemon = [p for p in all_pokemon if '불' in p.types]
-        water_pokemon = [p for p in all_pokemon if '물' in p.types]
-        grass_pokemon = [p for p in all_pokemon if '풀' in p.types]
+        # 첫 번째 포켓몬은 완전 랜덤하게 선택
+        my_team = [random.choice(all_pokemon)]
         
-        # test 시에는 물 불 풀만 사용
-        # 각 타입에서 랜덤하게 3마리씩 선택
-        my_team = (
-            random.sample(fire_pokemon, 1) +
-            random.sample(water_pokemon, 1) +
-            random.sample(grass_pokemon, 1)
-        )
+        # 두 번째 포켓몬은 첫 번째 포켓몬과 타입이 겹치지 않는 포켓몬 중에서 선택
+        first_pokemon_types = set(my_team[0].types)
+        available_second = [p for p in all_pokemon if not any(t in first_pokemon_types for t in p.types)]
+        my_team.append(random.choice(available_second))
         
-        # 상대 팀도 동일하게 구성
-        enemy_team = (
-            random.sample(fire_pokemon, 1) +
-            random.sample(water_pokemon, 1) +
-            random.sample(grass_pokemon, 1)
-        )
+        # 세 번째 포켓몬은 첫 번째와 두 번째 포켓몬과 타입이 겹치지 않는 포켓몬 중에서 선택
+        first_two_types = first_pokemon_types.union(set(my_team[1].types))
+        available_third = [p for p in all_pokemon if not any(t in first_two_types for t in p.types)]
+        my_team.append(random.choice(available_third))
+
+        # 상대 팀도 동일한 로직으로 구성
+        enemy_team = [random.choice(all_pokemon)]
+        
+        first_pokemon_types = set(enemy_team[0].types)
+        available_second = [p for p in all_pokemon if not any(t in first_pokemon_types for t in p.types)]
+        enemy_team.append(random.choice(available_second))
+        
+        first_two_types = first_pokemon_types.union(set(enemy_team[1].types))
+        available_third = [p for p in all_pokemon if not any(t in first_two_types for t in p.types)]
+        enemy_team.append(random.choice(available_third))
         
         # PokemonInfo를 BattlePokemon으로 변환
         my_team = [create_battle_pokemon(poke) for poke in my_team]

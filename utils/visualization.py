@@ -323,16 +323,16 @@ def plot_training_results(
         
         # 배틀 통계를 JSON 파일로 저장
         battle_stats = {
-            'super_effective_moves': super_effective_moves,
-            'ineffective_moves': ineffective_moves,
-            'switches': switches,
-            'alive_enemies_distribution': alive_enemies_distribution,
-            'good_switches': good_switches,
-            'bad_switches': bad_switches,
-            'good_attacks': good_attacks,
-            'bad_attacks': bad_attacks,
-            'good_choices': good_choices,
-            'bad_choices': bad_choices
+            'super_effective_moves': super_effective_moves.tolist(),
+            'ineffective_moves': ineffective_moves.tolist(),
+            'switches': switches.tolist(),
+            'alive_enemies_distribution': alive_enemies_distribution.tolist(),
+            'good_switches': good_switches.tolist(),
+            'bad_switches': bad_switches.tolist(),
+            'good_attacks': good_attacks.tolist(),
+            'bad_attacks': bad_attacks.tolist(),
+            'good_choices': good_choices.tolist(),
+            'bad_choices': bad_choices.tolist()
         }
         
         with open(os.path.join(save_path, f'{agent_name}_battle_stats.json'), 'w') as f:

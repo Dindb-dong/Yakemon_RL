@@ -217,8 +217,9 @@ async def calculate_move_damage(
                 
         if not hit_success:
             is_hit = False
-            battle_store.add_log(f"🚫 {my_pokemon.name}의 공격은 빗나갔다!")
-            print(f"{my_pokemon.name}의 공격은 빗나갔다!")
+            if attacker.base is not None:
+                battle_store.add_log(f"🚫 {attacker.base.name}의 공격은 빗나갔다!")
+                print(f"{attacker.base.name}의 공격은 빗나갔다!")
             battle_store.update_pokemon(side, active_my if side == "my" else active_enemy, lambda p: set_had_missed(p, True))
             
             # Handle move demerit effects
@@ -686,6 +687,8 @@ def apply_change_effect(
                 else:
                     battle_store.add_log(f"👻 {side}는 {move_info.name}을/를 사용했다!")
                     print(f"{side}는 {move_info.name}을/를 사용했다!")
+                    battle_store.update_pokemon(side, active_mine, lambda p: set_used_move(p, move_info))
+                    battle_store.update_pokemon(side, active_mine, lambda p: use_move_pp(p, move_info.name, defender.ability.name == "프레셔" if defender and defender.ability else False, is_multi_hit))
                     battle_store.update_pokemon(side, active_mine, lambda p: add_status(p, "길동무", side, battle_store=battle_store, duration_store=duration_store))
             
             if move_info.protect:
@@ -695,7 +698,11 @@ def apply_change_effect(
                     if random.random() < 0.5:
                         print("연속으로 방어 성공!")
                         battle_store.add_log("연속으로 방어 성공!")
+                        battle_store.update_pokemon(side, active_mine, lambda p: set_used_move(p, move_info))
+                        battle_store.update_pokemon(side, active_mine, lambda p: use_move_pp(p, move_info.name, defender.ability.name == "프레셔" if defender and defender.ability else False, is_multi_hit))
                         battle_store.update_pokemon(side, active_mine, lambda p: set_protecting(p, True))
+                        battle_store.update_pokemon(side, active_mine, lambda p: set_dealt_damage(p, 0))
+                        
                     else:
                         print("연속으로 방어 실패...!")
                         battle_store.add_log("연속으로 방어 실패...!")
@@ -705,11 +712,17 @@ def apply_change_effect(
                         battle_store.update_pokemon(side, active_mine, lambda p: set_dealt_damage(p, 0))
                         return
                 else:
+                    battle_store.update_pokemon(side, active_mine, lambda p: set_used_move(p, move_info))
+                    battle_store.update_pokemon(side, active_mine, lambda p: use_move_pp(p, move_info.name, defender.ability.name == "프레셔" if defender and defender.ability else False, is_multi_hit))
                     battle_store.update_pokemon(side, active_mine, lambda p: set_protecting(p, True))
+                    battle_store.update_pokemon(side, active_mine, lambda p: set_dealt_damage(p, 0))
             
             if move_info.effects:
                 for effect in move_info.effects:
                     if effect.stat_change:  # 랭크업 기술일 경우
+                        battle_store.update_pokemon(side, active_mine, lambda p: set_used_move(p, move_info))
+                        battle_store.update_pokemon(side, active_mine, lambda p: use_move_pp(p, move_info.name, defender.ability.name == "프레셔" if defender and defender.ability else False, is_multi_hit))
+                        battle_store.update_pokemon(side, active_mine, lambda p: set_dealt_damage(p, 0))
                         for stat_change in effect.stat_change:
                             battle_store.update_pokemon(side, active_mine, 
                                             lambda p: change_rank(p, stat_change.stat, stat_change.change))
@@ -718,6 +731,9 @@ def apply_change_effect(
                     
                     if effect.heal and effect.heal > 0:
                         heal = effect.heal
+                        battle_store.update_pokemon(side, active_mine, lambda p: set_used_move(p, move_info))
+                        battle_store.update_pokemon(side, active_mine, lambda p: use_move_pp(p, move_info.name, defender.ability.name == "프레셔" if defender and defender.ability else False, is_multi_hit))
+                        battle_store.update_pokemon(side, active_mine, lambda p: set_dealt_damage(p, 0))
                         battle_store.update_pokemon(side, active_mine, 
                                           lambda p: change_hp(p, p.base.hp * heal))
                         print("damage_calculator.py") # 맞은 포켓몬의 체력이 회복되는 오류 확인 위한 디버깅
@@ -727,6 +743,9 @@ def apply_change_effect(
                             active_team[active_mine].base.ability and 
                             active_team[active_mine].base.ability.name in ["불면", "의기양양"]
                         ):
+                            battle_store.update_pokemon(side, active_mine, lambda p: set_used_move(p, move_info))
+                            battle_store.update_pokemon(side, active_mine, lambda p: use_move_pp(p, move_info.name, defender.ability.name == "프레셔" if defender and defender.ability else False, is_multi_hit))
+                            battle_store.update_pokemon(side, active_mine, lambda p: set_dealt_damage(p, 0))
                             battle_store.update_pokemon(side, active_mine, 
                                             lambda p: add_status(p, effect.status, side, battle_store=battle_store, duration_store=duration_store))
         
