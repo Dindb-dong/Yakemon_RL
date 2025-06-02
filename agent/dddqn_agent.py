@@ -306,9 +306,9 @@ class DDDQNAgent:
         }, path)
         print(f"Model saved to {path}")
 
-    def load(self, path):
-        """저장된 모델의 상태를 불러옵니다."""
-        checkpoint = torch.load(path)
+    def load(self, path: str) -> None:
+        """모델 로드"""
+        checkpoint = torch.load(path, weights_only=True)
         self.policy_net.load_state_dict(checkpoint['policy_net_state_dict'])
         self.target_net.load_state_dict(checkpoint['target_net_state_dict'])
         self.optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
