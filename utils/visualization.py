@@ -49,6 +49,7 @@ def analyze_battle_statistics(log_lines: list, total_episodes: int) -> tuple:
     super_effective_moves = np.zeros(num_bins, dtype=np.float64)
     ineffective_moves = np.zeros(num_bins, dtype=np.float64)
     switches = np.zeros(num_bins, dtype=np.float64)
+    rank_up_moves = np.zeros(num_bins, dtype=np.float64)    # 랭크업 기술 사용 확인
     good_switches = np.zeros(num_bins, dtype=np.float64)    # 좋은 교체 선택
     bad_switches = np.zeros(num_bins, dtype=np.float64)     # 나쁜 교체 선택
     good_attacks = np.zeros(num_bins, dtype=np.float64)     # 좋은 공격 선택
@@ -82,6 +83,10 @@ def analyze_battle_statistics(log_lines: list, total_episodes: int) -> tuple:
         # 나쁜 교체 선택 확인
         if "Bad switch:" in line:
             bad_switches[bin_index] += 1
+            
+        # 랭크업 기술 사용 확인
+        if "rank change" in line and "Good choice:" in line:
+            rank_up_moves[bin_index] += 1
         
         # 좋은 공격 선택 확인
         if "Good Attack:" in line:
@@ -92,7 +97,7 @@ def analyze_battle_statistics(log_lines: list, total_episodes: int) -> tuple:
             bad_attacks[bin_index] += 1
         
         # 기타 좋은 선택 확인
-        if "Good choice:" in line and "Good switch:" not in line and "Good Attack:" not in line:
+        if "Good choice:" in line and "Good switch:" not in line and "Good Attack:" not in line and "rank change" not in line:
             good_choices[bin_index] += 1
         
         # 기타 나쁜 선택 확인
@@ -100,11 +105,11 @@ def analyze_battle_statistics(log_lines: list, total_episodes: int) -> tuple:
             bad_choices[bin_index] += 1
         
         # 효과가 굉장한 기술 사용 확인
-        if "효과가 굉장했다" in line and 'my' in line:
+        if "효과가 굉장했다" in line and 'enemy' not in line:
             super_effective_moves[bin_index] += 1
         
         # 효과가 없는 기술 사용 확인
-        if "효과가 없었다" in line and 'my' in line:
+        if "효과가 없었다" in line and 'enemy' not in line:
             ineffective_moves[bin_index] += 1
         
         # 교체 확인
@@ -121,7 +126,7 @@ def analyze_battle_statistics(log_lines: list, total_episodes: int) -> tuple:
                 alive_enemies_distribution[bin_index][remaining] += 1
     
     return (super_effective_moves, ineffective_moves, switches, alive_enemies_distribution, 
-            good_switches, bad_switches, good_attacks, bad_attacks, good_choices, bad_choices)
+            good_switches, bad_switches, good_attacks, bad_attacks, good_choices, bad_choices, rank_up_moves)
 
 def plot_training_results(
     rewards_history: list,
@@ -225,12 +230,12 @@ def plot_training_results(
     
     # 3. 배틀 통계 분석 (로그 라인이 제공된 경우)
     if log_lines:
-        super_effective_moves, ineffective_moves, switches, alive_enemies_distribution, good_switches, bad_switches, good_attacks, bad_attacks, good_choices, bad_choices = analyze_battle_statistics(log_lines, len(rewards_history))
+        super_effective_moves, ineffective_moves, switches, alive_enemies_distribution, good_switches, bad_switches, good_attacks, bad_attacks, good_choices, bad_choices, rank_up_moves = analyze_battle_statistics(log_lines, len(rewards_history))
         
-        plt.figure(figsize=(15, 30))  # 그래프 크기 증가
+        plt.figure(figsize=(15, 35))  # 그래프 크기 증가
         
         # 효과가 굉장한 기술 사용 횟수
-        plt.subplot(8, 1, 1)
+        plt.subplot(9, 1, 1)
         episodes = np.arange(0, len(rewards_history), 100)
         plt.bar(episodes, super_effective_moves, width=80, alpha=0.7, color='red', label='Super Effective')
         plt.bar(episodes, ineffective_moves, width=80, alpha=0.7, color='gray', label='Ineffective', bottom=super_effective_moves)
@@ -241,7 +246,7 @@ def plot_training_results(
         plt.grid(True, alpha=0.3)
         
         # 교체 횟수
-        plt.subplot(8, 1, 2)
+        plt.subplot(9, 1, 2)
         plt.bar(episodes, switches, width=80, alpha=0.7, color='blue')
         plt.title(f'{agent_name} Pokemon Switches per 100 Episodes')
         plt.xlabel('Episode')
@@ -249,7 +254,7 @@ def plot_training_results(
         plt.grid(True, alpha=0.3)
         
         # 상대 포켓몬 쓰러뜨린 횟수 분포
-        plt.subplot(8, 1, 3)
+        plt.subplot(9, 1, 3)
         x = np.arange(len(alive_enemies_distribution))
         width = 0.2  # 막대 너비
         
@@ -266,7 +271,7 @@ def plot_training_results(
         plt.grid(True, alpha=0.3)
         
         # 좋은/나쁜 교체 선택
-        plt.subplot(8, 1, 4)
+        plt.subplot(9, 1, 4)
         plt.bar(episodes, good_switches, width=80, alpha=0.7, color='green', label='Good Switches')
         plt.bar(episodes, bad_switches, width=80, alpha=0.7, color='red', label='Bad Switches', bottom=good_switches)
         plt.title(f'{agent_name} Switch Quality per 100 Episodes')
@@ -276,7 +281,7 @@ def plot_training_results(
         plt.grid(True, alpha=0.3)
         
         # 좋은/나쁜 공격 선택
-        plt.subplot(8, 1, 5)
+        plt.subplot(9, 1, 5)
         plt.bar(episodes, good_attacks, width=80, alpha=0.7, color='green', label='Good Attacks')
         plt.bar(episodes, bad_attacks, width=80, alpha=0.7, color='red', label='Bad Attacks', bottom=good_attacks)
         plt.title(f'{agent_name} Attack Quality per 100 Episodes')
@@ -286,7 +291,7 @@ def plot_training_results(
         plt.grid(True, alpha=0.3)
         
         # 기타 좋은/나쁜 선택
-        plt.subplot(8, 1, 6)
+        plt.subplot(9, 1, 6)
         plt.bar(episodes, good_choices, width=80, alpha=0.7, color='green', label='Good Choices')
         plt.bar(episodes, bad_choices, width=80, alpha=0.7, color='red', label='Bad Choices', bottom=good_choices)
         plt.title(f'{agent_name} Other Choice Quality per 100 Episodes')
@@ -296,7 +301,7 @@ def plot_training_results(
         plt.grid(True, alpha=0.3)
         
         # 교체 선택 품질 비율
-        plt.subplot(8, 1, 7)
+        plt.subplot(9, 1, 7)
         total_switches = np.array(good_switches) + np.array(bad_switches)
         good_switch_ratio = np.divide(good_switches, total_switches, out=np.zeros_like(good_switches), where=total_switches!=0)
         plt.plot(episodes, good_switch_ratio, color='blue', marker='o', label='Good Switch Ratio')
@@ -307,7 +312,7 @@ def plot_training_results(
         plt.grid(True, alpha=0.3)
         
         # 공격 선택 품질 비율
-        plt.subplot(8, 1, 8)
+        plt.subplot(9, 1, 8)
         total_attacks = np.array(good_attacks) + np.array(bad_attacks)
         good_attack_ratio = np.divide(good_attacks, total_attacks, out=np.zeros_like(good_attacks), where=total_attacks!=0)
         plt.plot(episodes, good_attack_ratio, color='blue', marker='o', label='Good Attack Ratio')
@@ -317,6 +322,14 @@ def plot_training_results(
         plt.ylim(0, 1)
         plt.grid(True, alpha=0.3)
         
+        # 랭크업 기술 사용 횟수
+        plt.subplot(9, 1, 9)
+        plt.bar(episodes, rank_up_moves, width=80, alpha=0.7, color='green', label='Rank Up Moves')
+        plt.title(f'{agent_name} Rank Up Moves per 100 Episodes')
+        plt.xlabel('Episode')
+        plt.ylabel('Number of Rank Up Moves')
+        plt.legend()
+        plt.grid(True, alpha=0.3)
         plt.tight_layout()
         plt.savefig(os.path.join(save_path, f'{agent_name}_battle_statistics.png'), dpi=300, bbox_inches='tight')
         plt.close()
@@ -332,7 +345,8 @@ def plot_training_results(
             'good_attacks': good_attacks.tolist(),
             'bad_attacks': bad_attacks.tolist(),
             'good_choices': good_choices.tolist(),
-            'bad_choices': bad_choices.tolist()
+            'bad_choices': bad_choices.tolist(),
+            'rank_up_moves': rank_up_moves.tolist()
         }
         
         with open(os.path.join(save_path, f'{agent_name}_battle_stats.json'), 'w') as f:
