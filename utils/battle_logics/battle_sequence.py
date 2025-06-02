@@ -87,7 +87,7 @@ async def battle_sequence(
         battle_store.update_pokemon("my", active_my, lambda p: set_cannot_move(p, False))
         battle_store.update_pokemon("my", active_my, lambda p: set_dealt_damage(p, 0))
         if is_move_action(enemy_action):
-            result: dict[str, Union[bool, int]] = await handle_move("enemy", enemy_action, active_enemy, is_always_hit, battle_store=battle_store, duration_store=duration_store)
+            result: dict[str, Union[bool, int]] = await handle_move("enemy", enemy_action, active_enemy, is_monte_carlo, is_always_hit, battle_store=battle_store, duration_store=duration_store)
         elif is_switch_action(enemy_action):
             await switch_pokemon("enemy", enemy_action["index"])
         if not is_monte_carlo:
@@ -100,7 +100,7 @@ async def battle_sequence(
         battle_store.update_pokemon("enemy", active_enemy, lambda p: set_cannot_move(p, False))
         battle_store.update_pokemon("enemy", active_enemy, lambda p: set_dealt_damage(p, 0))
         if is_move_action(my_action):
-            outcome: dict[str, Union[bool, int]] = await handle_move("my", my_action, active_my, is_always_hit, battle_store=battle_store, duration_store=duration_store)
+            outcome: dict[str, Union[bool, int]] = await handle_move("my", my_action, active_my, is_monte_carlo, is_always_hit, battle_store=battle_store, duration_store=duration_store)
         elif is_switch_action(my_action):
             await switch_pokemon("my", my_action["index"])
         if not is_monte_carlo:
@@ -148,7 +148,7 @@ async def battle_sequence(
                 print("enemy의 기습은 실패했다...")
             else:
                 print('나는 교체, 상대는 공격!')
-                result: dict[str, Union[bool, int]] = await handle_move("enemy", enemy_action, store.get_active_index("enemy"),is_always_hit, was_late=True, battle_store=battle_store, duration_store=duration_store)
+                result: dict[str, Union[bool, int]] = await handle_move("enemy", enemy_action, store.get_active_index("enemy"), is_monte_carlo, is_always_hit, was_late=True, battle_store=battle_store, duration_store=duration_store)
         if not is_monte_carlo:
             await apply_end_turn_effects()
         return {"result": result if result else {"was_null": False, "was_effective": 0}, "outcome": {"was_null": False, "was_effective": 0, "no_attack": True}}
@@ -161,7 +161,7 @@ async def battle_sequence(
                 print("my의 기습은 실패했다...")
             else:
                 print('상대는 교체, 나는 공격!')
-                outcome: dict[str, Union[bool, int]] = await handle_move("my", my_action, store.get_active_index("my"), is_always_hit, was_late=True, battle_store=battle_store, duration_store=duration_store)
+                outcome: dict[str, Union[bool, int]] = await handle_move("my", my_action, store.get_active_index("my"), is_monte_carlo, is_always_hit, was_late=True, battle_store=battle_store, duration_store=duration_store)
         if not is_monte_carlo:
             await apply_end_turn_effects()
         return {"result": {"was_null": False, "was_effective": 0}, "outcome": outcome if outcome else {"was_null": False, "was_effective": 0, "no_attack": False, "used_move": my_action}}
@@ -173,15 +173,15 @@ async def battle_sequence(
                 # 내 기습 실패 -> 상대만 공격함
                 battle_store.add_log("my의 기습은 실패했다...")
                 print("my의 기습은 실패했다...")
-                result: dict[str, Union[bool, int]] = await handle_move("enemy", enemy_action, store.get_active_index("enemy"), is_always_hit, was_late=True, battle_store=battle_store, duration_store=duration_store)
+                result: dict[str, Union[bool, int]] = await handle_move("enemy", enemy_action, store.get_active_index("enemy"), is_monte_carlo, is_always_hit, was_late=True, battle_store=battle_store, duration_store=duration_store)
             elif enemy_action.name == "기습":
                 # 상대 기습보다 내 선공기가 먼저였으면 실패 -> 나만 공격함
                 battle_store.add_log("enemy의 기습은 실패했다...")
                 print("enemy의 기습은 실패했다...")
-                outcome: dict[str, Union[bool, int]] = await handle_move("my", my_action, store.get_active_index("my"), is_always_hit, was_late=True, battle_store=battle_store, duration_store=duration_store)
+                outcome: dict[str, Union[bool, int]] = await handle_move("my", my_action, store.get_active_index("my"), is_monte_carlo, is_always_hit, was_late=True, battle_store=battle_store, duration_store=duration_store)
             else:  # 그 외의 일반적인 경우들
                 print('내 선공!')
-                outcome: dict[str, Union[bool, int]] = await handle_move("my", my_action, store.get_active_index("my"), is_always_hit, battle_store=battle_store, duration_store=duration_store)
+                outcome: dict[str, Union[bool, int]] = await handle_move("my", my_action, store.get_active_index("my"), is_monte_carlo, is_always_hit, battle_store=battle_store, duration_store=duration_store)
                 # 상대가 쓰러졌는지 확인
                 opponent_pokemon = battle_store.get_team("enemy")
                 current_defender = opponent_pokemon[battle_store.get_active_index("enemy")]
@@ -189,20 +189,20 @@ async def battle_sequence(
                     if not is_monte_carlo:
                         await apply_end_turn_effects()
                     return {"result": {"was_null": False, "was_effective": 0}, "outcome": outcome if outcome else {"was_null": False, "was_effective": 0, "no_attack": False, "used_move": my_action}}
-                result: dict[str, Union[bool, int]] = await handle_move("enemy", enemy_action, active_enemy, is_always_hit, was_late=True, battle_store=battle_store, duration_store=duration_store)
+                result: dict[str, Union[bool, int]] = await handle_move("enemy", enemy_action, active_enemy, is_monte_carlo, is_always_hit, was_late=True, battle_store=battle_store, duration_store=duration_store)
         else:  # 상대가 선공일 경우
             if enemy_action.name == "기습" and my_action.category == "변화":
                 # 상대 기습 실패, 내 기술만 작동
                 battle_store.add_log("enemy의 기습은 실패했다...")
                 print("enemy의 기습은 실패했다...")
-                outcome: dict[str, Union[bool, int]] = await handle_move("my", my_action, battle_store.get_active_index("my"), is_always_hit, was_late=True)
+                outcome: dict[str, Union[bool, int]] = await handle_move("my", my_action, battle_store.get_active_index("my"), is_monte_carlo, is_always_hit, was_late=True, battle_store=battle_store, duration_store=duration_store)
             elif my_action.name == "기습":  # 내 기습이 상대보다 느림 -> 상대 기습만 작동
                 battle_store.add_log("my의 기습은 실패했다...")
                 print("my의 기습은 실패했다...")
-                result: dict[str, Union[bool, int]] = await handle_move("enemy", enemy_action, battle_store.get_active_index("enemy"), is_always_hit, was_late=True, battle_store=battle_store, duration_store=duration_store)
+                result: dict[str, Union[bool, int]] = await handle_move("enemy", enemy_action, battle_store.get_active_index("enemy"), is_monte_carlo, is_always_hit, was_late=True, battle_store=battle_store, duration_store=duration_store)
             else: # 일반적인 경우 
                 print('상대의 선공!')
-                result: dict[str, Union[bool, int]] = await handle_move("enemy", enemy_action, store.get_active_index("enemy"), is_always_hit, battle_store=battle_store, duration_store=duration_store)
+                result: dict[str, Union[bool, int]] = await handle_move("enemy", enemy_action, store.get_active_index("enemy"), is_monte_carlo, is_always_hit, battle_store=battle_store, duration_store=duration_store)
 
                 # 내가 쓰러졌는지 확인
                 opponent_pokemon = battle_store.get_team("my")
@@ -211,7 +211,7 @@ async def battle_sequence(
                     if not is_monte_carlo:
                         await apply_end_turn_effects()
                     return {"result": result if result else {"was_null": False, "was_effective": 0}, "outcome": {"was_null": False, "was_effective": 0, "no_attack": True}}
-                outcome: dict[str, Union[bool, int]] = await handle_move("my", my_action, active_my, is_always_hit, was_late=True, battle_store=battle_store, duration_store=duration_store)
+                outcome: dict[str, Union[bool, int]] = await handle_move("my", my_action, active_my, is_monte_carlo, is_always_hit, was_late=True, battle_store=battle_store, duration_store=duration_store)
     if not is_monte_carlo:
         await apply_end_turn_effects()
     return {"result": result if result else {"was_null": False, "was_effective": 0}, "outcome": outcome if outcome else {"was_null": False, "was_effective": 0, "no_attack": False, "used_move": my_action}}
@@ -220,6 +220,7 @@ async def handle_move(
     side: Literal["my", "enemy"],
     move: MoveInfo,
     current_index: int,
+    is_monte_carlo: Optional[bool] = False,
     is_always_hit: Optional[bool] = False,
     was_late: Optional[bool] = None,
     battle_store: Optional[BattleStore] = store,
@@ -279,6 +280,7 @@ async def handle_move(
                 override_power=current_power,
                 was_late=was_late,
                 is_multi_hit=is_triple_hit,
+                is_monte_carlo=is_monte_carlo,
                 battle_store=battle_store,
                 duration_store=duration_store
             )
@@ -310,12 +312,10 @@ async def handle_move(
             battle_store.add_log(f"{attacker.base.name}의 타입은 {move.type}타입으로 변했다!")
             print(f"{attacker.base.name}의 타입은 {move.type}타입으로 변했다!")
 
-        result: dict[Literal["success", "damage", "was_null", "was_effective"], Union[bool, int]] = await calculate_move_damage(move_name=move.name, side=side, current_index=current_index, is_always_hit=is_always_hit, was_late=was_late, battle_store=battle_store, duration_store=duration_store)
+        result: dict[Literal["success", "damage", "was_null", "was_effective"], Union[bool, int]] = await calculate_move_damage(move_name=move.name, side=side, current_index=current_index, is_always_hit=is_always_hit, was_late=was_late, is_monte_carlo=is_monte_carlo, battle_store=battle_store, duration_store=duration_store)
         print("1번째 타격!")
         if result and result["success"]:
             if result.get("was_null"):
-                battle_store.add_log(f"🚫 {attacker.base.name}의 공격은 효과가 없었다...")
-                print(f"{attacker.base.name}의 공격은 효과가 없었다...")
                 return {"was_null": result.get("was_null", False), "was_effective": result.get("was_effective", 0), "no_attack": False, "used_move": move}
 
             if not result.get("is_hit", True):  # is_hit이 False면 빗나간 것
@@ -347,6 +347,7 @@ async def handle_move(
                     is_always_hit=True,
                     was_late=was_late,
                     is_multi_hit=True,
+                    is_monte_carlo=is_monte_carlo,
                     battle_store=battle_store,
                     duration_store=duration_store
                 )
@@ -380,11 +381,9 @@ async def handle_move(
             battle_store.add_log(f"🔃 {attacker.base.name}의 타입은 {move.type}타입으로 변했다!")
             print(f"{attacker.base.name}의 타입은 {move.type}타입으로 변했다!")
 
-        result: dict[Literal["success", "damage", "was_null", "was_effective"], Union[bool, int]] = await calculate_move_damage(move_name=move.name, side=side, current_index=current_index, is_always_hit=is_always_hit, was_late=was_late, battle_store=battle_store, duration_store=duration_store)
+        result: dict[Literal["success", "damage", "was_null", "was_effective"], Union[bool, int]] = await calculate_move_damage(move_name=move.name, side=side, current_index=current_index, is_always_hit=is_always_hit, was_late=was_late, is_monte_carlo=is_monte_carlo, battle_store=battle_store, duration_store=duration_store)
         if result and result["success"]:
             if result.get("was_null"):
-                battle_store.add_log(f"🚫 {attacker.base.name}의 공격은 효과가 없었다...")
-                print(f"{attacker.base.name}의 공격은 효과가 없었다...")
                 return {"was_null": result.get("was_null", False), "was_effective": result.get("was_effective", 0), "no_attack": False, "used_move": move}
             
             if not result.get("is_hit", True):  # is_hit이 False면 빗나간 것

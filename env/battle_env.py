@@ -267,8 +267,9 @@ class YakemonEnv(gym.Env):
                 switch_index = available_indices[action - 4] if action - 4 < len(available_indices) else available_indices[0]
                 
                 battle_action = {"type": "switch", "index": switch_index}
-                print(f"내가 교체하려는 포켓몬: {self.my_team[switch_index].base.name}")
-                self.battle_store.add_log(f"내가 교체하려는 포켓몬: {self.my_team[switch_index].base.name}")
+                if not is_monte_carlo:
+                    print(f"내가 교체하려는 포켓몬: {self.my_team[switch_index].base.name}")
+                    self.battle_store.add_log(f"내가 교체하려는 포켓몬: {self.my_team[switch_index].base.name}")
             
             # 배틀 시퀀스 실행
             async with self._battle_sequence_lock:
@@ -338,7 +339,8 @@ class YakemonEnv(gym.Env):
                     result=result,
                     outcome=outcome,
                     enemy_post_pokemon=enemy_post_pokemon,
-                    my_post_pokemon=my_post_pokemon
+                    my_post_pokemon=my_post_pokemon,
+                    is_monte_carlo=is_monte_carlo
                 )
                 print(f"Reward in this step: {reward}")
                 return next_state, reward, self.done, {}
@@ -380,7 +382,8 @@ class YakemonEnv(gym.Env):
                 result=result,
                 outcome=outcome,
                 enemy_post_pokemon=enemy_post_pokemon,
-                my_post_pokemon=my_post_pokemon
+                my_post_pokemon=my_post_pokemon,
+                is_monte_carlo=is_monte_carlo
             )
             print(f"Reward in this step: {reward}")
             # 턴 증가

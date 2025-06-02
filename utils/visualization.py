@@ -41,15 +41,20 @@ def analyze_battle_statistics(log_lines: list, total_episodes: int) -> tuple:
         total_episodes: 총 에피소드 수
     
     Returns:
-        tuple: (super_effective_moves, ineffective_moves, switches, alive_enemies_distribution, no_demerit_moves, effect_moves)
+        tuple: (super_effective_moves, ineffective_moves, switches, alive_enemies_distribution, 
+               good_switches, bad_switches, good_attacks, bad_attacks, good_choices, bad_choices)
     """
     # 100판 단위로 통계를 저장할 리스트 초기화
     num_bins = (total_episodes + 99) // 100
     super_effective_moves = [0] * num_bins
     ineffective_moves = [0] * num_bins
     switches = [0] * num_bins
-    no_demerit_moves = [0] * num_bins  # demerit 없는 기술 사용 횟수
-    effect_moves = [0] * num_bins      # effect 있는 기술 사용 횟수
+    good_switches = [0] * num_bins    # 좋은 교체 선택
+    bad_switches = [0] * num_bins     # 나쁜 교체 선택
+    good_attacks = [0] * num_bins     # 좋은 공격 선택
+    bad_attacks = [0] * num_bins      # 나쁜 공격 선택
+    good_choices = [0] * num_bins     # 기타 좋은 선택
+    bad_choices = [0] * num_bins      # 기타 나쁜 선택
     
     # Alive Enemies 분포를 저장할 2차원 리스트 초기화
     # [구간][남은 포켓몬 수(0-3)] 형태로 저장
@@ -66,49 +71,57 @@ def analyze_battle_statistics(log_lines: list, total_episodes: int) -> tuple:
                 current_episode = int(match.group(1))
                 current_alive_enemies = None  # 에피소드 시작시 초기화
         
-        # demerit 없는 기술 사용 확인
-        if "Good choice: Used a move without demerit effects!" in line:
-            bin_index = current_episode // 100
-            if bin_index < len(no_demerit_moves):
-                no_demerit_moves[bin_index] += 1
+        bin_index = current_episode // 100
+        if bin_index >= len(good_choices):
+            continue
+            
+        # 좋은 교체 선택 확인
+        if "Good switch:" in line:
+            good_switches[bin_index] += 1
         
-        # effect 있는 기술 사용 확인
-        if "Good choice: Used a move with effects!" in line:
-            bin_index = current_episode // 100
-            if bin_index < len(effect_moves):
-                effect_moves[bin_index] += 1
+        # 나쁜 교체 선택 확인
+        if "Bad switch:" in line:
+            bad_switches[bin_index] += 1
+        
+        # 좋은 공격 선택 확인
+        if "Good Attack:" in line:
+            good_attacks[bin_index] += 1
+        
+        # 나쁜 공격 선택 확인
+        if "Bad Attack:" in line:
+            bad_attacks[bin_index] += 1
+        
+        # 기타 좋은 선택 확인
+        if "Good choice:" in line and "Good switch:" not in line and "Good Attack:" not in line:
+            good_choices[bin_index] += 1
+        
+        # 기타 나쁜 선택 확인
+        if "Bad choice:" in line and "Bad switch:" not in line and "Bad Attack:" not in line:
+            bad_choices[bin_index] += 1
         
         # 효과가 굉장한 기술 사용 확인
         if "효과가 굉장했다" in line and 'my' in line:
-            bin_index = current_episode // 100
-            if bin_index < len(super_effective_moves):
-                super_effective_moves[bin_index] += 1
+            super_effective_moves[bin_index] += 1
         
         # 효과가 없는 기술 사용 확인
         if "효과가 없었다" in line and 'my' in line:
-            bin_index = current_episode // 100
-            if bin_index < len(ineffective_moves):
-                ineffective_moves[bin_index] += 1
+            ineffective_moves[bin_index] += 1
         
         # 교체 확인
         if "내가 교체하려는 포켓몬" in line:
-            bin_index = current_episode // 100
-            if bin_index < len(switches):
-                switches[bin_index] += 1
+            switches[bin_index] += 1
         
         # 상대 포켓몬 쓰러뜨림 확인
         if "Alive Enemies" in line:
             match = re.search(r"Alive Enemies: (\d+)", line)
             if match:
                 remaining = int(match.group(1))
-                current_alive_enemies = remaining
-                bin_index = current_episode // 100
-                if bin_index < len(alive_enemies_distribution):
-                    # 0-3 사이의 값으로 제한
-                    remaining = min(3, max(0, remaining))
-                    alive_enemies_distribution[bin_index][remaining] += 1
+                # 0-3 사이의 값으로 제한
+                remaining = min(3, max(0, remaining))
+                alive_enemies_distribution[bin_index][remaining] += 1
     
-    return super_effective_moves, ineffective_moves, switches, alive_enemies_distribution, no_demerit_moves, effect_moves
+    return (super_effective_moves, ineffective_moves, switches, alive_enemies_distribution, 
+            good_switches, bad_switches, good_attacks, bad_attacks, good_choices, bad_choices)
 
 def plot_training_results(
     rewards_history: list,
@@ -212,12 +225,12 @@ def plot_training_results(
     
     # 3. 배틀 통계 분석 (로그 라인이 제공된 경우)
     if log_lines:
-        super_effective_moves, ineffective_moves, switches, alive_enemies_distribution, no_demerit_moves, effect_moves = analyze_battle_statistics(log_lines, len(rewards_history))
+        super_effective_moves, ineffective_moves, switches, alive_enemies_distribution, good_switches, bad_switches, good_attacks, bad_attacks, good_choices, bad_choices = analyze_battle_statistics(log_lines, len(rewards_history))
         
-        plt.figure(figsize=(15, 20))  # 그래프 크기 증가
+        plt.figure(figsize=(15, 30))  # 그래프 크기 증가
         
         # 효과가 굉장한 기술 사용 횟수
-        plt.subplot(5, 1, 1)
+        plt.subplot(8, 1, 1)
         episodes = np.arange(0, len(rewards_history), 100)
         plt.bar(episodes, super_effective_moves, width=80, alpha=0.7, color='red', label='Super Effective')
         plt.bar(episodes, ineffective_moves, width=80, alpha=0.7, color='gray', label='Ineffective', bottom=super_effective_moves)
@@ -228,7 +241,7 @@ def plot_training_results(
         plt.grid(True, alpha=0.3)
         
         # 교체 횟수
-        plt.subplot(5, 1, 2)
+        plt.subplot(8, 1, 2)
         plt.bar(episodes, switches, width=80, alpha=0.7, color='blue')
         plt.title(f'{agent_name} Pokemon Switches per 100 Episodes')
         plt.xlabel('Episode')
@@ -236,7 +249,7 @@ def plot_training_results(
         plt.grid(True, alpha=0.3)
         
         # 상대 포켓몬 쓰러뜨린 횟수 분포
-        plt.subplot(5, 1, 3)
+        plt.subplot(8, 1, 3)
         x = np.arange(len(alive_enemies_distribution))
         width = 0.2  # 막대 너비
         
@@ -252,21 +265,56 @@ def plot_training_results(
         plt.legend()
         plt.grid(True, alpha=0.3)
         
-        # demerit 없는 기술 사용 횟수
-        plt.subplot(5, 1, 4)
-        episodes = np.arange(0, len(rewards_history), 100)
-        plt.bar(episodes, no_demerit_moves, width=80, alpha=0.7, color='green')
-        plt.title(f'{agent_name} Moves Without Demerit Effects per 100 Episodes')
+        # 좋은/나쁜 교체 선택
+        plt.subplot(8, 1, 4)
+        plt.bar(episodes, good_switches, width=80, alpha=0.7, color='green', label='Good Switches')
+        plt.bar(episodes, bad_switches, width=80, alpha=0.7, color='red', label='Bad Switches', bottom=good_switches)
+        plt.title(f'{agent_name} Switch Quality per 100 Episodes')
         plt.xlabel('Episode')
-        plt.ylabel('Number of Moves')
+        plt.ylabel('Number of Switches')
+        plt.legend()
         plt.grid(True, alpha=0.3)
         
-        # effect 있는 기술 사용 횟수
-        plt.subplot(5, 1, 5)
-        plt.bar(episodes, effect_moves, width=80, alpha=0.7, color='purple')
-        plt.title(f'{agent_name} Moves With Effects per 100 Episodes')
+        # 좋은/나쁜 공격 선택
+        plt.subplot(8, 1, 5)
+        plt.bar(episodes, good_attacks, width=80, alpha=0.7, color='green', label='Good Attacks')
+        plt.bar(episodes, bad_attacks, width=80, alpha=0.7, color='red', label='Bad Attacks', bottom=good_attacks)
+        plt.title(f'{agent_name} Attack Quality per 100 Episodes')
         plt.xlabel('Episode')
-        plt.ylabel('Number of Moves')
+        plt.ylabel('Number of Attacks')
+        plt.legend()
+        plt.grid(True, alpha=0.3)
+        
+        # 기타 좋은/나쁜 선택
+        plt.subplot(8, 1, 6)
+        plt.bar(episodes, good_choices, width=80, alpha=0.7, color='green', label='Good Choices')
+        plt.bar(episodes, bad_choices, width=80, alpha=0.7, color='red', label='Bad Choices', bottom=good_choices)
+        plt.title(f'{agent_name} Other Choice Quality per 100 Episodes')
+        plt.xlabel('Episode')
+        plt.ylabel('Number of Choices')
+        plt.legend()
+        plt.grid(True, alpha=0.3)
+        
+        # 교체 선택 품질 비율
+        plt.subplot(8, 1, 7)
+        total_switches = np.array(good_switches) + np.array(bad_switches)
+        good_switch_ratio = np.divide(good_switches, total_switches, out=np.zeros_like(good_switches), where=total_switches!=0)
+        plt.plot(episodes, good_switch_ratio, color='blue', marker='o', label='Good Switch Ratio')
+        plt.title(f'{agent_name} Good Switch Ratio per 100 Episodes')
+        plt.xlabel('Episode')
+        plt.ylabel('Ratio of Good Switches')
+        plt.ylim(0, 1)
+        plt.grid(True, alpha=0.3)
+        
+        # 공격 선택 품질 비율
+        plt.subplot(8, 1, 8)
+        total_attacks = np.array(good_attacks) + np.array(bad_attacks)
+        good_attack_ratio = np.divide(good_attacks, total_attacks, out=np.zeros_like(good_attacks), where=total_attacks!=0)
+        plt.plot(episodes, good_attack_ratio, color='blue', marker='o', label='Good Attack Ratio')
+        plt.title(f'{agent_name} Good Attack Ratio per 100 Episodes')
+        plt.xlabel('Episode')
+        plt.ylabel('Ratio of Good Attacks')
+        plt.ylim(0, 1)
         plt.grid(True, alpha=0.3)
         
         plt.tight_layout()
@@ -279,8 +327,12 @@ def plot_training_results(
             'ineffective_moves': ineffective_moves,
             'switches': switches,
             'alive_enemies_distribution': alive_enemies_distribution,
-            'no_demerit_moves': no_demerit_moves,
-            'effect_moves': effect_moves
+            'good_switches': good_switches,
+            'bad_switches': bad_switches,
+            'good_attacks': good_attacks,
+            'bad_attacks': bad_attacks,
+            'good_choices': good_choices,
+            'bad_choices': bad_choices
         }
         
         with open(os.path.join(save_path, f'{agent_name}_battle_stats.json'), 'w') as f:

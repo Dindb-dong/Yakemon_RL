@@ -33,6 +33,7 @@ async def calculate_move_damage(
     override_power: Optional[int] = None,
     was_late: bool = False,
     is_multi_hit: bool = False,
+    is_monte_carlo: bool = False,
     battle_store: Optional[BattleStore] = store,
     duration_store: Optional[DurationStore] = duration_store
 ) -> Dict:
@@ -248,8 +249,9 @@ async def calculate_move_damage(
             # 상태이상 기술인데 이미 상대가 그 상태이상 걸려있을 경우
             if move_info.effects and any(effect.status in defender.status for effect in move_info.effects):
                 was_null = True
-                print(f"{defender.base.name}은/는 이미 그 상태이상 걸려있어서 효과가 없었다!")
-                battle_store.add_log(f"🚫 {defender.base.name}은/는 이미 그 상태이상 걸려있어서 효과가 없었다!")
+                if not is_monte_carlo:
+                    print(f"{defender.base.name}은/는 이미 그 상태이상 걸려있어서 효과가 없었다!")
+                    battle_store.add_log(f"🚫 {defender.base.name}은/는 이미 그 상태이상 걸려있어서 효과가 없었다!")
                 return {"success": True, "was_null": True, "used_move": move_info}
             if move_info.type == "풀" and "풀" in opponent_pokemon.types:
                 was_null = True
@@ -261,8 +263,9 @@ async def calculate_move_damage(
                 was_null = True
                 battle_store.add_log(f"🥊 {attacker.base.name}은/는 {move_info.name}을/를 사용했다!")
                 print(f"{attacker.base.name}은/는 {move_info.name}을/를 사용했다!")
-                battle_store.add_log(f"🚫 {attacker.base.name}의 공격은 효과가 없었다...")
-                print(f"{side} {attacker.base.name}의 공격은 효과가 없었다...")
+                if not is_monte_carlo:
+                    battle_store.add_log(f"🚫 {attacker.base.name}의 공격은 효과가 없었다...")
+                    print(f"{side} {attacker.base.name}의 공격은 효과가 없었다...")
                 battle_store.update_pokemon(side, active_my if side == "my" else active_enemy, lambda p: set_used_move(p, move_info))
                 battle_store.update_pokemon(side, active_my if side == "my" else active_enemy, 
                                     lambda p: use_move_pp(p, move_name, defender.base.ability.name == "프레셔" if defender.base.ability else False, is_multi_hit))
@@ -307,8 +310,9 @@ async def calculate_move_damage(
                 was_null = True
                 battle_store.add_log(f"🥊 {attacker.base.name}은/는 {move_info.name}을/를 사용했다!")
                 print(f"{attacker.base.name}은/는 {move_info.name}을/를 사용했다!")
-                battle_store.add_log(f"🚫 {attacker.base.name}의 공격은 효과가 없었다...")
-                print(f"{side} {attacker.base.name}의 공격은 효과가 없었다...")
+                if not is_monte_carlo:
+                    battle_store.add_log(f"🚫 {attacker.base.name}의 공격은 효과가 없었다...")
+                    print(f"{side} {attacker.base.name}의 공격은 효과가 없었다...")
                 battle_store.update_pokemon(side, active_my if side == "my" else active_enemy, lambda p: set_used_move(p, move_info))
                 battle_store.update_pokemon(side, active_my if side == "my" else active_enemy, 
                                     lambda p: use_move_pp(p, move_name, defender.base.ability.name == "프레셔" if defender.base.ability else False, is_multi_hit))
@@ -337,24 +341,29 @@ async def calculate_move_damage(
         print(f"{attacker.base.name}은/는 {move_name}을/를 사용했다!")
         if types >= 4:
             was_effective = 2
-            battle_store.add_log(f"👍 {side} {attacker.base.name}의 공격은 효과가 매우 굉장했다!")
-            print(f"{side} {attacker.base.name}의 공격은 효과가 매우 굉장했다!")
+            if not is_monte_carlo:
+                battle_store.add_log(f"👍 {side} {attacker.base.name}의 공격은 효과가 매우 굉장했다!")
+                print(f"{side} {attacker.base.name}의 공격은 효과가 매우 굉장했다!")
         if 2 <= types < 4:
             was_effective = 1
-            battle_store.add_log(f"👍 {side} {attacker.base.name}의 공격은 효과가 굉장했다!")
-            print(f"{side} {attacker.base.name}의 공격은 효과가 굉장했다!")
+            if not is_monte_carlo:
+                battle_store.add_log(f"👍 {side} {attacker.base.name}의 공격은 효과가 굉장했다!")
+                print(f"{side} {attacker.base.name}의 공격은 효과가 굉장했다!")
         if 0 < types <= 0.25:
             was_effective = -2
-            battle_store.add_log(f"👎 {attacker.base.name}의 공격은 효과가 매우 별로였다...")
-            print(f"{side} {attacker.base.name}의 공격은 효과가 매우 별로였다...")
+            if not is_monte_carlo:
+                battle_store.add_log(f"👎 {attacker.base.name}의 공격은 효과가 매우 별로였다...")
+                print(f"{side} {attacker.base.name}의 공격은 효과가 매우 별로였다...")
         if 0.25 < types <= 0.5:
             was_effective = -1
-            battle_store.add_log(f"👎 {attacker.base.name}의 공격은 효과가 별로였다...")
-            print(f"{side} {attacker.base.name}의 공격은 효과가 별로였다...")
+            if not is_monte_carlo:
+                battle_store.add_log(f"👎 {attacker.base.name}의 공격은 효과가 별로였다...")
+                print(f"{side} {attacker.base.name}의 공격은 효과가 별로였다...")
         if types == 0:
             was_null = True
-            battle_store.add_log(f"🚫 {attacker.base.name}의 공격은 효과가 없었다...")
-            print(f"{side} {attacker.base.name}의 공격은 효과가 없었다...")
+            if not is_monte_carlo:
+                battle_store.add_log(f"🚫 {attacker.base.name}의 공격은 효과가 없었다...")
+                print(f"{side} {attacker.base.name}의 공격은 효과가 없었다...")
             battle_store.update_pokemon(side, active_my if side == "my" else active_enemy, lambda p: set_used_move(p, move_info))
             battle_store.update_pokemon(side, active_my if side == "my" else active_enemy, 
                                 lambda p: use_move_pp(p, move_name, defender.base.ability.name == "프레셔" if defender.base.ability else False, is_multi_hit))
@@ -370,7 +379,9 @@ async def calculate_move_damage(
             battle_store.update_pokemon(side, active_mine, lambda p: set_used_move(p, move_info))
             battle_store.update_pokemon(side, active_mine, 
                                 lambda p: use_move_pp(p, move_name, defender.base.ability.name == "프레셔" if defender.base.ability else False, is_multi_hit))
-            battle_store.add_log(f"🚫 {attacker.base.name}의 공격은 상대의 옹골참으로 인해 통하지 않았다!")
+            if not is_monte_carlo:
+                battle_store.add_log(f"🚫 {attacker.base.name}의 공격은 상대의 옹골참으로 인해 효과가 없었다!")
+                print(f"{attacker.base.name}의 공격은 상대의 옹골참으로 인해 효과가 없었다!")
             battle_store.update_pokemon(side, active_my if side == "my" else active_enemy, lambda p: set_dealt_damage(p, 0))
             return {"success": True, "damage": 0, "was_null": was_null, "used_move": move_info}  # 일격필살기 무효화
             
