@@ -217,8 +217,8 @@ async def calculate_move_damage(
                 
         if not hit_success:
             is_hit = False
-            battle_store.add_log(f"🚫 {attacker.base.name}의 공격은 빗나갔다!")
-            print(f"{attacker.base.name}의 공격은 빗나갔다!")
+            battle_store.add_log(f"🚫 {my_pokemon.name}의 공격은 빗나갔다!")
+            print(f"{my_pokemon.name}의 공격은 빗나갔다!")
             battle_store.update_pokemon(side, active_my if side == "my" else active_enemy, lambda p: set_had_missed(p, True))
             
             # Handle move demerit effects

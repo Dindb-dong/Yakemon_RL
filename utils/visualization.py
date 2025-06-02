@@ -46,19 +46,19 @@ def analyze_battle_statistics(log_lines: list, total_episodes: int) -> tuple:
     """
     # 100판 단위로 통계를 저장할 리스트 초기화
     num_bins = (total_episodes + 99) // 100
-    super_effective_moves = [0] * num_bins
-    ineffective_moves = [0] * num_bins
-    switches = [0] * num_bins
-    good_switches = [0] * num_bins    # 좋은 교체 선택
-    bad_switches = [0] * num_bins     # 나쁜 교체 선택
-    good_attacks = [0] * num_bins     # 좋은 공격 선택
-    bad_attacks = [0] * num_bins      # 나쁜 공격 선택
-    good_choices = [0] * num_bins     # 기타 좋은 선택
-    bad_choices = [0] * num_bins      # 기타 나쁜 선택
+    super_effective_moves = np.zeros(num_bins, dtype=np.float64)
+    ineffective_moves = np.zeros(num_bins, dtype=np.float64)
+    switches = np.zeros(num_bins, dtype=np.float64)
+    good_switches = np.zeros(num_bins, dtype=np.float64)    # 좋은 교체 선택
+    bad_switches = np.zeros(num_bins, dtype=np.float64)     # 나쁜 교체 선택
+    good_attacks = np.zeros(num_bins, dtype=np.float64)     # 좋은 공격 선택
+    bad_attacks = np.zeros(num_bins, dtype=np.float64)      # 나쁜 공격 선택
+    good_choices = np.zeros(num_bins, dtype=np.float64)     # 기타 좋은 선택
+    bad_choices = np.zeros(num_bins, dtype=np.float64)      # 기타 나쁜 선택
     
     # Alive Enemies 분포를 저장할 2차원 리스트 초기화
     # [구간][남은 포켓몬 수(0-3)] 형태로 저장
-    alive_enemies_distribution = [[0] * 4 for _ in range(num_bins)]
+    alive_enemies_distribution = np.zeros((num_bins, 4), dtype=np.float64)
     
     current_episode = 0
     current_alive_enemies = None
