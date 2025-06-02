@@ -152,7 +152,7 @@ async def calculate_move_damage(
             print(f"{attacker.base.name}는 방어가 크게 떨어졌다!!")
             battle_store.add_log(f"{attacker.base.name}는 방어가 크게 떨어졌다!")
             
-        return {"success": True, "used_move": move_info}
+        return {"success": True, "used_move": move_info, "is_protecting": True}
     
     # 0-1. Check status effects
     if attacker.status:

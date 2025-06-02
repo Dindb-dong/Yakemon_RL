@@ -292,6 +292,8 @@ async def handle_move(
             )
 
             if result and result["success"]:
+                if result.get("is_protecting"):
+                    return {"was_null": result.get("was_null", False), "was_effective": result.get("was_effective", 0), "no_attack": False, "used_move": move}
                 state: BattleStoreState = battle_store.get_state()
                 opponent_pokemon: list[BattlePokemon] = state[f"{opponent_side}_team"]
                 current_defender1: BattlePokemon = opponent_pokemon[
@@ -315,6 +317,8 @@ async def handle_move(
         result: dict[Literal["success", "damage", "was_null", "was_effective"], Union[bool, int]] = await calculate_move_damage(move_name=move.name, side=side, current_index=current_index, is_always_hit=is_always_hit, was_late=was_late, is_monte_carlo=is_monte_carlo, battle_store=battle_store, duration_store=duration_store)
         print("1번째 타격!")
         if result and result["success"]:
+            if result.get("is_protecting"):
+                return {"was_null": result.get("was_null", False), "was_effective": result.get("was_effective", 0), "no_attack": False, "used_move": move}
             if result.get("was_null"):
                 return {"was_null": result.get("was_null", False), "was_effective": result.get("was_effective", 0), "no_attack": False, "used_move": move}
 
@@ -383,6 +387,8 @@ async def handle_move(
 
         result: dict[Literal["success", "damage", "was_null", "was_effective"], Union[bool, int]] = await calculate_move_damage(move_name=move.name, side=side, current_index=current_index, is_always_hit=is_always_hit, was_late=was_late, is_monte_carlo=is_monte_carlo, battle_store=battle_store, duration_store=duration_store)
         if result and result["success"]:
+            if result.get("is_protecting"):
+                return {"was_null": result.get("was_null", False), "was_effective": result.get("was_effective", 0), "no_attack": False, "used_move": move}
             if result.get("was_null"):
                 return {"was_null": result.get("was_null", False), "was_effective": result.get("was_effective", 0), "no_attack": False, "used_move": move}
             
