@@ -24,7 +24,7 @@ from p_models.battle_pokemon import BattlePokemon
 #   For each Pokemon:
 #     species: 1
 #     ability: 1
-#     move: 4
+#     move(id): 4
 #     move_pp: 4×5=20
 #     type(s): 18
 #     current hp fraction: 7
@@ -47,7 +47,8 @@ from p_models.battle_pokemon import BattlePokemon
 #   = 177 per Pokemon
 #   6 Pokemon × 177 = 1062
 #
-# Total: 1 + 24 + 20 + 6 + 52 + 1062 = 1165
+# --- Active Pokemon Move Types (18 * 4) ---
+# Total: 1 + 24 + 20 + 6 + 52 + 1062 + 72 = 1237
 # =============================
 
 # --- Utility functions ---
@@ -260,6 +261,17 @@ def get_side_field_vector(side: SideType) -> np.ndarray:
     #print(f"Side field vector length: {len(vec)}")
     return np.array(vec, dtype=np.float32)
 
+def get_active_pokemon_move_types_vector(pokemon: BattlePokemon) -> np.ndarray:
+    vec = []
+    # 4개의 기술에 대해 각각 18차원의 타입 원핫 인코딩
+    for i in range(4):
+        if i < len(pokemon.base.moves):
+            move = pokemon.base.moves[i]
+            vec.extend(type_one_hot([move.type]))
+        else:
+            vec.extend(np.zeros(18, dtype=np.float32))
+    return np.array(vec, dtype=np.float32)
+
 def get_state(
     store: BattleStore,
     my_team: List[BattlePokemon],
@@ -311,6 +323,12 @@ def get_state(
         vec.extend(get_pokemon_vector(my_team[i], "my") if i < len(my_team) else np.zeros_like(get_pokemon_vector(BattlePokemon(), "my")))
     for i in range(3):
         vec.extend(get_pokemon_vector(enemy_team[i], "enemy") if i < len(enemy_team) else np.zeros_like(get_pokemon_vector(BattlePokemon(), "enemy")))
+    
+    # --- Active Pokemon Move Types (18 * 4) ---
+    active_pokemon = my_team[active_my]
+    vec.extend(get_active_pokemon_move_types_vector(active_pokemon))
+    
     # get_state 마지막에
     #print(f"Total state vector length: {len(vec)}")
+    
     return np.array(vec, dtype=np.float32) 

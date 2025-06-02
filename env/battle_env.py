@@ -20,7 +20,7 @@ if parent_dir not in sys.path:
 
 # 하이퍼파라미터 정의
 HYPERPARAMS = {
-    "state_dim": 1165,  # 상태 공간의 차원
+    "state_dim": 1237,  # 상태 공간의 차원
     "action_dim": 6,   # 행동 공간의 차원 (4개 기술 + 2개 교체)
 }
 
@@ -68,11 +68,11 @@ class YakemonEnv(gym.Env):
         self._battle_sequence_lock = asyncio.Lock()
         self.pokemon_list = create_mock_pokemon_list()
         
-        # 상태 공간 정의 (1165차원)
+        # 상태 공간 정의 (1237)
         self.observation_space = spaces.Box(
             low=0.0,
             high=1.0,
-            shape=(1165,),
+            shape=(1237,),
             dtype=np.float32
         )
         

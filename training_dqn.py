@@ -56,7 +56,7 @@ hyperparams = {
     "num_episodes": 50000,
     "save_interval": 10000,
     "test_episodes": 300,
-    "state_dim": 1165,  # get_state_vector의 출력 차원
+    "state_dim": 1237,  # get_state_vector의 출력 차원
     "action_dim": 6   # 4개의 기술 + 2개의 교체
 }
 
@@ -337,13 +337,13 @@ async def train_agent(
                     if agent_reward > base_reward:
                         # 에이전트의 선택이 더 좋았을 경우 실제 스텝 진행 후 추가 보상
                         next_state, reward, done, _ = await env.step(action, enemy_action=enemy_base_action, is_monte_carlo=False)
-                        reward += 0.5
+                        reward += agent_reward - base_reward
                         print(f"Agent's action is better than Base AI's action, reward: {reward}")
                         agent.store_transition(state_vector, action, reward, next_state, done)
                     elif agent_reward < base_reward:
                         # 에이전트의 선택이 더 나빴을 경우 실제 스텝 진행 후 페널티
                         next_state, reward, done, _ = await env.step(action, enemy_action=enemy_base_action, is_monte_carlo=False)
-                        reward -= 0.5
+                        reward -= base_reward - agent_reward
                         print(f"Agent's action is worse than Base AI's action, reward: {reward}")
                         agent.store_transition(state_vector, action, reward, next_state, done)
                     else: # 리워드 같았을 경우 그냥 진행 
