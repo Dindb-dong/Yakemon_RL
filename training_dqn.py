@@ -50,14 +50,16 @@ hyperparams = {
     "epsilon_start": 1.0,
     "epsilon_end": 0.01,
     "epsilon_decay": 0.997,
-    "batch_size": 128,
+    "batch_size": 1024,
     "memory_size": 500000,
     "target_update": 20,
     "num_episodes": 50000,
     "save_interval": 10000,
     "test_episodes": 300,
     "state_dim": 1237,  # get_state_vector의 출력 차원
-    "action_dim": 6   # 4개의 기술 + 2개의 교체
+    "action_dim": 6,   # 4개의 기술 + 2개의 교체
+    "load_best_model": False,  # 최고 성능 모델 로드 여부
+    "load_last_model": False,  # 마지막 모델 로드 여부
 }
 
 #%% [markdown]
