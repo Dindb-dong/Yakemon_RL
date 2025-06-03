@@ -100,12 +100,12 @@ def calculate_reward(
                 print(f"Good switch: Agent to AI is stronger! Reward: {reward}")
             else: print(f"Agent to AI is stronger! Reward: {reward}")
         elif agent_to_ai < 1 and ai_to_agent > 1:
-            reward -= 1.5
+            reward -= 2.0
             if not is_monte_carlo:
                 print(f"Bad switch: AI to Agent is way stronger! Reward: {reward}")
             else: print(f"AI to Agent is way stronger! Reward: {reward}")
         elif agent_to_ai < 1 and ai_to_agent == 1:
-            reward -= 0.5
+            reward -= 1.0
             if not is_monte_carlo:
                 print(f"Bad switch: AI to Agent is stronger! Reward: {reward}")
             else: print(f"AI to Agent is stronger! Reward: {reward}")
@@ -115,12 +115,12 @@ def calculate_reward(
                 print(f"Good switch: Immune to attack! Reward: {reward}")
             else: print(f"Immune to attack! Reward: {reward}")
         elif was_effective == 2:  # 4배 이상 데미지
-            reward -= 0.6  # 매우 큰 페널티
+            reward -= 1.0  # 매우 큰 페널티
             if not is_monte_carlo:
                 print(f"Bad switch: Switched into 4x weakness! Reward: {reward}")
             else: print(f"Switched into 4x weakness! Reward: {reward}")
         elif was_effective == 1:  # 2배 데미지
-            reward -= 0.25  # 적당한 페널티
+            reward -= 0.5  # 적당한 페널티
             if not is_monte_carlo:
                 print(f"Bad switch: Switched into 2x weakness! Reward: {reward}")
             else: print(f"Switched into 2x weakness! Reward: {reward}")
@@ -141,27 +141,27 @@ def calculate_reward(
         was_null = outcome.get('was_null', False)
         print(f"was_effective: {was_effective}")
         if was_null:
-            reward -= 1.0  # 효과 없는 공격에 대한 보상
+            reward -= 2.5  # 효과 없는 공격에 대한 보상
             if not is_monte_carlo:
                 print(f"Bad Attack: Immune to attack... Reward: {reward}")
             else: print(f"Immune to attack... Reward: {reward}")
         elif was_effective == 2:  # 4배 이상 데미지
-            reward += 1.0  # 매우 큰 리워드
+            reward += 2.0  # 매우 큰 리워드
             if not is_monte_carlo:
                 print(f"Good Attack: Attacked to 4x effectiveness! Reward: {reward}")
             else: print(f"Attacked to 4x effectiveness! Reward: {reward}")
         elif was_effective == 1:  # 2배 데미지
-            reward += 0.5  # 적당한 리워드
+            reward += 1.5  # 적당한 리워드
             if not is_monte_carlo:
                 print(f"Good Attack: Attacked to 2x effectiveness! Reward: {reward}")
             else: print(f"Attacked to 2x effectiveness! Reward: {reward}")
         elif was_effective == -1:  # 1/2 데미지
-            reward -= 0.2 # 적당한 페널티
+            reward -= 1.5 # 적당한 페널티
             if not is_monte_carlo:
                 print(f"Bad Attack: Attacked to 1/2 effectiveness! Reward: {reward}")
             else: print(f"Attacked to 1/2 effectiveness! Reward: {reward}")
         elif was_effective == -2:  # 1/4 데미지
-            reward -= 0.5  # 매우 큰 페널티
+            reward -= 2.0  # 매우 큰 페널티
             if not is_monte_carlo:
                 print(f"Bad Attack: Attacked to 1/4 effectiveness! Reward: {reward}")
             else: print(f"Attacked to 1/4 effectiveness! Reward: {reward}")
@@ -171,7 +171,7 @@ def calculate_reward(
                 print("Pokemon couldn't move, skipping reward calculation")
         # 속이기, 만나자마자 잘못 사용했을 경우 
         if my_post_pokemon.used_move is not None and my_post_pokemon.used_move.first_turn_only and my_post_pokemon.is_first_turn is False:
-            reward -= 1.0
+            reward -= 2.0
             if not is_monte_carlo:
                 print("Bad choice: Used a first turn only move out of turn")
             else: print(f"Penalty: Used a first turn only move out of turn")
@@ -184,7 +184,7 @@ def calculate_reward(
         # 공격, 특수공격 랭크업 기술 쓰고 살아있을 때 (상대보다 빠른 조건)
         if (my_post_pokemon.used_move is not None and my_post_pokemon.used_move.effects and any(effect.chance == 1.0 and effect.stat_change and any(sc.stat == 'attack' or sc.stat == 'special_attack' for sc in effect.stat_change) for effect in my_post_pokemon.used_move.effects)
             and my_post_pokemon.base.name == current_pokemon.base.name and calculate_speed(current_pokemon) > calculate_speed(target_pokemon)):
-            reward += 1.5
+            reward += 2.5
             if not is_monte_carlo:
                 print(f"Good choice: Used a rank change (attack/sp_attack) move to increase stats! Reward: {reward}")
             else: print(f"Used a rank change (attack/sp_attack) move to increase stats! Reward: {reward}")
@@ -192,7 +192,7 @@ def calculate_reward(
         if (calculate_speed(my_post_pokemon) < calculate_speed(enemy_post_pokemon) and calculate_speed(current_pokemon) > calculate_speed(target_pokemon)
             and my_post_pokemon.base.name == current_pokemon.base.name and enemy_post_pokemon.base.name == target_pokemon.base.name
             and my_post_pokemon.used_move is not None and my_post_pokemon.used_move.effects and any(effect.chance == 1.0 and effect.stat_change and any(sc.stat == 'speed' for sc in effect.stat_change) for effect in my_post_pokemon.used_move.effects)):
-            reward += 1.0
+            reward += 2.0
             if not is_monte_carlo:
                 print(f"Good choice: Used a speed rank change move to overtake the enemy! Reward: {reward}")
             else: print(f"Used a speed rank change move to overtake the enemy! Reward: {reward}")
@@ -200,7 +200,7 @@ def calculate_reward(
         if (current_pokemon.dealt_damage == enemy_post_pokemon.current_hp or my_post_pokemon.dealt_damage == enemy_post_pokemon.current_hp
             or (current_pokemon.base.name == my_post_pokemon.base.name and current_pokemon.used_move is not None and not current_pokemon.used_move.u_turn and
                 current_pokemon.dealt_damage is not None and current_pokemon.dealt_damage > 0 and (target_pokemon.received_damage is None or target_pokemon.received_damage == 0))):
-            reward += 5.0
+            reward += 6.0
             if not is_monte_carlo:
                 print(f"Good choice: Used a move to defeat the enemy! Reward: {reward}")
             else: print(f"Used a move to defeat the enemy! Reward: {reward}")
@@ -230,7 +230,7 @@ def calculate_reward(
             and my_post_pokemon.used_move is not None and target_pokemon.received_damage is None):
             # 그런데 그 기술이 확정 랭업기였을때
             if my_post_pokemon.used_move.effects and any(effect.chance == 1.0 and effect.stat_change and any(sc.target == 'self' for sc in effect.stat_change) for effect in my_post_pokemon.used_move.effects):
-                reward -= 0.1  # 스탯 상승 기술 사용 후 바로 기절한 경우 페널티
+                reward -= 0.5  # 스탯 상승 기술 사용 후 바로 기절한 경우 페널티
                 if not is_monte_carlo:
                     print(f"Bad choice: Used stat boost move ({my_post_pokemon.used_move.name}) but fainted immediately!")
                 else: print(f"Penalty for using stat boost move and fainting: {reward}")
@@ -239,7 +239,7 @@ def calculate_reward(
             and was_null is True
             and any(effect.chance == 1.0 for effect in my_post_pokemon.used_move.effects)
             and any(effect.status in target_pokemon.status for effect in my_post_pokemon.used_move.effects)):
-            reward -= 0.3  # 상태이상 기술 중복 사용 시 페널티  
+            reward -= 1.0  # 상태이상 기술 중복 사용 시 페널티  
             if not is_monte_carlo:
                 print(f"Bad choice: Used status condition move ({my_post_pokemon.used_move.name}) but Enemy already has status condition!")
             else: print(f"Penalty for using status condition move in duplicate: {reward}")
@@ -267,7 +267,7 @@ def calculate_reward(
                             d == damage and dem == 1 and d > 0 for d, dem, _ in pre_damage_list
                         )
                         if has_demerit_with_same_damage:
-                            reward += 0.1  # 리워드 증가
+                            reward += 0.5  # 리워드 증가
                             if not is_monte_carlo:
                                 print(f"Good choice: Used a move without demerit effects! Reward: {reward}")
                             else: print(f"Used a move without demerit effects! Reward: {reward}")
@@ -279,7 +279,7 @@ def calculate_reward(
                             d == damage and dem == demerit and eff == 0 and d > 0 for d, dem, eff in pre_damage_list
                         )
                         if has_same_demerit_without_effect:
-                            reward += 0.1  # 리워드 증가
+                            reward += 0.5  # 리워드 증가
                             if not is_monte_carlo:
                                 print(f"Good choice: Used a move with effects! Reward: {reward}")
                             else: print(f"Used a move with effects! Reward: {reward}")
