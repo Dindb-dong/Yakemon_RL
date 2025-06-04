@@ -41,19 +41,30 @@ from context.duration_store import duration_store
 # from p_models.rank_state import RankManager
 # from p_models.status import StatusManager
 
+# def random_enemy_action(enemy_team: List[BattlePokemon], active_enemy: int):
+#         current_pokemon = enemy_team[active_enemy]
+#         valid_actions = [
+#             i for i in range(6)
+#             if (i < 4 and current_pokemon.pp.get(current_pokemon.base.moves[i].name, 0) > 0)
+#             or (i >= 4 and i - 4 != active_enemy and enemy_team[i - 4].current_hp > 0)
+#         ]
+#         if valid_actions:
+#             chosen = random.choice(valid_actions)
+#             if chosen < 4:
+#                 return current_pokemon.base.moves[chosen]
+#             else:
+#                 return {"type": "switch", "index": chosen - 4}
+#         else:
+#             return current_pokemon.base.moves[0]
 def random_enemy_action(enemy_team: List[BattlePokemon], active_enemy: int):
         current_pokemon = enemy_team[active_enemy]
         valid_actions = [
-            i for i in range(6)
-            if (i < 4 and current_pokemon.pp.get(current_pokemon.base.moves[i].name, 0) > 0)
-            or (i >= 4 and i - 4 != active_enemy and enemy_team[i - 4].current_hp > 0)
+            i for i in range(4)
+            if current_pokemon.pp.get(current_pokemon.base.moves[i].name, 0) > 0
         ]
         if valid_actions:
             chosen = random.choice(valid_actions)
-            if chosen < 4:
-                return current_pokemon.base.moves[chosen]
-            else:
-                return {"type": "switch", "index": chosen - 4}
+            return current_pokemon.base.moves[chosen]
         else:
             return current_pokemon.base.moves[0]
 
