@@ -1,9 +1,10 @@
+from typing import Optional
 from p_models.move_info import MoveInfo
-from context.battle_store import BattleStoreState, SideType, store
+from context.battle_store import BattleStore, BattleStoreState, SideType, store
 from utils.battle_logics.update_battle_pokemon import change_hp, change_rank
 
-def apply_defensive_ability_effect_before_damage(used_move: MoveInfo, side: SideType, was_effective=None):
-    state: BattleStoreState = store.get_state()
+def apply_defensive_ability_effect_before_damage(used_move: MoveInfo, side: SideType, was_effective=None, pre_damage=False, battle_store: Optional[BattleStore] = store):
+    state: BattleStoreState = battle_store.get_state()
     enemy_team = state["enemy_team"]
     active_enemy = state["active_enemy"]
     my_team = state["my_team"]
@@ -23,27 +24,33 @@ def apply_defensive_ability_effect_before_damage(used_move: MoveInfo, side: Side
                 if name in ["저수", "마중물", "건조피부"] and used_move.type == "물":
                     rate = 0
                     if name in ["저수", "건조피부"]:
-                        store.update_pokemon(opponent_side, active_opponent, lambda p: change_hp(p, round(p.base.hp / 4)))
+                        if not pre_damage:
+                            store.update_pokemon(opponent_side, active_opponent, lambda p: change_hp(p, round(p.base.hp / 4)))
                     elif name == "마중물":
-                        store.update_pokemon(opponent_side, active_opponent, lambda p: change_rank(p, "sp_attack", 1))
+                        if not pre_damage:
+                            store.update_pokemon(opponent_side, active_opponent, lambda p: change_rank(p, "sp_attack", 1))
                 elif name == "흙먹기" and used_move.type == "땅":
                     rate = 0
-                    store.update_pokemon(opponent_side, active_opponent, lambda p: change_hp(p, round(p.base.hp / 4)))
+                    if not pre_damage:
+                        store.update_pokemon(opponent_side, active_opponent, lambda p: change_hp(p, round(p.base.hp / 4)))
                 elif name == "건조피부" and used_move.type == "불":
                     rate *= 1.25
                 elif name == "타오르는불꽃" and used_move.type == "불":
                     rate = 0
                     stat = "attack" if defender.base.attack > defender.base.sp_attack else "sp_attack"
-                    store.update_pokemon(opponent_side, active_opponent, lambda p: change_rank(p, stat, 1))
+                    if not pre_damage:
+                        store.update_pokemon(opponent_side, active_opponent, lambda p: change_rank(p, stat, 1))
                 elif name == "피뢰침" and used_move.type == "전기":
                     rate = 0
-                    store.update_pokemon(opponent_side, active_opponent, lambda p: change_rank(p, "sp_attack", 1))
-                    store.add_log(f"⚡ {defender.base.name}의 피뢰침 특성 발동!")
+                    if not pre_damage:
+                        store.update_pokemon(opponent_side, active_opponent, lambda p: change_rank(p, "sp_attack", 1))
+                        store.add_log(f"⚡ {defender.base.name}의 피뢰침 특성 발동!")
                 elif name == "부유" and used_move.type == "땅":
                     rate = 0
                 elif name == "초식" and used_move.type == "풀":
                     rate = 0
-                    store.update_pokemon(opponent_side, active_opponent, lambda p: change_rank(p, "attack", 1))
+                    if not pre_damage:
+                        store.update_pokemon(opponent_side, active_opponent, lambda p: change_rank(p, "attack", 1))
             elif category == "damage_nullification":
                 if name == "방진" and used_move.affiliation == "가루":
                     rate = 0
@@ -70,8 +77,8 @@ def apply_defensive_ability_effect_before_damage(used_move: MoveInfo, side: Side
     return rate
 
 
-def apply_offensive_ability_effect_before_damage(used_move: MoveInfo, side: SideType, was_effective=None) -> float:
-    state: BattleStoreState = store.get_state()
+def apply_offensive_ability_effect_before_damage(used_move: MoveInfo, side: SideType, was_effective=None, battle_store: Optional[BattleStore] = store) -> float:
+    state: BattleStoreState = battle_store.get_state()
     my_team = state["my_team"]
     enemy_team = state["enemy_team"]
     active_my = state["active_my"]

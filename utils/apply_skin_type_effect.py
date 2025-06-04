@@ -20,13 +20,13 @@ def apply_skin_type_effect(move: MoveInfo, ability_name: str | None) -> MoveInfo
 
     skin_type = skin_type_map[ability_name]
 
-    new_move = move.copy()
+    new_move = move
 
     if ability_name == '노말스킨':
-        new_move.type = '노말'
-        new_move.power = int(new_move.power * 1.2)
+        new_move = new_move.copy(type='노말')
+        new_move = new_move.copy(power=int(new_move.power * 1.2))
     elif move.type == '노말':
-        new_move.type = skin_type
-        new_move.power = int(new_move.power * 1.2)
+        new_move = new_move.copy(type=skin_type)
+        new_move = new_move.copy(power=int(new_move.power * 1.2))
 
     return new_move

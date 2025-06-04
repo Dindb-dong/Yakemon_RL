@@ -10,7 +10,7 @@ class PokemonInfo:
         types: List[str],
         moves: List[MoveInfo],
         sex: Optional[Literal['male', 'female']] = None,
-        ability: Optional[AbilityInfo] = None,
+        ability: AbilityInfo = AbilityInfo(0, '없음'),
         hp: int = 0,
         attack: int = 0,
         sp_attack: int = 0,
@@ -19,7 +19,7 @@ class PokemonInfo:
         speed: int = 0,
         level: int = 1,
         original_types: Optional[List[str]] = None,
-        original_ability: Optional[AbilityInfo] = None,
+        original_ability: AbilityInfo = AbilityInfo(0, '없음'),
         has_form_change: bool = False,
         form_change: Optional['PokemonInfo'] = None,
         memorized_base: Optional['PokemonInfo'] = None

@@ -1,14 +1,36 @@
 from typing import Dict, Optional, Literal
 import random
 
-from context.battle_store import BattleStoreState
+from context.battle_store import BattleStore, BattleStoreState
 from context.battle_store import store
 from p_models.battle_pokemon import BattlePokemon
 from p_models.move_info import MoveInfo
 from utils.battle_logics.rank_effect import calculate_rank_effect
 
-async def calculate_order(player_move: Optional[MoveInfo], ai_move: Optional[MoveInfo]) -> Literal["my", "enemy"]:
+def calculate_speed(pokemon: BattlePokemon):
     state: BattleStoreState = store.get_state()
+    public_env = state["public_env"]
+    speed = pokemon.base.speed * calculate_rank_effect(pokemon.rank['speed'])
+    
+    if "마비" in pokemon.status:
+        speed *= 0.5
+        print(f"{pokemon.base.name}가 마비로 인해 스피드가 절반으로 감소: {speed}")
+        
+    ability = pokemon.base.ability.name if pokemon.base.ability else ""
+    if ability in ['곡예', '엽록소', '쓱쓱', '눈치우기', '모래헤치기']:
+        if (ability == '엽록소' and public_env.weather != '쾌청') or \
+            (ability == '쓱쓱' and public_env.weather != '비') or \
+            (ability == '눈치우기' and public_env.weather != '싸라기눈') or \
+            (ability == '모래헤치기' and public_env.weather != '모래바람'):
+            print(f"{pokemon.base.name}의 {ability} 특성이 발동되지 않음")
+            return speed
+        speed *= 2
+        print(f"{pokemon.base.name}의 {ability} 특성으로 인해 스피드가 2배로 증가: {speed}")
+        
+    return speed
+
+async def calculate_order(player_move: Optional[MoveInfo], ai_move: Optional[MoveInfo], battle_store: Optional[BattleStore] = store) -> Literal["my", "enemy"]:
+    state: BattleStoreState = battle_store.get_state()
     public_env = state["public_env"]
     my_team = state["my_team"]
     active_my = state["active_my"]
@@ -21,35 +43,16 @@ async def calculate_order(player_move: Optional[MoveInfo], ai_move: Optional[Mov
     def boost_priority(pokemon: BattlePokemon, move: Optional[MoveInfo]):
         if pokemon.base.ability and move:
             if pokemon.base.ability.name == '힐링시프트' and any(e.heal for e in move.effects):
-                move["priority"] = move.priority + 3
+                move.priority = move.priority + 3
             elif pokemon.base.ability.name == '짓궂은마음' and move.category == "변화":
-                move["priority"] = move.priority + 1
+                move.priority = move.priority + 1
             elif pokemon.base.ability.name == '질풍날개' and move.type == "비행" and pokemon.current_hp == pokemon.base.hp:
-                move["priority"] = 1
+                move.priority = 1
 
     boost_priority(my_pokemon, player_move)
     boost_priority(opponent_pokemon, ai_move)
 
     # 스피드 계산
-    def calculate_speed(pokemon: BattlePokemon):
-        speed = pokemon.base.speed * calculate_rank_effect(pokemon.rank['speed'])
-        
-        if "마비" in pokemon.status:
-            speed *= 0.5
-            print(f"{pokemon.base.name}가 마비로 인해 스피드가 절반으로 감소: {speed}")
-            
-        ability = pokemon.base.ability.name if pokemon.base.ability else ""
-        if ability in ['곡예', '엽록소', '쓱쓱', '눈치우기', '모래헤치기']:
-            if (ability == '엽록소' and public_env.weather != '쾌청') or \
-                (ability == '쓱쓱' and public_env.weather != '비') or \
-                (ability == '눈치우기' and public_env.weather != '싸라기눈') or \
-                (ability == '모래헤치기' and public_env.weather != '모래바람'):
-                print(f"{pokemon.base.name}의 {ability} 특성이 발동되지 않음")
-                return speed
-            speed *= 2
-            print(f"{pokemon.base.name}의 {ability} 특성으로 인해 스피드가 2배로 증가: {speed}")
-            
-        return speed
 
     my_speed = calculate_speed(my_pokemon)
     opponent_speed = calculate_speed(opponent_pokemon)

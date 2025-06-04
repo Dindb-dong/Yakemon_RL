@@ -4,22 +4,22 @@ from p_models.pokemon_info import PokemonInfo
 from p_models.battle_pokemon import BattlePokemon
 from p_models.types import WeatherType
 from p_models.ability_info import AbilityInfo
-from context.battle_store import store
-from context.duration_store import duration_store
+from context.battle_store import BattleStore, store
+from context.duration_store import DurationStore, duration_store
 from utils.battle_logics.rank_effect import calculate_accuracy, calculate_critical, calculate_rank_effect
 from utils.battle_logics.status_effect import apply_status_effect_before
 from utils.battle_logics.calculate_type_effectiveness import calculate_type_effectiveness_with_ability, is_type_immune
 from utils.battle_logics.helpers import has_ability
 from utils.battle_logics.apply_before_damage import apply_defensive_ability_effect_before_damage, apply_offensive_ability_effect_before_damage
 from utils.battle_logics.update_battle_pokemon import (
-    add_status, change_hp, change_position, change_rank, remove_status,
+    add_status, change_hp, change_position, change_rank,
     set_charging, set_had_missed, set_locked_move, set_protecting,
-    set_received_damage, set_used_move, use_move_pp
+    set_received_damage, set_used_move, use_move_pp, set_dealt_damage
 )
 from utils.battle_logics.update_environment import add_trap, set_field, set_room, set_screen, set_weather
 from utils.battle_logics.apply_none_move_damage import apply_thorn_damage
 from utils.apply_skin_type_effect import apply_skin_type_effect
-from context.battle_environment import PublicBattleEnvironment, IndividualBattleEnvironment
+from context.battle_environment import PublicBattleEnvironment
 import random
 
 SideType = Literal["my", "enemy"]
@@ -32,10 +32,14 @@ async def calculate_move_damage(
     additional_damage: Optional[int] = None,
     override_power: Optional[int] = None,
     was_late: bool = False,
-    is_multi_hit: bool = False
+    is_multi_hit: bool = False,
+    is_monte_carlo: bool = False,
+    battle_store: Optional[BattleStore] = store,
+    duration_store: Optional[DurationStore] = duration_store
 ) -> Dict:
+    print("calculate_move_damage 호출 시작")
     # Get battle state
-    state = store.get_state()
+    state = battle_store.get_state()
     my_team: List[BattlePokemon] = state["my_team"]
     enemy_team: List[BattlePokemon] = state["enemy_team"]
     active_my: int = state["active_my"]
@@ -43,7 +47,7 @@ async def calculate_move_damage(
     active_index: int = active_my if side == "my" else active_enemy
     public_env: PublicBattleEnvironment = state["public_env"]
     if (current_index != active_index): # 강제교체 당해서 공격 못함
-        return {"success": False}
+        return {"success": False, "used_move": None}
     # Set attacker and defender based on side
     attacker: BattlePokemon = my_team[active_my] if side == "my" else enemy_team[active_enemy]
     defender: BattlePokemon = enemy_team[active_enemy] if side == "my" else my_team[active_my]
@@ -54,7 +58,7 @@ async def calculate_move_damage(
     active_opponent = active_enemy if side == "my" else active_my
     team = my_team if side == "my" else enemy_team
     # Get move info and apply skin type effect
-    move_info = get_move_info(my_pokemon, move_name)
+    move_info = get_move_info(my_pokemon, move_name, battle_store)
     move_info = apply_skin_type_effect(move_info, my_pokemon.ability.name if my_pokemon.ability else None)
     # Get environment effects
     weather_effect = public_env.weather
@@ -64,10 +68,14 @@ async def calculate_move_damage(
     # Initialize variables
     types = 1.0  # Type effectiveness multiplier
     base_power = override_power if override_power is not None else move_info.power  # Base power
+    print(f"base_power in damage_calculator: {base_power}")
     # Apply Technician ability
     if attacker.base.ability and attacker.base.ability.name == "테크니션" and base_power <= 60:
         base_power *= 1.5
     # Calculate power
+    additional_damage = 0
+    additional_damage += base_power if attacker.base.ability and attacker.base.ability.name == "테크니션" and base_power is not None else 0
+    print(f"additional_damage in damage_calculator: {additional_damage}")
     power = (move_info.get_power(team, side, base_power) + (additional_damage or 0)
                 if move_info.get_power else base_power + (additional_damage or 0))
     # Calculate accuracy
@@ -119,72 +127,70 @@ async def calculate_move_damage(
         
     # Handle locked moves (like Outrage)
     if move_info.locked_move:
-        store.update_pokemon(side, active_my if side == "my" else active_enemy, 
-                            lambda p: {**p, "locked_move_turn": 2 if random.random() < 0.5 else 1})
-        store.update_pokemon(side, active_my if side == "my" else active_enemy, 
+        battle_store.update_pokemon(side, active_my if side == "my" else active_enemy, 
+                            lambda p: p.copy_with(locked_move_turn=2 if random.random() < 0.5 else 1))
+        battle_store.update_pokemon(side, active_my if side == "my" else active_enemy, 
                             lambda p: set_locked_move(p, move_info))
     
     # 0-0. Check if defender is protecting
     if defender.is_protecting:
-        store.add_log(f"{defender.base.name}는 방어중이여서 {attacker.base.name}의 공격은 실패했다!")
+        battle_store.add_log(f"{defender.base.name}는 방어중이여서 {attacker.base.name}의 공격은 실패했다!")
         print(f"{defender.base.name}는 방어중이여서 {attacker.base.name}의 공격은 실패했다!")
         
         if defender.used_move and defender.used_move.name == "니들가드" and move_info.is_touch:
-            updated_pokemon = await apply_thorn_damage(attacker)
-            store.update_pokemon(side, active_my if side == "my" else active_enemy, lambda p: updated_pokemon)
-            print(f"공격 포켓몬의 남은 체력: {defender.current_hp}")
-            store.add_log(f"{attacker.base.name}는 가시에 상처를 입었다!")
+            battle_store.update_pokemon(side, active_my if side == "my" else active_enemy, lambda p: apply_thorn_damage(p))
             
         elif defender.used_move and defender.used_move.name == "토치카" and move_info.is_touch:
-            store.update_pokemon(side, active_my if side == "my" else active_enemy, lambda p: add_status(p, "독", opponent_side))
+            battle_store.update_pokemon(side, active_my if side == "my" else active_enemy, lambda p: add_status(p, "독", opponent_side, battle_store=battle_store, duration_store=duration_store))
             if not (attacker.base.ability and attacker.base.ability.name == "면역" or 
                     "독" in attacker.base.types or "강철" in attacker.base.types):
                 print(f"{attacker.base.name}는 가시에 찔려 독 상태가 되었다!")
-                store.add_log(f"{attacker.base.name}는 가시에 찔려 독 상태가 되었다!")
+                battle_store.add_log(f"{attacker.base.name}는 가시에 찔려 독 상태가 되었다!")
                 
         elif defender.used_move and defender.used_move.name == "블로킹" and move_info.is_touch:
-            store.update_pokemon(side, active_my if side == "my" else active_enemy, lambda p: change_rank(p, "defense", -2))
+            battle_store.update_pokemon(side, active_my if side == "my" else active_enemy, lambda p: change_rank(p, "defense", -2))
             print(f"{attacker.base.name}는 방어가 크게 떨어졌다!!")
-            store.add_log(f"{attacker.base.name}는 방어가 크게 떨어졌다!")
+            battle_store.add_log(f"{attacker.base.name}는 방어가 크게 떨어졌다!")
             
-        return {"success": False}
+        return {"success": True, "used_move": move_info, "is_protecting": True}
     
     # 0-1. Check status effects
     if attacker.status:
         status_result = apply_status_effect_before(attacker.status, rate, move_info, side)
         rate = status_result["rate"]
         if not status_result["is_hit"]:
-            store.add_log(f"🚫 {attacker.base.name}의 기술은 실패했다!")
+            battle_store.add_log(f"🚫 {attacker.base.name}의 기술은 실패했다!")
+            print(f"{attacker.base.name}의 기술은 실패했다!")
             if (attacker.locked_move_turn or 0) > 0: # 기술 실패시 고정 해제처리
-                store.update_pokemon(side, active_my if side == "my" else active_enemy, 
-                                    lambda p: {**p, "locked_move_turn": 0})
+                battle_store.update_pokemon(side, active_my if side == "my" else active_enemy, 
+                                    lambda p: p.copy_with(locked_move_turn=0))
             return {"success": False}
         # 공격 성공 여부 (풀죽음, 마비, 헤롱헤롱, 얼음, 잠듦 등)
     
     # 0-2. Check if move is self-targeting or field effect
     if move_info.target in ["self", "none"]:
-        apply_change_effect(move_info, side, defender.base, is_multi_hit)
-        return {"success": True}
+        apply_change_effect(move_info, side, defender.base, is_multi_hit, battle_store=battle_store, duration_store=duration_store)
+        return {"success": True, "used_move": move_info}
     
     # 0-3. Check charging moves
     if not (move_info.name == "솔라빔" and public_env.weather == "쾌청"):
         if move_info.charge_turn and not attacker.is_charging:
-            store.update_pokemon(side, active_my if side == "my" else active_enemy,
-                                lambda p: {
-                                    **p,
-                                    "is_charging": True,
-                                    "charging_move": move_info,
-                                    "position": move_info.position or None
-                                })
-            store.add_log(f"{attacker.base.name}은(는) 힘을 모으기 시작했다!")
-            return {"success": True}
+            battle_store.update_pokemon(side, active_my if side == "my" else active_enemy,
+                                lambda p: setattr(p, 'is_charging', True) or 
+                                        setattr(p, 'charging_move', move_info) or
+                                        setattr(p, 'position', move_info.position or None) or
+                                        p)
+            battle_store.add_log(f"{attacker.base.name}은(는) 힘을 모으기 시작했다!")
+            print(f"{attacker.base.name}은(는) 힘을 모으기 시작했다!")
+            return {"success": True, "used_move": move_info}
     
     # 0-4. Check position
     if defender.position is not None:
         position = defender.position
         if (position == "땅" and move_info.name in ["지진", "땅고르기", "땅가르기"]) or \
         (position == "하늘" and move_info.name in ["번개", "땅고르기"]):
-            store.add_log(f"{attacker.base.name}은/는 {position}에 있는 상대를 공격하려 한다!")
+            battle_store.add_log(f"{attacker.base.name}은/는 {position}에 있는 상대를 공격하려 한다!")
+            print(f"{attacker.base.name}은/는 {position}에 있는 상대를 공격하려 한다!")
         else:
             is_hit = False
     
@@ -211,45 +217,63 @@ async def calculate_move_damage(
                 
         if not hit_success:
             is_hit = False
-            store.add_log(f"🚫 {attacker.base.name}의 공격은 빗나갔다!")
-            store.update_pokemon(side, active_my if side == "my" else active_enemy, lambda p: set_had_missed(p, True))
+            if attacker.base is not None:
+                battle_store.add_log(f"🚫 {attacker.base.name}의 공격은 빗나갔다!")
+                print(f"{attacker.base.name}의 공격은 빗나갔다!")
+            battle_store.update_pokemon(side, active_my if side == "my" else active_enemy, lambda p: set_had_missed(p, True))
             
             # Handle move demerit effects
+            # 무릎차기, 점프킥 등 빗나가면 반동
             if move_info.demerit_effects:
                 for effect in move_info.demerit_effects:
                     if effect.fail:
                         dmg = effect.fail
-                        store.update_pokemon(side, active_my if side == "my" else active_enemy,
+                        battle_store.update_pokemon(side, active_my if side == "my" else active_enemy,
                                           lambda p: change_hp(p, -(p.base.hp * dmg)))
-                        store.add_log(f"🤕 {attacker.base.name}은 반동으로 데미지를 입었다...")
+                        battle_store.add_log(f"🤕 {attacker.base.name}은 반동으로 데미지를 입었다...")
             
-            store.update_pokemon(side, active_my if side == "my" else active_enemy, lambda p: set_used_move(p, move_info))
-            store.update_pokemon(side, active_my if side == "my" else active_enemy,
+            battle_store.update_pokemon(side, active_my if side == "my" else active_enemy, lambda p: set_used_move(p, move_info))
+            battle_store.update_pokemon(side, active_my if side == "my" else active_enemy,
                             lambda p: use_move_pp(p, move_name, defender.base.ability.name == "프레셔" if defender.base.ability else False, is_multi_hit))
-            store.update_pokemon(side, active_my if side == "my" else active_enemy,
+            battle_store.update_pokemon(side, active_my if side == "my" else active_enemy,
                             lambda p: set_charging(p, False, None))
-            store.update_pokemon(side, active_my if side == "my" else active_enemy,
+            battle_store.update_pokemon(side, active_my if side == "my" else active_enemy,
                             lambda p: change_position(p, None))
-            return {"success": True}
+            battle_store.update_pokemon(side, active_my if side == "my" else active_enemy, lambda p: set_had_missed(p, True))
+            battle_store.update_pokemon(side, active_my if side == "my" else active_enemy, lambda p: set_dealt_damage(p, 0))
+            return {"success": True, "is_hit": False, "used_move": move_info}  # 빗나갔을 때 is_hit: False 반환
     
     # 5-1. Calculate type effectiveness
     if is_hit and move_info.target == "opponent":  # 상대를 대상으로 하는 기술일 경우
         # 상대가 타입 상성 무효화 특성 있을 경우 미리 적용
         if move_info.category == "변화":  # 상대를 때리는 변화기술일 경우 무효 로직
+            # 상태이상 기술인데 이미 상대가 그 상태이상 걸려있을 경우
+            if move_info.effects and any(effect.status in defender.status for effect in move_info.effects):
+                was_null = True
+                if not is_monte_carlo:
+                    print(f"{defender.base.name}은/는 이미 그 상태이상 걸려있어서 효과가 없었다!")
+                    battle_store.add_log(f"🚫 {defender.base.name}은/는 이미 그 상태이상 걸려있어서 효과가 없었다!")
+                return {"success": True, "was_null": True, "used_move": move_info}
             if move_info.type == "풀" and "풀" in opponent_pokemon.types:
+                was_null = True
+                types *= 0
+            if "화상" in [effect.status for effect in move_info.effects] and ("불" in opponent_pokemon.types or opponent_pokemon.ability.name == '수의베일'):
+                was_null = True
                 types *= 0
             if defender.base.ability and defender.base.ability.name == "미라클스킨":
                 was_null = True
-                store.add_log(f"🥊 {attacker.base.name}은/는 {move_info.name}을/를 사용했다!")
+                battle_store.add_log(f"🥊 {attacker.base.name}은/는 {move_info.name}을/를 사용했다!")
                 print(f"{attacker.base.name}은/는 {move_info.name}을/를 사용했다!")
-                store.add_log(f"🚫 {attacker.base.name}의 공격은 효과가 없었다...")
-                print(f"{attacker.base.name}의 공격은 효과가 없었다...")
-                store.update_pokemon(side, active_my if side == "my" else active_enemy, lambda p: set_used_move(p, move_info))
-                store.update_pokemon(side, active_my if side == "my" else active_enemy, 
+                if not is_monte_carlo:
+                    battle_store.add_log(f"🚫 {attacker.base.name}의 공격은 효과가 없었다...")
+                    print(f"{side} {attacker.base.name}의 공격은 효과가 없었다...")
+                battle_store.update_pokemon(side, active_my if side == "my" else active_enemy, lambda p: set_used_move(p, move_info))
+                battle_store.update_pokemon(side, active_my if side == "my" else active_enemy, 
                                     lambda p: use_move_pp(p, move_name, defender.base.ability.name == "프레셔" if defender.base.ability else False, is_multi_hit))
-                store.update_pokemon(opponent_side, active_enemy if side == "my" else active_my, 
+                battle_store.update_pokemon(opponent_side, active_enemy if side == "my" else active_my, 
                                     lambda p: change_rank(p, "dodge", 2))
-                return
+                battle_store.update_pokemon(side, active_my if side == "my" else active_enemy, lambda p: set_dealt_damage(p, 0))
+                return {"success": True, "was_null": was_null, "used_move": move_info}
         elif opponent_pokemon.ability and opponent_pokemon.ability.defensive:  # 상대 포켓몬이 방어적 특성 있을 경우
             for category in opponent_pokemon.ability.defensive:
                 if category in ["damage_nullification", "type_nullification", "damage_reduction"]:
@@ -258,31 +282,24 @@ async def calculate_move_damage(
                     # 노말스킨 있어도 프리즈드라이, 플라잉프레스의 타입은 계속 적용됨
                     if move_info.name == "플라잉프레스":
                         print("플라잉프레스 타입상성 적용")
-                        fighting_effect = apply_defensive_ability_effect_before_damage(
-                            {**move_info, "type": "격투"}, side
-                        )
-                        flying_effect = apply_defensive_ability_effect_before_damage(
-                            {**move_info, "type": "비행"}, side
-                        )
+                        fighting_move = move_info.copy(type="격투")
+                        flying_move = move_info.copy(type="비행")
+                        fighting_effect = apply_defensive_ability_effect_before_damage(fighting_move, side, battle_store=battle_store)
+                        flying_effect = apply_defensive_ability_effect_before_damage(flying_move, side, battle_store=battle_store)
                         types *= fighting_effect * flying_effect
                     else:  # 일반적인 경우
-                        types *= apply_defensive_ability_effect_before_damage(move_info, side)
+                        types *= apply_defensive_ability_effect_before_damage(move_info, side, battle_store=battle_store)
         
         # 방어적 특성이 없는 경우
         if move_info.name == "프리즈드라이" and move_info.type == "노말":
             move_info.type = "프리즈드라이"
         # 노말스킨 있어도 프리즈드라이, 플라잉프레스의 타입은 계속 적용됨
         if move_info.name == "플라잉프레스":
-            fighting_effect = calculate_type_effectiveness_with_ability(
-                my_pokemon,
-                opponent_pokemon,
-                {**move_info, "type": "격투"}
-            )
-            flying_effect = calculate_type_effectiveness_with_ability(
-                my_pokemon,
-                opponent_pokemon,
-                {**move_info, "type": "비행"}
-            )
+            print("플라잉프레스 타입상성 적용")
+            fighting_move = move_info.copy(type="격투")
+            flying_move = move_info.copy(type="비행")
+            fighting_effect = apply_defensive_ability_effect_before_damage(fighting_move, side, battle_store=battle_store)
+            flying_effect = apply_defensive_ability_effect_before_damage(flying_move, side, battle_store=battle_store)
             types *= fighting_effect * flying_effect
         else:
             types *= calculate_type_effectiveness_with_ability(my_pokemon, opponent_pokemon, move_info)
@@ -292,82 +309,94 @@ async def calculate_move_damage(
                 types = 0
             if types == 0:
                 was_null = True
-                store.add_log(f"🥊 {attacker.base.name}은/는 {move_info.name}을/를 사용했다!")
+                battle_store.add_log(f"🥊 {attacker.base.name}은/는 {move_info.name}을/를 사용했다!")
                 print(f"{attacker.base.name}은/는 {move_info.name}을/를 사용했다!")
-                store.add_log(f"🚫 {attacker.base.name}의 공격은 효과가 없었다...")
-                print(f"{attacker.base.name}의 공격은 효과가 없었다...")
-                store.update_pokemon(side, active_my if side == "my" else active_enemy, lambda p: set_used_move(p, move_info))
-                store.update_pokemon(side, active_my if side == "my" else active_enemy, 
+                if not is_monte_carlo:
+                    battle_store.add_log(f"🚫 {attacker.base.name}의 공격은 효과가 없었다...")
+                    print(f"{side} {attacker.base.name}의 공격은 효과가 없었다...")
+                battle_store.update_pokemon(side, active_my if side == "my" else active_enemy, lambda p: set_used_move(p, move_info))
+                battle_store.update_pokemon(side, active_my if side == "my" else active_enemy, 
                                     lambda p: use_move_pp(p, move_name, defender.base.ability.name == "프레셔" if defender.base.ability else False, is_multi_hit))
-                return
+                battle_store.update_pokemon(side, active_my if side == "my" else active_enemy, lambda p: set_dealt_damage(p, 0))
+                return {"success": True, "was_null": was_null, "used_move": move_info}
             if move_info.name == "아픔나누기":
                 print("아픔나누기~~")
                 my_hp = attacker.current_hp
                 enemy_hp = defender.current_hp
                 total_hp = my_hp + enemy_hp
                 new_hp = total_hp // 2
-                store.update_pokemon(side, active_my if side == "my" else active_enemy, lambda p: change_hp(p, new_hp - my_hp))
-                store.update_pokemon(opponent_side, active_enemy if side == "my" else active_my, lambda p: change_hp(p, new_hp - enemy_hp))
+                battle_store.update_pokemon(side, active_my if side == "my" else active_enemy, lambda p: change_hp(p, new_hp - my_hp))
+                battle_store.update_pokemon(opponent_side, active_enemy if side == "my" else active_my, lambda p: change_hp(p, new_hp - enemy_hp))
             
-            store.add_log(f"🥊 {attacker.base.name}은/는 {move_info.name}을/를 사용했다!")
+            battle_store.add_log(f"🥊 {attacker.base.name}은/는 {move_info.name}을/를 사용했다!")
             print(f"{attacker.base.name}은/는 {move_info.name}을/를 사용했다!")
-            store.update_pokemon(side, active_my if side == "my" else active_enemy, lambda p: set_used_move(p, move_info))
-            store.update_pokemon(side, active_my if side == "my" else active_enemy, 
+            battle_store.update_pokemon(side, active_my if side == "my" else active_enemy, lambda p: set_used_move(p, move_info))
+            battle_store.update_pokemon(side, active_my if side == "my" else active_enemy, 
                                 lambda p: use_move_pp(p, move_name, defender.base.ability.name == "프레셔" if defender.base.ability else False, is_multi_hit))
-            store.update_pokemon(side, active_my if side == "my" else active_enemy, lambda p: set_charging(p, False, None))
-            store.update_pokemon(side, active_my if side == "my" else active_enemy, lambda p: change_position(p, None))
-            return {"success": True}  # 변화기술은 성공으로 처리
+            battle_store.update_pokemon(side, active_my if side == "my" else active_enemy, lambda p: set_charging(p, False, None))
+            battle_store.update_pokemon(side, active_my if side == "my" else active_enemy, lambda p: change_position(p, None))
+            battle_store.update_pokemon(side, active_my if side == "my" else active_enemy, lambda p: set_dealt_damage(p, 0))
+            return {"success": True, "used_move": move_info}  # 변화기술은 성공으로 처리
         
-        store.add_log(f"🥊 {attacker.base.name}은/는 {move_name}을/를 사용했다!")
+        battle_store.add_log(f"🥊 {attacker.base.name}은/는 {move_name}을/를 사용했다!")
         print(f"{attacker.base.name}은/는 {move_name}을/를 사용했다!")
-    
-        if types >= 2:
+        if types >= 4:
+            was_effective = 2
+            if not is_monte_carlo:
+                battle_store.add_log(f"👍 {side} {attacker.base.name}의 공격은 효과가 매우 굉장했다!")
+                print(f"{side} {attacker.base.name}의 공격은 효과가 매우 굉장했다!")
+        if 2 <= types < 4:
             was_effective = 1
-            store.add_log(f"👍 {attacker.base.name}의 공격은 효과가 굉장했다!")
-            print(f"{attacker.base.name}의 공격은 효과가 굉장했다!")
-        if 0 < types <= 0.5:
+            if not is_monte_carlo:
+                battle_store.add_log(f"👍 {side} {attacker.base.name}의 공격은 효과가 굉장했다!")
+                print(f"{side} {attacker.base.name}의 공격은 효과가 굉장했다!")
+        if 0 < types <= 0.25:
+            was_effective = -2
+            if not is_monte_carlo:
+                battle_store.add_log(f"👎 {attacker.base.name}의 공격은 효과가 매우 별로였다...")
+                print(f"{side} {attacker.base.name}의 공격은 효과가 매우 별로였다...")
+        if 0.25 < types <= 0.5:
             was_effective = -1
-            store.add_log(f"👎 {attacker.base.name}의 공격은 효과가 별로였다...")
-            print(f"{attacker.base.name}의 공격은 효과가 별로였다...")
+            if not is_monte_carlo:
+                battle_store.add_log(f"👎 {attacker.base.name}의 공격은 효과가 별로였다...")
+                print(f"{side} {attacker.base.name}의 공격은 효과가 별로였다...")
         if types == 0:
             was_null = True
-            store.add_log(f"🚫 {attacker.base.name}의 공격은 효과가 없었다...")
-            print(f"{attacker.base.name}의 공격은 효과가 없었다...")
-            store.update_pokemon(side, active_my if side == "my" else active_enemy, lambda p: set_used_move(p, move_info))
-            store.update_pokemon(side, active_my if side == "my" else active_enemy, 
+            if not is_monte_carlo:
+                battle_store.add_log(f"🚫 {attacker.base.name}의 공격은 효과가 없었다...")
+                print(f"{side} {attacker.base.name}의 공격은 효과가 없었다...")
+            battle_store.update_pokemon(side, active_my if side == "my" else active_enemy, lambda p: set_used_move(p, move_info))
+            battle_store.update_pokemon(side, active_my if side == "my" else active_enemy, 
                                 lambda p: use_move_pp(p, move_name, defender.base.ability.name == "프레셔" if defender.base.ability else False, is_multi_hit))
-            store.update_pokemon(side, active_my if side == "my" else active_enemy, lambda p: set_charging(p, False, None))
-            store.update_pokemon(side, active_my if side == "my" else active_enemy, lambda p: change_position(p, None))
-        
-        # 무릎차기, 점프킥 등 빗나가면 반동
-            if move_info.demerit_effects:
-                for d_effect in move_info.demerit_effects:
-                    if d_effect.fail:
-                        dmg = d_effect.fail
-                        store.update_pokemon(side, active_my if side == "my" else active_enemy, 
-                                        lambda p: change_hp(p, -(p.base.hp * dmg)))
-                        store.add_log(f"🤕 {attacker.base.name}은 반동으로 데미지를 입었다...")
-            return
+            battle_store.update_pokemon(side, active_my if side == "my" else active_enemy, lambda p: set_charging(p, False, None))
+            battle_store.update_pokemon(side, active_my if side == "my" else active_enemy, lambda p: change_position(p, None))
+            battle_store.update_pokemon(side, active_my if side == "my" else active_enemy, lambda p: set_dealt_damage(p, 0))
+            return {"success": True, "was_null": was_null, "used_move": move_info}
     
     # 5-2. Handle one-hit KO moves
     if move_info.one_hit_ko:
         if defender.base.ability and defender.base.ability.name == "옹골참":
-            store.update_pokemon(side, active_mine, lambda p: set_used_move(p, move_info))
-            store.update_pokemon(side, active_mine, 
+            was_null = True
+            battle_store.update_pokemon(side, active_mine, lambda p: set_used_move(p, move_info))
+            battle_store.update_pokemon(side, active_mine, 
                                 lambda p: use_move_pp(p, move_name, defender.base.ability.name == "프레셔" if defender.base.ability else False, is_multi_hit))
-            store.add_log(f"🚫 {attacker.base.name}의 공격은 상대의 옹골참으로 인해 통하지 않았다!")
-            return  # 일격필살기 무효화
+            if not is_monte_carlo:
+                battle_store.add_log(f"🚫 {attacker.base.name}의 공격은 상대의 옹골참으로 인해 효과가 없었다!")
+                print(f"{attacker.base.name}의 공격은 상대의 옹골참으로 인해 효과가 없었다!")
+            battle_store.update_pokemon(side, active_my if side == "my" else active_enemy, lambda p: set_dealt_damage(p, 0))
+            return {"success": True, "damage": 0, "was_null": was_null, "used_move": move_info}  # 일격필살기 무효화
             
-        store.update_pokemon(opponent_side, active_opponent, lambda p: change_hp(p, -p.base.hp))
-        store.update_pokemon(opponent_side, active_opponent, lambda p: set_received_damage(p, p.base.hp))
-        store.update_pokemon(side, active_mine, 
+        battle_store.update_pokemon(opponent_side, active_opponent, lambda p: change_hp(p, -p.base.hp))
+        battle_store.update_pokemon(opponent_side, active_opponent, lambda p: set_received_damage(p, p.base.hp))
+        battle_store.update_pokemon(side, active_mine, 
                             lambda p: use_move_pp(p, move_name, defender.base.ability.name == "프레셔" if defender.base.ability else False, is_multi_hit))
-        store.update_pokemon(side, active_mine, lambda p: set_had_missed(p, False))
-        store.update_pokemon(side, active_mine, lambda p: set_used_move(p, move_info))
-        store.update_pokemon(side, active_mine, lambda p: set_charging(p, False, None))
-        store.update_pokemon(side, active_mine, lambda p: change_position(p, None))
-        store.add_log(f"💥 {opponent_pokemon.name}은/는 일격필살기에 쓰러졌다!")
-        return {"success": True, "damage": defender.current_hp}
+        battle_store.update_pokemon(side, active_mine, lambda p: set_had_missed(p, False))
+        battle_store.update_pokemon(side, active_mine, lambda p: set_used_move(p, move_info))
+        battle_store.update_pokemon(side, active_mine, lambda p: set_charging(p, False, None))
+        battle_store.update_pokemon(side, active_mine, lambda p: change_position(p, None))
+        battle_store.update_pokemon(side, active_mine, lambda p: set_dealt_damage(p, defender.base.hp))
+        battle_store.add_log(f"💥 {opponent_pokemon.name}은/는 일격필살기에 쓰러졌다!")
+        return {"success": True, "damage": defender.current_hp, "is_hit": True, "was_null": was_null, "was_effective": 0, "used_move": move_info}
         
     # 5-3. Apply same type bonus and previous miss bonus
     if move_info.type in my_pokemon.types or (move_info.type == "프리즈드라이" and "얼음" in my_pokemon.types):
@@ -437,29 +466,29 @@ async def calculate_move_damage(
         screen_list = ["리플렉터", "빛의장막", "오로라베일"]
         for screen_name in screen_list:
             if screen_name and has_active_screen(screen_name):
-                duration_store.remove_effect(opponent_side, screen_name)  # 턴 감소가 아닌 즉시 삭제
-                store.add_log(f"💥 {screen_name}이 {'상대' if side == 'my' else '내'} 필드에서 깨졌다!")
+                duration_store.remove_effect(screen_name, opponent_side)  # 턴 감소가 아닌 즉시 삭제
+                battle_store.add_log(f"💥 {screen_name}이 {'상대' if side == 'my' else '내'} 필드에서 깨졌다!")
 
     # 벽 통과하는 기술이나 틈새포착이 아닐 경우
     if not (my_pokemon.ability and my_pokemon.ability.name == "틈새포착"):
         # 물리 기술이면 리플렉터나 오로라베일 적용
         if move_info.category == "물리" and (has_active_screen("리플렉터") or has_active_screen("오로라베일")):
             rate *= 0.5
-            store.add_log("🧱 장막 효과로 데미지가 줄었다!")
+            battle_store.add_log("🧱 장막 효과로 데미지가 줄었다!")
             print("장막효과 적용됨")
 
         # 특수 기술이면 라이트스크린이나 오로라베일 적용
         if move_info.category == "특수" and (has_active_screen("빛의장막") or has_active_screen("오로라베일")):
             rate *= 0.5
-            store.add_log("🧱 장막 효과로 데미지가 줄었다!")
+            battle_store.add_log("🧱 장막 효과로 데미지가 줄었다!")
             print("장막효과 적용됨")
 
     # 7. 공격 관련 특성 적용 (배율)
-    rate *= apply_offensive_ability_effect_before_damage(move_info, side, was_effective)
+    rate *= apply_offensive_ability_effect_before_damage(move_info, side, was_effective, battle_store=battle_store)
 
     # 8. 상대 방어 특성 적용 (배율)
     # 만약 위에서 이미 types가 0이더라도, 나중에 곱하면 어차피 0 돼서 상관없음.
-    rate *= apply_defensive_ability_effect_before_damage(move_info, side, was_effective)
+    rate *= apply_defensive_ability_effect_before_damage(move_info, side, was_effective, battle_store=battle_store)
 
     # 9. 급소 적용
     if (my_pokemon.ability and my_pokemon.ability.name == "무모한행동" and 
@@ -481,13 +510,13 @@ async def calculate_move_damage(
             my_poke_rank['attack'] = max(0, my_poke_rank['attack'])
             my_poke_rank['sp_attack'] = max(0, my_poke_rank['sp_attack'])
             # 급소 맞출 시에는 내 공격 랭크 다운 무효
-            store.add_log(f"👍 {move_name}은/는 급소에 맞았다!")
+            battle_store.add_log(f"👍 {move_name}은/는 급소에 맞았다!")
             print(f"{move_name}은/는 급소에 맞았다!")
         else:
             rate *= 1.5  # 그 외에는 1.5배
             my_poke_rank['attack'] = max(0, my_poke_rank['attack'])
             my_poke_rank['sp_attack'] = max(0, my_poke_rank['sp_attack'])
-            store.add_log(f"👍 {move_name}은/는 급소에 맞았다!")
+            battle_store.add_log(f"👍 {move_name}은/는 급소에 맞았다!")
             print(f"{move_name}은/는 급소에 맞았다!")
 
     # 10. 데미지 계산
@@ -498,32 +527,34 @@ async def calculate_move_damage(
         if not (defender.base.ability and defender.base.ability.name == "천진"):
             if move_name == "바디프레스":
                 attack_stat *= calculate_rank_effect(my_poke_rank['defense'])
-                store.add_log(f"{attacker.base.name}의 방어 랭크 변화가 적용되었다!")
+                battle_store.add_log(f"{attacker.base.name}의 방어 랭크 변화가 적용되었다!")
                 print(f"{attacker.base.name}의 방어 랭크 변화가 적용되었다!")
             else:
                 attack_stat *= calculate_rank_effect(my_poke_rank['attack'])
-                store.add_log(f"{attacker.base.name}의 공격 랭크 변화가 적용되었다!")
+                battle_store.add_log(f"{attacker.base.name}의 공격 랭크 변화가 적용되었다!")
                 print(f"{attacker.base.name}의 공격 랭크 변화가 적용되었다!")
 
     if my_poke_rank['sp_attack'] and move_info.category == "특수":
-        if not (defender.base.ability and defender.base.ability.name == "천진"):
-            attack_stat *= calculate_rank_effect(my_poke_rank['sp_attack'])
-            store.add_log(f"{attacker.base.name}의 특수공격 랭크 변화가 적용되었다!")
-            print(f"{attacker.base.name}의 특수공격 랭크 변화가 적용되었다!")
+        if not (defender.base.ability and defender.base.ability.name == "천진") and \
+            not (move_info.effects and any(effect.rank_nullification for effect in move_info.effects)):
+            # 공격자가 천진도 아니고, 기술이 랭크업 무시하는 기술도 아닐 경우에만 업데이트
+            defense_stat *= calculate_rank_effect(op_poke_rank['defense'])
+            battle_store.add_log(f"{defender.base.name}의 방어 랭크 변화가 적용되었다!")
+            print(f"{defender.base.name}의 방어 랭크 변화가 적용되었다!")
 
     if op_poke_rank['defense'] and move_info.category == "물리":
         if not (attacker.base.ability and attacker.base.ability.name == "천진") and \
             not (move_info.effects and any(effect.rank_nullification for effect in move_info.effects)):
             # 공격자가 천진도 아니고, 기술이 랭크업 무시하는 기술도 아닐 경우에만 업데이트
             defense_stat *= calculate_rank_effect(op_poke_rank['defense'])
-            store.add_log(f"{defender.base.name}의 방어 랭크 변화가 적용되었다!")
+            battle_store.add_log(f"{defender.base.name}의 방어 랭크 변화가 적용되었다!")
             print(f"{defender.base.name}의 방어 랭크 변화가 적용되었다!")
 
     if op_poke_rank['sp_defense'] and move_info.category == "특수":
         if not (attacker.base.ability and attacker.base.ability.name == "천진") and \
             not (move_info.effects and any(effect.rank_nullification for effect in move_info.effects)):
             defense_stat *= calculate_rank_effect(op_poke_rank['sp_defense'])
-            store.add_log(f"{defender.base.name}의 특수방어 랭크 변화가 적용되었다!")
+            battle_store.add_log(f"{defender.base.name}의 특수방어 랭크 변화가 적용되었다!")
             print(f"{defender.base.name}의 특수방어 랭크 변화가 적용되었다!")
 
     # 11. 내구력 계산
@@ -558,69 +589,74 @@ async def calculate_move_damage(
         if (defender.base.ability and defender.base.ability.name == "옹골참" and 
             defender.current_hp == defender.base.hp and damage >= defender.current_hp):
             print(f"{defender.base.name}의 옹골참 발동!")
-            store.add_log(f"🔃 {defender.base.name}의 옹골참 발동!")
-            store.update_pokemon(opponent_side, active_opponent, 
+            battle_store.add_log(f"🔃 {defender.base.name}의 옹골참 발동!")
+            battle_store.update_pokemon(opponent_side, active_opponent, 
                                 lambda p: change_hp(p, 1 - p.current_hp))
-            store.update_pokemon(opponent_side, active_opponent,
+            battle_store.update_pokemon(opponent_side, active_opponent,
                                 lambda p: set_received_damage(p, p.base.hp - 1))
-            store.update_pokemon(side, active_mine,
+            battle_store.update_pokemon(side, active_mine, lambda p: set_dealt_damage(p, defender.base.hp - 1))
+            battle_store.update_pokemon(side, active_mine,
                                 lambda p: use_move_pp(p, move_name, 
                                                 defender.base.ability.name == "프레셔" if defender.base.ability else False, 
                                                 is_multi_hit))
-            store.update_pokemon(side, active_mine, lambda p: set_had_missed(p, False))
-            store.update_pokemon(side, active_mine, lambda p: set_used_move(p, move_info))
-            store.update_pokemon(side, active_mine, lambda p: set_charging(p, False, None))
-            store.update_pokemon(side, active_mine, lambda p: change_position(p, None))
-            return {"success": True, "damage": defender.current_hp - 1, "was_effective": was_effective}
+            battle_store.update_pokemon(side, active_mine, lambda p: set_had_missed(p, False))
+            battle_store.update_pokemon(side, active_mine, lambda p: set_used_move(p, move_info))
+            battle_store.update_pokemon(side, active_mine, lambda p: set_charging(p, False, None))
+            battle_store.update_pokemon(side, active_mine, lambda p: change_position(p, None))
+            return {"success": True, "damage": defender.current_hp - 1, "was_effective": was_effective, "was_null": was_null, "used_move": move_info}
 
         if damage >= defender.current_hp:  # 쓰러뜨렸을 경우
             if move_info.name == "마지막일침":
                 print(f"{move_info.name}의 부가효과 발동!")
-                store.update_pokemon(side, active_mine, 
+                battle_store.update_pokemon(side, active_mine, 
                                     lambda p: change_rank(p, "attack", 3))
                 print(f"{attacker.base.name}의 공격이 3랭크 변했다!")
-                store.add_log(f"🔃 {attacker.base.name}의 공격이 3랭크 변했다!")
+                battle_store.add_log(f"🔃 {attacker.base.name}의 공격이 3랭크 변했다!")
 
             if attacker.base.ability and attacker.base.ability.name in ["자기과신", "백의울음"]:
                 print("자기과신 발동!")
-                store.add_log("자기과신 발동!")
-                store.update_pokemon(side, active_mine, 
+                battle_store.add_log("자기과신 발동!")
+                battle_store.update_pokemon(side, active_mine, 
                                     lambda p: change_rank(p, "attack", 1))
             elif attacker.base.ability and attacker.base.ability.name == "흑의울음":
-                store.update_pokemon(side, active_mine, 
+                battle_store.update_pokemon(side, active_mine, 
                                     lambda p: change_rank(p, "sp_attack", 1))
 
             if "길동무" in defender.status:
                 print(f"{side} 포켓몬은 상대에게 길동무로 끌려갔다...!")
-                store.add_log(f"👻 {side} 포켓몬은 상대에게 길동무로 끌려갔다...!")
-                store.update_pokemon(side, active_mine, 
+                battle_store.add_log(f"👻 {side} 포켓몬은 상대에게 길동무로 끌려갔다...!")
+                battle_store.update_pokemon(side, active_mine, 
                                     lambda p: change_hp(p, -p.base.hp))
 
-        store.update_pokemon(opponent_side, active_opponent, 
+        battle_store.update_pokemon(opponent_side, active_opponent, 
                             lambda p: change_hp(p, -damage))
-        store.update_pokemon(opponent_side, active_opponent,
+        battle_store.update_pokemon(opponent_side, active_opponent,
                             lambda p: set_received_damage(p, damage))
-        store.update_pokemon(side, active_mine,
+        battle_store.update_pokemon(side, active_mine, lambda p: set_dealt_damage(p, damage))
+        battle_store.update_pokemon(side, active_mine,
                             lambda p: use_move_pp(p, move_name, 
                                             defender.base.ability.name == "프레셔" if defender.base.ability else False, 
                                             is_multi_hit))
-        store.update_pokemon(side, active_mine, lambda p: set_had_missed(p, False))
-        store.update_pokemon(side, active_mine, lambda p: set_used_move(p, move_info))
-        store.update_pokemon(side, active_mine, lambda p: set_charging(p, False, None))
-        store.update_pokemon(side, active_mine, lambda p: change_position(p, None))
+        battle_store.update_pokemon(side, active_mine, lambda p: set_had_missed(p, False))
+        battle_store.update_pokemon(side, active_mine, lambda p: set_used_move(p, move_info))
+        battle_store.update_pokemon(side, active_mine, lambda p: set_charging(p, False, None))
+        battle_store.update_pokemon(side, active_mine, lambda p: change_position(p, None))
 
         if move_info.locked_move:
-            store.update_pokemon(side, active_mine, 
-                                lambda p: {**p, "locked_move_turn": 3 if random.random() < 0.5 else 2})
+            battle_store.update_pokemon(side, active_mine, 
+                                lambda p: p.copy_with(locked_move_turn=3 if random.random() < 0.5 else 2))
 
-        return {"success": True, "damage": damage, "was_effective": was_effective}
+        return {"success": True, "damage": damage, "was_effective": was_effective, "was_null": was_null, "used_move": move_info}
 
+    return {"success": False, "was_null": False, "used_move": move_info}
 
 def apply_change_effect(
     move_info: MoveInfo,
     side: SideType,
     defender: Optional[PokemonInfo] = None,
-    is_multi_hit: bool = False
+    is_multi_hit: bool = False,
+    battle_store: Optional[BattleStore] = store,
+    duration_store: Optional[DurationStore] = duration_store
 ) -> None:
     print("apply_change_effect 호출")
     state = store.get_state()
@@ -636,52 +672,69 @@ def apply_change_effect(
     
     if move_info.category == "변화":
         if move_info.target == "self":  # 자신에게 거는 기술일 경우
-            store.add_log(f"🥊 {side}는 {move_info.name}을/를 사용했다!")
+            battle_store.add_log(f"🥊 {side}는 {move_info.name}을/를 사용했다!")
             print(f"{side}는 {move_info.name}을/를 사용했다!")
             
             if move_info.name == "길동무":
                 if active_team[active_mine].used_move and active_team[active_mine].used_move.name == "길동무":
                     print("연속으로 발동 실패...!")
-                    store.add_log("연속으로 발동 실패...!")
+                    battle_store.add_log("연속으로 발동 실패...!")
                     # update_pokemon(side, active_mine, lambda p: set_used_move(p, None))  # 다음턴에 다시 길동무 사용 가능하도록
-                    store.update_pokemon(side, active_mine, 
+                    battle_store.update_pokemon(side, active_mine, 
                                     lambda p: use_move_pp(p, move_info.name, defender.ability.name == "프레셔" if defender and defender.ability else False, is_multi_hit))
+                    battle_store.update_pokemon(side, active_mine, lambda p: set_dealt_damage(p, 0))
                     return
                 else:
-                    store.add_log(f"👻 {side}는 {move_info.name}을/를 사용했다!")
+                    battle_store.add_log(f"👻 {side}는 {move_info.name}을/를 사용했다!")
                     print(f"{side}는 {move_info.name}을/를 사용했다!")
-                    store.update_pokemon(side, active_mine, lambda p: add_status(p, "길동무", side))
+                    battle_store.update_pokemon(side, active_mine, lambda p: set_used_move(p, move_info))
+                    battle_store.update_pokemon(side, active_mine, lambda p: use_move_pp(p, move_info.name, defender.ability.name == "프레셔" if defender and defender.ability else False, is_multi_hit))
+                    battle_store.update_pokemon(side, active_mine, lambda p: add_status(p, "길동무", side, battle_store=battle_store, duration_store=duration_store))
             
             if move_info.protect:
                 if active_team[active_mine].used_move and active_team[active_mine].used_move.protect:
                     print("연속으로 방어 시도!")
-                    store.add_log("연속으로 방어 시도!")
+                    battle_store.add_log("연속으로 방어 시도!")
                     if random.random() < 0.5:
                         print("연속으로 방어 성공!")
-                        store.add_log("연속으로 방어 성공!")
-                        store.update_pokemon(side, active_mine, lambda p: set_protecting(p, True))
+                        battle_store.add_log("연속으로 방어 성공!")
+                        battle_store.update_pokemon(side, active_mine, lambda p: set_used_move(p, move_info))
+                        battle_store.update_pokemon(side, active_mine, lambda p: use_move_pp(p, move_info.name, defender.ability.name == "프레셔" if defender and defender.ability else False, is_multi_hit))
+                        battle_store.update_pokemon(side, active_mine, lambda p: set_protecting(p, True))
+                        battle_store.update_pokemon(side, active_mine, lambda p: set_dealt_damage(p, 0))
+                        
                     else:
                         print("연속으로 방어 실패...!")
-                        store.add_log("연속으로 방어 실패...!")
-                        store.update_pokemon(side, active_mine, lambda p: set_used_move(p, None))
-                        store.update_pokemon(side, active_mine, 
+                        battle_store.add_log("연속으로 방어 실패...!")
+                        battle_store.update_pokemon(side, active_mine, lambda p: set_used_move(p, None))
+                        battle_store.update_pokemon(side, active_mine, 
                                         lambda p: use_move_pp(p, move_info.name, defender.ability.name == "프레셔" if defender and defender.ability else False, is_multi_hit))
+                        battle_store.update_pokemon(side, active_mine, lambda p: set_dealt_damage(p, 0))
                         return
                 else:
-                    store.update_pokemon(side, active_mine, lambda p: set_protecting(p, True))
+                    battle_store.update_pokemon(side, active_mine, lambda p: set_used_move(p, move_info))
+                    battle_store.update_pokemon(side, active_mine, lambda p: use_move_pp(p, move_info.name, defender.ability.name == "프레셔" if defender and defender.ability else False, is_multi_hit))
+                    battle_store.update_pokemon(side, active_mine, lambda p: set_protecting(p, True))
+                    battle_store.update_pokemon(side, active_mine, lambda p: set_dealt_damage(p, 0))
             
             if move_info.effects:
                 for effect in move_info.effects:
                     if effect.stat_change:  # 랭크업 기술일 경우
+                        battle_store.update_pokemon(side, active_mine, lambda p: set_used_move(p, move_info))
+                        battle_store.update_pokemon(side, active_mine, lambda p: use_move_pp(p, move_info.name, defender.ability.name == "프레셔" if defender and defender.ability else False, is_multi_hit))
+                        battle_store.update_pokemon(side, active_mine, lambda p: set_dealt_damage(p, 0))
                         for stat_change in effect.stat_change:
-                            store.update_pokemon(side, active_mine, 
+                            battle_store.update_pokemon(side, active_mine, 
                                             lambda p: change_rank(p, stat_change.stat, stat_change.change))
                             print(f"{active_team[active_mine].base.name}의 {stat_change.stat}이/가 {stat_change.change}랭크 변했다!")
-                            store.add_log(f"🔃 {active_team[active_mine].base.name}의 {stat_change.stat}이/가 {stat_change.change}랭크 변했다!")
+                            battle_store.add_log(f"🔃 {active_team[active_mine].base.name}의 {stat_change.stat}이/가 {stat_change.change}랭크 변했다!")
                     
                     if effect.heal and effect.heal > 0:
                         heal = effect.heal
-                        store.update_pokemon(side, active_mine, 
+                        battle_store.update_pokemon(side, active_mine, lambda p: set_used_move(p, move_info))
+                        battle_store.update_pokemon(side, active_mine, lambda p: use_move_pp(p, move_info.name, defender.ability.name == "프레셔" if defender and defender.ability else False, is_multi_hit))
+                        battle_store.update_pokemon(side, active_mine, lambda p: set_dealt_damage(p, 0))
+                        battle_store.update_pokemon(side, active_mine, 
                                           lambda p: change_hp(p, p.base.hp * heal))
                         print("damage_calculator.py") # 맞은 포켓몬의 체력이 회복되는 오류 확인 위한 디버깅
                     
@@ -690,38 +743,42 @@ def apply_change_effect(
                             active_team[active_mine].base.ability and 
                             active_team[active_mine].base.ability.name in ["불면", "의기양양"]
                         ):
-                            store.update_pokemon(side, active_mine, 
-                                            lambda p: add_status(p, effect.status, side))
+                            battle_store.update_pokemon(side, active_mine, lambda p: set_used_move(p, move_info))
+                            battle_store.update_pokemon(side, active_mine, lambda p: use_move_pp(p, move_info.name, defender.ability.name == "프레셔" if defender and defender.ability else False, is_multi_hit))
+                            battle_store.update_pokemon(side, active_mine, lambda p: set_dealt_damage(p, 0))
+                            battle_store.update_pokemon(side, active_mine, 
+                                            lambda p: add_status(p, effect.status, side, battle_store=battle_store, duration_store=duration_store))
         
         elif move_info.target == "none":  # 필드에 거는 기술일 경우
             if move_info.trap:  # 독압정, 스텔스록 등
-                add_trap(opponent_side, move_info.trap)
-                store.add_log(f"🥊 {side}는 {move_info.name}을/를 사용했다!")
+                add_trap(opponent_side, move_info.trap, battle_store=battle_store)
+                battle_store.add_log(f"🥊 {side}는 {move_info.name}을/를 사용했다!")
                 print(f"{side}는 {move_info.name}을/를 사용했다!")
             
             if move_info.field:
-                set_field(move_info.field)
-                store.add_log(f"⛰️ {side}는 필드를 {move_info.name}로 바꿨다!")
+                set_field(move_info.field, battle_store=battle_store, duration_store=duration_store)
+                battle_store.add_log(f"⛰️ {side}는 필드를 {move_info.name}로 바꿨다!")
                 print(f"{side}는 필드를 {move_info.name}로 바꿨다!")
             
             if move_info.weather:
-                set_weather(move_info.name)
+                set_weather(move_info.name, battle_store=battle_store, duration_store=duration_store)
                 print(f"{side}는 날씨를 {move_info.weather}로 바꿨다!")
             
             if move_info.room:
-                set_room(move_info.room)
+                set_room(move_info.room, battle_store=battle_store, duration_store=duration_store)
+                print(f"{side}는 방을 {move_info.room}로 바꿨다!")
             
             if move_info.screen:
-                set_screen(move_info.screen)
-    
-    store.add_log(f"{side}는 {move_info.name}을/를 사용했다!")
-    store.update_pokemon(side, active_mine, lambda p: set_used_move(p, move_info))
-    store.update_pokemon(side, active_mine, 
+                set_screen(side, move_info.screen, battle_store=battle_store, duration_store=duration_store)
+    battle_store.add_log(f"{side}는 {move_info.name}을/를 사용했다!")
+    battle_store.update_pokemon(side, active_mine, lambda p: set_used_move(p, move_info))
+    battle_store.update_pokemon(side, active_mine, 
                     lambda p: use_move_pp(p, move_info.name, defender.ability.name == "프레셔" if defender and defender.ability else False, is_multi_hit))
+    battle_store.update_pokemon(side, active_mine, lambda p: set_dealt_damage(p, 0))
 
-def get_move_info(my_pokemon: PokemonInfo, move_name: str) -> MoveInfo:
+def get_move_info(my_pokemon: PokemonInfo, move_name: str, battle_store: Optional[BattleStore] = store) -> MoveInfo:
     print(f"pokemon: {my_pokemon.name}")
-    state = store.get_state()
+    state = battle_store.get_state()
     my_team = state["my_team"]
     enemy_team = state["enemy_team"]
     

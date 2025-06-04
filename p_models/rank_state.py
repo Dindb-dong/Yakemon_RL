@@ -41,13 +41,13 @@ class RankManager:
     def increase_state(self, which_state: RankStat, rank: int) -> None:
         if which_state in self.state:
             self.state[which_state] = self.state.get(which_state, 0) + rank
-            print(f"{which_state}이/가 {rank}만큼 올랐다!")
+            print(f"RankManager: {which_state}이/가 {rank}만큼 올랐다!")
             self.state = self.clamp_state(self.state)
 
     def decrease_state(self, which_state: RankStat, rank: int) -> None:
         if which_state in self.state:
             self.state[which_state] = self.state.get(which_state, 0) - rank
-            print(f"{which_state}이/가 {rank}만큼 내려갔다!")
+            print(f"RankManager: {which_state}이/가 {rank}만큼 내려갔다!")
             self.state = self.clamp_state(self.state)
 
     def clamp_state(self, state: RankState) -> RankState:
