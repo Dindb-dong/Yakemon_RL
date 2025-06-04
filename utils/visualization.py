@@ -105,7 +105,7 @@ def analyze_battle_statistics(log_lines: list, total_episodes: int) -> tuple:
             bad_choices[bin_index] += 1
         
         # 효과가 굉장한 기술 사용 확인
-        if "효과가 굉장했다" in line and 'enemy' not in line:
+        if "굉장했다" in line and '효과가' in line and 'enemy' not in line:
             super_effective_moves[bin_index] += 1
         
         # 효과가 없는 기술 사용 확인

@@ -266,7 +266,7 @@ async def train_agent(
             
             # 행동 선택
             # 초반 학습 중에는 base ai와 DQN을 혼합하여 사용
-            if episode < HYPERPARAMS["num_episodes"] / 2:
+            if episode < HYPERPARAMS["num_episodes"] / 3:
                 print(f"Episode {episode+1} / {HYPERPARAMS['num_episodes']/2}")
                 temp_action = base_ai_choose_action(
                     side="my",
@@ -283,6 +283,11 @@ async def train_agent(
                 action = base_action
                 
                 next_state, reward, done, _ = await env.step(action, is_monte_carlo=False)
+                agent.store_transition(state_vector, action, reward, next_state, done)
+            elif episode <= HYPERPARAMS["num_episodes"] / 3 * 2:
+                # 랜덤 기술 선택하는 바보 상대로 타입 상성 학습 
+                action = agent.select_action(state_vector, env.battle_store, env.duration_store, use_target=False)
+                next_state, reward, done, _ = await env.step(action, is_monte_carlo=False, test=True)
                 agent.store_transition(state_vector, action, reward, next_state, done)
             else:
                 # 미니 몬테카를로 평가 시스템 적용
@@ -345,7 +350,7 @@ async def train_agent(
                     elif agent_reward < base_reward:
                         # 에이전트의 선택이 더 나빴을 경우 실제 스텝 진행 후 페널티
                         next_state, reward, done, _ = await env.step(action, enemy_action=enemy_base_action, is_monte_carlo=False)
-                        reward -= base_reward - agent_reward
+                        reward -= (base_reward - agent_reward) * 2
                         print(f"Agent's action is worse than Base AI's action, reward: {reward}")
                         agent.store_transition(state_vector, action, reward, next_state, done)
                     else: # 리워드 같았을 경우 그냥 진행 
