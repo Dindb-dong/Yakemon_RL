@@ -104,6 +104,7 @@ class YakemonEnv(gym.Env):
         self.turn = 1
         self.done = False
         self.switching_disabled = False  # 교체 비활성화 플래그 추가
+        self.switch_count = 0  # 교체 횟수 추적
         
         self.reset()
         
@@ -130,6 +131,8 @@ class YakemonEnv(gym.Env):
             del self.done
         if hasattr(self, 'switching_disabled'):
             del self.switching_disabled
+        if hasattr(self, 'switch_count'):
+            del self.switch_count
         if hasattr(self, 'pokemon_list'):
             del self.pokemon_list
         if hasattr(self, '_battle_sequence_lock'):
@@ -199,6 +202,7 @@ class YakemonEnv(gym.Env):
         self.turn = 1
         self.done = False
         self.switching_disabled = False  # 교체 비활성화 플래그 초기화
+        self.switch_count = 0  # 교체 횟수 초기화
         
         # 초기 상태 반환
         return self._get_state()
@@ -256,6 +260,11 @@ class YakemonEnv(gym.Env):
                 print("battle_env: 교체가 비활성화된 상태입니다.")
                 return current_state, -5.0, self.done, {"error": "switching_disabled"}
             
+            # 교체 횟수가 6회를 초과한 경우
+            if self.switch_count >= 6 and action >= 4:
+                print("battle_env: 최대 교체 횟수(6회)를 초과했습니다.")
+                return current_state, -10.0, self.done, {"error": "max_switches_exceeded"}
+            
             # 행동 실행
             if my_pokemon.cannot_move:
                 print("battle_env: 행동 불가 상태")
@@ -278,6 +287,7 @@ class YakemonEnv(gym.Env):
                 switch_index = available_indices[action - 4] if action - 4 < len(available_indices) else available_indices[0]
                 
                 battle_action = {"type": "switch", "index": switch_index}
+                self.switch_count += 1  # 교체 횟수 증가
                 if not is_monte_carlo:
                     print(f"내가 교체하려는 포켓몬: {self.my_team[switch_index].base.name}")
                     self.battle_store.add_log(f"내가 교체하려는 포켓몬: {self.my_team[switch_index].base.name}")
@@ -408,7 +418,8 @@ class YakemonEnv(gym.Env):
                 'public_env': self.public_env.__dict__,
                 'my_env': self.my_env.__dict__,
                 'enemy_env': self.enemy_env.__dict__,
-                'switching_disabled': self.switching_disabled
+                'switching_disabled': self.switching_disabled,
+                'switch_count': self.switch_count
             }
             
             return next_state, reward, self.done, info
