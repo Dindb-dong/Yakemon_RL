@@ -5,7 +5,7 @@ from utils.battle_logics.apply_appearance import apply_appearance
 from utils.battle_logics.apply_none_move_damage import apply_trap_damage
 from utils.battle_logics.get_best_switch_index import get_best_switch_index
 from utils.battle_logics.update_battle_pokemon import (
-    add_status, change_hp, change_rank, remove_status, reset_rank, reset_state, set_active
+    add_status, change_hp, change_rank, remove_status, reset_rank, reset_state, set_active, set_used_move
 )
 from utils.battle_logics.update_environment import remove_aura, remove_disaster, remove_trap
 
@@ -85,7 +85,7 @@ async def switch_pokemon(side: SideType, new_index: int, baton_touch: bool = Fal
                                     lambda p: remove_status(p, status))
 
     battle_store.update_pokemon(side, current_index, lambda p: set_active(p, False))
-
+    battle_store.update_pokemon(side, current_index, lambda p: set_used_move(p, None))
     ability_name = switching_pokemon.base.ability.name if switching_pokemon.base.ability else None
     if ability_name and switching_pokemon.base.ability.appear:
         if "disaster" in switching_pokemon.base.ability.appear:

@@ -89,6 +89,11 @@ def calculate_reward(
         was_effective = result.get('was_effective', 0)
         was_null = result.get('was_null', False)
         print(f"was_effective: {was_effective}")
+        if calculate_speed(current_pokemon) > calculate_speed(target_pokemon):
+            reward += 0.5
+            if not is_monte_carlo:
+                print(f"Good switch: Agent is faster than enemy! Reward: {reward}")
+            else: print(f"Agent is faster than enemy! Reward: {reward}")
         if agent_to_ai > 1 and ai_to_agent < 1:
             reward += 1.5
             if not is_monte_carlo:
@@ -100,12 +105,12 @@ def calculate_reward(
                 print(f"Good switch: Agent to AI is stronger! Reward: {reward}")
             else: print(f"Agent to AI is stronger! Reward: {reward}")
         elif agent_to_ai < 1 and ai_to_agent > 1:
-            reward -= 2.0
+            reward -= 3.0
             if not is_monte_carlo:
                 print(f"Bad switch: AI to Agent is way stronger! Reward: {reward}")
             else: print(f"AI to Agent is way stronger! Reward: {reward}")
         elif agent_to_ai < 1 and ai_to_agent == 1:
-            reward -= 1.0
+            reward -= 1.5
             if not is_monte_carlo:
                 print(f"Bad switch: AI to Agent is stronger! Reward: {reward}")
             else: print(f"AI to Agent is stronger! Reward: {reward}")
@@ -115,12 +120,12 @@ def calculate_reward(
                 print(f"Good switch: Immune to attack! Reward: {reward}")
             else: print(f"Immune to attack! Reward: {reward}")
         elif was_effective == 2:  # 4배 이상 데미지
-            reward -= 1.0  # 매우 큰 페널티
+            reward -= 3.0  # 매우 큰 페널티
             if not is_monte_carlo:
                 print(f"Bad switch: Switched into 4x weakness! Reward: {reward}")
             else: print(f"Switched into 4x weakness! Reward: {reward}")
         elif was_effective == 1:  # 2배 데미지
-            reward -= 0.5  # 적당한 페널티
+            reward -= 2.0  # 적당한 페널티
             if not is_monte_carlo:
                 print(f"Bad switch: Switched into 2x weakness! Reward: {reward}")
             else: print(f"Switched into 2x weakness! Reward: {reward}")
@@ -171,16 +176,16 @@ def calculate_reward(
                 print("Pokemon couldn't move, skipping reward calculation")
         # 속이기, 만나자마자 잘못 사용했을 경우 
         if my_post_pokemon.used_move is not None and my_post_pokemon.used_move.first_turn_only and my_post_pokemon.is_first_turn is False:
-            reward -= 2.0
+            reward -= 5.0
             if not is_monte_carlo:
                 print("Bad choice: Used a first turn only move out of turn")
             else: print(f"Penalty: Used a first turn only move out of turn")
         # 이전 포켓몬이 공격 못하고 죽었을 때
         if (my_post_pokemon.used_move is None and (my_post_pokemon.base.name != current_pokemon.base.name)
             and (target_pokemon.used_move is not None and not target_pokemon.used_move.exile)):
-            print("이전 포켓몬이 공격 못하고 쓰러짐")
+            print("이전 포켓몬이 공격 못하고 쓰러졌거나 교체하자마자 쓰러짐")
             # 공격 못하고 죽음 
-            reward -= 1.0
+            reward -= 5.0
         # 공격, 특수공격 랭크업 기술 쓰고 살아있을 때 (상대보다 빠른 조건)
         if (my_post_pokemon.used_move is not None and my_post_pokemon.used_move.effects and any(effect.chance == 1.0 and effect.stat_change and any(sc.stat == 'attack' or sc.stat == 'special_attack' for sc in effect.stat_change) for effect in my_post_pokemon.used_move.effects)
             and my_post_pokemon.base.name == current_pokemon.base.name and calculate_speed(current_pokemon) > calculate_speed(target_pokemon)):
@@ -192,7 +197,7 @@ def calculate_reward(
         if (calculate_speed(my_post_pokemon) < calculate_speed(enemy_post_pokemon) and calculate_speed(current_pokemon) > calculate_speed(target_pokemon)
             and my_post_pokemon.base.name == current_pokemon.base.name and enemy_post_pokemon.base.name == target_pokemon.base.name
             and my_post_pokemon.used_move is not None and my_post_pokemon.used_move.effects and any(effect.chance == 1.0 and effect.stat_change and any(sc.stat == 'speed' for sc in effect.stat_change) for effect in my_post_pokemon.used_move.effects)):
-            reward += 2.0
+            reward += 3.0
             if not is_monte_carlo:
                 print(f"Good choice: Used a speed rank change move to overtake the enemy! Reward: {reward}")
             else: print(f"Used a speed rank change move to overtake the enemy! Reward: {reward}")
@@ -230,7 +235,7 @@ def calculate_reward(
             and my_post_pokemon.used_move is not None and target_pokemon.received_damage is None):
             # 그런데 그 기술이 확정 랭업기였을때
             if my_post_pokemon.used_move.effects and any(effect.chance == 1.0 and effect.stat_change and any(sc.target == 'self' for sc in effect.stat_change) for effect in my_post_pokemon.used_move.effects):
-                reward -= 0.5  # 스탯 상승 기술 사용 후 바로 기절한 경우 페널티
+                reward -= 2.5  # 스탯 상승 기술 사용 후 바로 기절한 경우 페널티
                 if not is_monte_carlo:
                     print(f"Bad choice: Used stat boost move ({my_post_pokemon.used_move.name}) but fainted immediately!")
                 else: print(f"Penalty for using stat boost move and fainting: {reward}")
@@ -239,7 +244,7 @@ def calculate_reward(
             and was_null is True
             and any(effect.chance == 1.0 for effect in my_post_pokemon.used_move.effects)
             and any(effect.status in target_pokemon.status for effect in my_post_pokemon.used_move.effects)):
-            reward -= 1.0  # 상태이상 기술 중복 사용 시 페널티  
+            reward -= 3.0  # 상태이상 기술 중복 사용 시 페널티  
             if not is_monte_carlo:
                 print(f"Bad choice: Used status condition move ({my_post_pokemon.used_move.name}) but Enemy already has status condition!")
             else: print(f"Penalty for using status condition move in duplicate: {reward}")
